@@ -1,0 +1,371 @@
+/* ==========================================================================
+   1. ROOT & LAYOUT
+   ========================================================================== */
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* Push ALL page content below the fixed navbar */
+.page-content {
+  padding-top: 100px; /* Desktop: clears navbar (~90px) */
+}
+
+@media (max-width: 767px) {
+  .page-content {
+    padding-top: 80px; /* Mobile: navbar is shorter */
+  }
+}
+
+/* ProductPage specific padding (back button at top: 120px) */
+.product-main-content {
+  padding-top: 120px;
+}
+
+@media (max-width: 767px) {
+  .product-main-content {
+    padding-top: 140px;
+  }
+}
+
+/* ==========================================================================
+   2. LOGO STYLES (your original)
+   ========================================================================== */
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+/* ==========================================================================
+   3. UTILITY CLASSES (your original)
+   ========================================================================== */
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* ==========================================================================
+   4. OPTIONAL: SMOOTH SCROLL & FOCUS
+   ========================================================================== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove outline on click but keep for keyboard */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #646cff;
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   5. GLASS EFFECT (if not already in your components)
+   ========================================================================== */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Accent color (use your brand color) */
+.accent {
+  color: #646cff;
+}
+
+.hover-accent:hover {
+  color: #535bf2;
+}
+
+/* ==========================================================================
+   6. OVERLAY & MODALS
+   ========================================================================== */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 998;
+}
+
+.overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Auth overlay */
+.auth-overlay-video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 1rem;
+}
+
+/* ==========================================================================
+   7. MOBILE MENU & SIDEBAR
+   ========================================================================== */
+.mobile-menu,
+.categories-sidebar,
+.mobile-categories-menu {
+  position: fixed;
+  top: 0;
+  left: -100%;
+  width: 280px;
+  height: 100%;
+  background: rgba(30, 30, 50, 0.95);
+  backdrop-filter: blur(12px);
+  transition: left 0.3s ease;
+  z-index: 999;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.mobile-menu.visible,
+.categories-sidebar.active,
+.mobile-categories-menu.active {
+  left: 0;
+}
+
+/* ==========================================================================
+   8. PRODUCT PAGE SPECIFIC
+   ========================================================================== */
+.categories-toggle,
+.categories-toggle-mobile {
+  position: fixed;
+  background: rgba(100, 108, 255, 0.9);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  z-index: 997;
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.3);
+  transition: all 0.2s ease;
+}
+
+.categories-toggle:hover,
+.categories-toggle-mobile:hover {
+  background: #535bf2;
+  transform: translateY(-2px);
+}
+
+.categories-toggle {
+  left: 20px;
+}
+
+.categories-toggle-mobile {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 20px;
+}
+
+.back-button {
+  position: fixed;
+  left: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 996;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  padding: 0 1rem;
+}
+
+.product-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.product-image-container {
+  height: 200px;
+  overflow: hidden;
+  position: relative;
+  background: #f8f9fa;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image {
+  transform: scale(1.05);
+}
+
+.product-image-fallback {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+}
+
+.product-info {
+  padding: 1.25rem;
+}
+
+.product-title {
+  font-size: 1.1rem;
+  color: #333;
+  margin: 0 0 0.5rem;
+}
+
+.product-price {
+  font-size: 1.25rem;
+  color: #646cff;
+}
+
+.loading-products {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.no-products-message {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #666;
+}
+
+/* Brand list */
+.brand-list,
+.brand-list-mobile {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.brand-item,
+.brand-item-mobile {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  margin-bottom: 0.25rem;
+}
+
+.brand-item:hover,
+.brand-item-mobile:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.brand-item.active,
+.brand-item-mobile.active {
+  background: #646cff;
+  color: white;
+  font-weight: 600;
+}
+
+.brand-text {
+  font-size: 0.95rem;
+}
+
+/* Selected brand info */
+.selected-brand-info {
+  text-align: center;
+  font-size: 1rem;
+  color: #555;
+}
+
+/* ==========================================================================
+   9. NAVBAR (if not in separate file)
+   ========================================================================== */
+.navbar {
+  z-index: 1000;
+}
+
+.navbar .nav-logo img {
+  height: 50px;
+  border-radius: 8px;
+}
+
+.navbar .logo-img {
+  height: 50px;
+  object-fit: contain;
+}
+
+/* ==========================================================================
+   RESPONSIVE TWEAKS
+   ========================================================================== */
+@media (max-width: 480px) {
+  .products-grid {
+    grid-template-columns: 1fr;
+    padding: 0 0.5rem;
+  }
+
+  .product-info {
+    padding: 1rem;
+  }
+}

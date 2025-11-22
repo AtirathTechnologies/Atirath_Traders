@@ -32,6 +32,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
   const [isLoadingRates, setIsLoadingRates] = useState(false);
   const [baseProductPrice, setBaseProductPrice] = useState("0.00");
   const [customQuantity, setCustomQuantity] = useState("");
+  const [logoCost, setLogoCost] = useState("0.00");
   
   const modalRef = useRef(null);
   const formContainerRef = useRef(null);
@@ -60,16 +61,72 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     { value: "CNY", symbol: "¥", name: "Chinese Yuan" }
   ];
 
-  // Port costs data (in INR) - More realistic pricing
+  // Enhanced Port costs data with tiered pricing based on quantity ranges
   const portCosts = {
-    "Mundra": { baseCost: 2500, perKg: 1.2, perLiter: 0.8, perUnit: 8 },
-    "Kandla": { baseCost: 2300, perKg: 1.1, perLiter: 0.7, perUnit: 7 },
-    "Nhava Sheva": { baseCost: 2800, perKg: 1.4, perLiter: 0.9, perUnit: 9 },
-    "Chennai": { baseCost: 2200, perKg: 1.0, perLiter: 0.6, perUnit: 6 },
-    "Vizag": { baseCost: 2100, perKg: 0.9, perLiter: 0.5, perUnit: 5 },
-    "Kolkata": { baseCost: 2400, perKg: 1.1, perLiter: 0.7, perUnit: 7 },
-    "Mumbai": { baseCost: 2700, perKg: 1.3, perLiter: 0.8, perUnit: 8 },
-    "Cochin": { baseCost: 2150, perKg: 1.0, perLiter: 0.6, perUnit: 6 }
+    "Mundra": { 
+      baseCost: 2500, 
+      perKg: { "0-100": 1.2, "101-500": 1.0, "501-1000": 0.8, "1001-5000": 0.6, "5001+": 0.4 },
+      perLiter: { "0-100": 0.8, "101-500": 0.7, "501-1000": 0.6, "1001-5000": 0.5, "5001+": 0.4 },
+      perUnit: { "0-10": 8, "11-50": 6, "51-100": 5, "101-500": 4, "501+": 3 },
+      perSqFt: { "0-100": 2.5, "101-500": 2.0, "501-1000": 1.5, "1001-5000": 1.2, "5001+": 1.0 },
+      perMeter: { "0-100": 1.8, "101-500": 1.5, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 }
+    },
+    "Kandla": { 
+      baseCost: 2300, 
+      perKg: { "0-100": 1.1, "101-500": 0.9, "501-1000": 0.7, "1001-5000": 0.5, "5001+": 0.3 },
+      perLiter: { "0-100": 0.7, "101-500": 0.6, "501-1000": 0.5, "1001-5000": 0.4, "5001+": 0.3 },
+      perUnit: { "0-10": 7, "11-50": 5, "51-100": 4, "101-500": 3, "501+": 2 },
+      perSqFt: { "0-100": 2.2, "101-500": 1.8, "501-1000": 1.4, "1001-5000": 1.1, "5001+": 0.9 },
+      perMeter: { "0-100": 1.6, "101-500": 1.3, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 }
+    },
+    "Nhava Sheva": { 
+      baseCost: 2800, 
+      perKg: { "0-100": 1.4, "101-500": 1.2, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 },
+      perLiter: { "0-100": 0.9, "101-500": 0.8, "501-1000": 0.7, "1001-5000": 0.6, "5001+": 0.5 },
+      perUnit: { "0-10": 9, "11-50": 7, "51-100": 6, "101-500": 5, "501+": 4 },
+      perSqFt: { "0-100": 2.8, "101-500": 2.3, "501-1000": 1.8, "1001-5000": 1.5, "5001+": 1.2 },
+      perMeter: { "0-100": 2.0, "101-500": 1.7, "501-1000": 1.4, "1001-5000": 1.2, "5001+": 1.0 }
+    },
+    "Chennai": { 
+      baseCost: 2200, 
+      perKg: { "0-100": 1.0, "101-500": 0.8, "501-1000": 0.6, "1001-5000": 0.4, "5001+": 0.3 },
+      perLiter: { "0-100": 0.6, "101-500": 0.5, "501-1000": 0.4, "1001-5000": 0.3, "5001+": 0.2 },
+      perUnit: { "0-10": 6, "11-50": 4, "51-100": 3, "101-500": 2, "501+": 1.5 },
+      perSqFt: { "0-100": 2.0, "101-500": 1.6, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 },
+      perMeter: { "0-100": 1.4, "101-500": 1.1, "501-1000": 0.9, "1001-5000": 0.7, "5001+": 0.5 }
+    },
+    "Vizag": { 
+      baseCost: 2100, 
+      perKg: { "0-100": 0.9, "101-500": 0.7, "501-1000": 0.5, "1001-5000": 0.3, "5001+": 0.2 },
+      perLiter: { "0-100": 0.5, "101-500": 0.4, "501-1000": 0.3, "1001-5000": 0.2, "5001+": 0.15 },
+      perUnit: { "0-10": 5, "11-50": 3, "51-100": 2, "101-500": 1.5, "501+": 1 },
+      perSqFt: { "0-100": 1.8, "101-500": 1.4, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 },
+      perMeter: { "0-100": 1.2, "101-500": 0.9, "501-1000": 0.7, "1001-5000": 0.5, "5001+": 0.4 }
+    },
+    "Kolkata": { 
+      baseCost: 2400, 
+      perKg: { "0-100": 1.1, "101-500": 0.9, "501-1000": 0.7, "1001-5000": 0.5, "5001+": 0.4 },
+      perLiter: { "0-100": 0.7, "101-500": 0.6, "501-1000": 0.5, "1001-5000": 0.4, "5001+": 0.3 },
+      perUnit: { "0-10": 7, "11-50": 5, "51-100": 4, "101-500": 3, "501+": 2 },
+      perSqFt: { "0-100": 2.2, "101-500": 1.8, "501-1000": 1.4, "1001-5000": 1.1, "5001+": 0.9 },
+      perMeter: { "0-100": 1.6, "101-500": 1.3, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 }
+    },
+    "Mumbai": { 
+      baseCost: 2700, 
+      perKg: { "0-100": 1.3, "101-500": 1.1, "501-1000": 0.9, "1001-5000": 0.7, "5001+": 0.5 },
+      perLiter: { "0-100": 0.8, "101-500": 0.7, "501-1000": 0.6, "1001-5000": 0.5, "5001+": 0.4 },
+      perUnit: { "0-10": 8, "11-50": 6, "51-100": 5, "101-500": 4, "501+": 3 },
+      perSqFt: { "0-100": 2.5, "101-500": 2.0, "501-1000": 1.5, "1001-5000": 1.2, "5001+": 1.0 },
+      perMeter: { "0-100": 1.8, "101-500": 1.5, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 }
+    },
+    "Cochin": { 
+      baseCost: 2150, 
+      perKg: { "0-100": 1.0, "101-500": 0.8, "501-1000": 0.6, "1001-5000": 0.4, "5001+": 0.3 },
+      perLiter: { "0-100": 0.6, "101-500": 0.5, "501-1000": 0.4, "1001-5000": 0.3, "5001+": 0.2 },
+      perUnit: { "0-10": 6, "11-50": 4, "51-100": 3, "101-500": 2, "501+": 1.5 },
+      perSqFt: { "0-100": 2.0, "101-500": 1.6, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 },
+      perMeter: { "0-100": 1.4, "101-500": 1.1, "501-1000": 0.9, "1001-5000": 0.7, "5001+": 0.5 }
+    }
   };
 
   // Extract base price from product price string and convert to number
@@ -102,383 +159,383 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       // Cement specific quantities
       if (productName.includes('cement')) {
         return [
-          { value: "1", label: "1 Bag (50kg)", multiplier: 50, unit: "bags" },
-          { value: "5", label: "5 Bags (250kg)", multiplier: 250, unit: "bags" },
-          { value: "10", label: "10 Bags (500kg)", multiplier: 500, unit: "bags" },
-          { value: "20", label: "20 Bags (1 ton)", multiplier: 1000, unit: "bags" },
-          { value: "50", label: "50 Bags (2.5 tons)", multiplier: 2500, unit: "bags" },
-          { value: "100", label: "100 Bags (5 tons)", multiplier: 5000, unit: "bags" },
-          { value: "200", label: "200 Bags (10 tons)", multiplier: 10000, unit: "bags" },
-          { value: "500", label: "500 Bags (25 tons)", multiplier: 25000, unit: "bags" },
-          { value: "1000", label: "1,000 Bags (50 tons)", multiplier: 50000, unit: "bags" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bags" }
+          { value: "1", label: "1 Bag (50kg)", multiplier: 50, unit: "bags", actualQuantity: 50, actualUnit: "kg" },
+          { value: "5", label: "5 Bags (250kg)", multiplier: 250, unit: "bags", actualQuantity: 250, actualUnit: "kg" },
+          { value: "10", label: "10 Bags (500kg)", multiplier: 500, unit: "bags", actualQuantity: 500, actualUnit: "kg" },
+          { value: "20", label: "20 Bags (1 ton)", multiplier: 1000, unit: "bags", actualQuantity: 1000, actualUnit: "kg" },
+          { value: "50", label: "50 Bags (2.5 tons)", multiplier: 2500, unit: "bags", actualQuantity: 2500, actualUnit: "kg" },
+          { value: "100", label: "100 Bags (5 tons)", multiplier: 5000, unit: "bags", actualQuantity: 5000, actualUnit: "kg" },
+          { value: "200", label: "200 Bags (10 tons)", multiplier: 10000, unit: "bags", actualQuantity: 10000, actualUnit: "kg" },
+          { value: "500", label: "500 Bags (25 tons)", multiplier: 25000, unit: "bags", actualQuantity: 25000, actualUnit: "kg" },
+          { value: "1000", label: "1,000 Bags (50 tons)", multiplier: 50000, unit: "bags", actualQuantity: 50000, actualUnit: "kg" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bags", actualQuantity: 0, actualUnit: "kg" }
         ];
       }
       
       // Steel bars specific quantities
       if (productName.includes('steel') || productName.includes('rod') || productName.includes('tmt')) {
         return [
-          { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-          { value: "500", label: "500 Kg", multiplier: 500, unit: "kg" },
-          { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg" },
-          { value: "2000", label: "2 Tons", multiplier: 2000, unit: "kg" },
-          { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg" },
-          { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg" },
-          { value: "1", label: "1 Bundle", multiplier: 2000, unit: "bundles" },
-          { value: "2", label: "2 Bundles", multiplier: 4000, unit: "bundles" },
-          { value: "5", label: "5 Bundles", multiplier: 10000, unit: "bundles" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+          { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+          { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
+          { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
+          { value: "2000", label: "2 Tons", multiplier: 2000, unit: "kg", actualQuantity: 2000, actualUnit: "kg" },
+          { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
+          { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
+          { value: "1", label: "1 Bundle", multiplier: 2000, unit: "bundles", actualQuantity: 2000, actualUnit: "kg" },
+          { value: "2", label: "2 Bundles", multiplier: 4000, unit: "bundles", actualQuantity: 4000, actualUnit: "kg" },
+          { value: "5", label: "5 Bundles", multiplier: 10000, unit: "bundles", actualQuantity: 10000, actualUnit: "kg" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
         ];
       }
       
       // Bricks specific quantities
       if (productName.includes('brick')) {
         return [
-          { value: "100", label: "100 Bricks", multiplier: 100, unit: "pieces" },
-          { value: "500", label: "500 Bricks", multiplier: 500, unit: "pieces" },
-          { value: "1000", label: "1,000 Bricks", multiplier: 1000, unit: "pieces" },
-          { value: "5000", label: "5,000 Bricks", multiplier: 5000, unit: "pieces" },
-          { value: "10000", label: "10,000 Bricks", multiplier: 10000, unit: "pieces" },
-          { value: "50000", label: "50,000 Bricks", multiplier: 50000, unit: "pieces" },
-          { value: "100000", label: "100,000 Bricks", multiplier: 100000, unit: "pieces" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces" }
+          { value: "100", label: "100 Bricks", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
+          { value: "500", label: "500 Bricks", multiplier: 500, unit: "pieces", actualQuantity: 500, actualUnit: "pieces" },
+          { value: "1000", label: "1,000 Bricks", multiplier: 1000, unit: "pieces", actualQuantity: 1000, actualUnit: "pieces" },
+          { value: "5000", label: "5,000 Bricks", multiplier: 5000, unit: "pieces", actualQuantity: 5000, actualUnit: "pieces" },
+          { value: "10000", label: "10,000 Bricks", multiplier: 10000, unit: "pieces", actualQuantity: 10000, actualUnit: "pieces" },
+          { value: "50000", label: "50,000 Bricks", multiplier: 50000, unit: "pieces", actualQuantity: 50000, actualUnit: "pieces" },
+          { value: "100000", label: "100,000 Bricks", multiplier: 100000, unit: "pieces", actualQuantity: 100000, actualUnit: "pieces" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
         ];
       }
       
       // Sand, gravel, aggregate specific quantities
       if (productName.includes('sand') || productName.includes('gravel') || productName.includes('aggregate')) {
         return [
-          { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-          { value: "500", label: "500 Kg", multiplier: 500, unit: "kg" },
-          { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg" },
-          { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg" },
-          { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg" },
-          { value: "25000", label: "25 Tons", multiplier: 25000, unit: "kg" },
-          { value: "50000", label: "50 Tons", multiplier: 50000, unit: "kg" },
-          { value: "1", label: "1 Truck Load", multiplier: 5000, unit: "trucks" },
-          { value: "2", label: "2 Truck Loads", multiplier: 10000, unit: "trucks" },
-          { value: "5", label: "5 Truck Loads", multiplier: 25000, unit: "trucks" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+          { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+          { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
+          { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
+          { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
+          { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
+          { value: "25000", label: "25 Tons", multiplier: 25000, unit: "kg", actualQuantity: 25000, actualUnit: "kg" },
+          { value: "50000", label: "50 Tons", multiplier: 50000, unit: "kg", actualQuantity: 50000, actualUnit: "kg" },
+          { value: "1", label: "1 Truck Load", multiplier: 5000, unit: "trucks", actualQuantity: 5000, actualUnit: "kg" },
+          { value: "2", label: "2 Truck Loads", multiplier: 10000, unit: "trucks", actualQuantity: 10000, actualUnit: "kg" },
+          { value: "5", label: "5 Truck Loads", multiplier: 25000, unit: "trucks", actualQuantity: 25000, actualUnit: "kg" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
         ];
       }
       
       // Concrete blocks specific quantities
       if (productName.includes('concrete') && productName.includes('block')) {
         return [
-          { value: "50", label: "50 Blocks", multiplier: 50, unit: "pieces" },
-          { value: "100", label: "100 Blocks", multiplier: 100, unit: "pieces" },
-          { value: "500", label: "500 Blocks", multiplier: 500, unit: "pieces" },
-          { value: "1000", label: "1,000 Blocks", multiplier: 1000, unit: "pieces" },
-          { value: "5000", label: "5,000 Blocks", multiplier: 5000, unit: "pieces" },
-          { value: "10000", label: "10,000 Blocks", multiplier: 10000, unit: "pieces" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces" }
+          { value: "50", label: "50 Blocks", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
+          { value: "100", label: "100 Blocks", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
+          { value: "500", label: "500 Blocks", multiplier: 500, unit: "pieces", actualQuantity: 500, actualUnit: "pieces" },
+          { value: "1000", label: "1,000 Blocks", multiplier: 1000, unit: "pieces", actualQuantity: 1000, actualUnit: "pieces" },
+          { value: "5000", label: "5,000 Blocks", multiplier: 5000, unit: "pieces", actualQuantity: 5000, actualUnit: "pieces" },
+          { value: "10000", label: "10,000 Blocks", multiplier: 10000, unit: "pieces", actualQuantity: 10000, actualUnit: "pieces" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
         ];
       }
       
       // Wood/timber specific quantities
       if (productName.includes('wood') || productName.includes('timber') || productName.includes('plywood')) {
         return [
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft" },
-          { value: "500", label: "500 Sq Ft", multiplier: 500, unit: "sqft" },
-          { value: "1000", label: "1,000 Sq Ft", multiplier: 1000, unit: "sqft" },
-          { value: "1", label: "1 Cubic Foot", multiplier: 1, unit: "cubic_feet" },
-          { value: "5", label: "5 Cubic Feet", multiplier: 5, unit: "cubic_feet" },
-          { value: "10", label: "10 Cubic Feet", multiplier: 10, unit: "cubic_feet" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "sqft" }
+          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
+          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
+          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
+          { value: "500", label: "500 Sq Ft", multiplier: 500, unit: "sqft", actualQuantity: 500, actualUnit: "sqft" },
+          { value: "1000", label: "1,000 Sq Ft", multiplier: 1000, unit: "sqft", actualQuantity: 1000, actualUnit: "sqft" },
+          { value: "1", label: "1 Cubic Foot", multiplier: 1, unit: "cubic_feet", actualQuantity: 1, actualUnit: "cubic_feet" },
+          { value: "5", label: "5 Cubic Feet", multiplier: 5, unit: "cubic_feet", actualQuantity: 5, actualUnit: "cubic_feet" },
+          { value: "10", label: "10 Cubic Feet", multiplier: 10, unit: "cubic_feet", actualQuantity: 10, actualUnit: "cubic_feet" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "sqft", actualQuantity: 0, actualUnit: "sqft" }
         ];
       }
       
       // Pipes specific quantities
       if (productName.includes('pipe')) {
         return [
-          { value: "10", label: "10 Meters", multiplier: 10, unit: "meters" },
-          { value: "50", label: "50 Meters", multiplier: 50, unit: "meters" },
-          { value: "100", label: "100 Meters", multiplier: 100, unit: "meters" },
-          { value: "500", label: "500 Meters", multiplier: 500, unit: "meters" },
-          { value: "1000", label: "1,000 Meters", multiplier: 1000, unit: "meters" },
-          { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces" },
-          { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces" },
-          { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces" },
-          { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "meters" }
+          { value: "10", label: "10 Meters", multiplier: 10, unit: "meters", actualQuantity: 10, actualUnit: "meters" },
+          { value: "50", label: "50 Meters", multiplier: 50, unit: "meters", actualQuantity: 50, actualUnit: "meters" },
+          { value: "100", label: "100 Meters", multiplier: 100, unit: "meters", actualQuantity: 100, actualUnit: "meters" },
+          { value: "500", label: "500 Meters", multiplier: 500, unit: "meters", actualQuantity: 500, actualUnit: "meters" },
+          { value: "1000", label: "1,000 Meters", multiplier: 1000, unit: "meters", actualQuantity: 1000, actualUnit: "meters" },
+          { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
+          { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
+          { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
+          { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "meters", actualQuantity: 0, actualUnit: "meters" }
         ];
       }
       
       // Tiles specific quantities
       if (productName.includes('tile')) {
         return [
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft" },
-          { value: "500", label: "500 Sq Ft", multiplier: 500, unit: "sqft" },
-          { value: "1000", label: "1,000 Sq Ft", multiplier: 1000, unit: "sqft" },
-          { value: "1", label: "1 Box", multiplier: 10, unit: "boxes" },
-          { value: "5", label: "5 Boxes", multiplier: 50, unit: "boxes" },
-          { value: "10", label: "10 Boxes", multiplier: 100, unit: "boxes" },
-          { value: "50", label: "50 Boxes", multiplier: 500, unit: "boxes" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "sqft" }
+          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
+          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
+          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
+          { value: "500", label: "500 Sq Ft", multiplier: 500, unit: "sqft", actualQuantity: 500, actualUnit: "sqft" },
+          { value: "1000", label: "1,000 Sq Ft", multiplier: 1000, unit: "sqft", actualQuantity: 1000, actualUnit: "sqft" },
+          { value: "1", label: "1 Box", multiplier: 10, unit: "boxes", actualQuantity: 10, actualUnit: "sqft" },
+          { value: "5", label: "5 Boxes", multiplier: 50, unit: "boxes", actualQuantity: 50, actualUnit: "sqft" },
+          { value: "10", label: "10 Boxes", multiplier: 100, unit: "boxes", actualQuantity: 100, actualUnit: "sqft" },
+          { value: "50", label: "50 Boxes", multiplier: 500, unit: "boxes", actualQuantity: 500, actualUnit: "sqft" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "sqft", actualQuantity: 0, actualUnit: "sqft" }
         ];
       }
       
       // Wires specific quantities
       if (productName.includes('wire')) {
         return [
-          { value: "50", label: "50 Meters", multiplier: 50, unit: "meters" },
-          { value: "100", label: "100 Meters", multiplier: 100, unit: "meters" },
-          { value: "500", label: "500 Meters", multiplier: 500, unit: "meters" },
-          { value: "1000", label: "1,000 Meters", multiplier: 1000, unit: "meters" },
-          { value: "1", label: "1 Coil", multiplier: 50, unit: "coils" },
-          { value: "2", label: "2 Coils", multiplier: 100, unit: "coils" },
-          { value: "5", label: "5 Coils", multiplier: 250, unit: "coils" },
-          { value: "10", label: "10 Coils", multiplier: 500, unit: "coils" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "meters" }
+          { value: "50", label: "50 Meters", multiplier: 50, unit: "meters", actualQuantity: 50, actualUnit: "meters" },
+          { value: "100", label: "100 Meters", multiplier: 100, unit: "meters", actualQuantity: 100, actualUnit: "meters" },
+          { value: "500", label: "500 Meters", multiplier: 500, unit: "meters", actualQuantity: 500, actualUnit: "meters" },
+          { value: "1000", label: "1,000 Meters", multiplier: 1000, unit: "meters", actualQuantity: 1000, actualUnit: "meters" },
+          { value: "1", label: "1 Coil", multiplier: 50, unit: "coils", actualQuantity: 50, actualUnit: "meters" },
+          { value: "2", label: "2 Coils", multiplier: 100, unit: "coils", actualQuantity: 100, actualUnit: "meters" },
+          { value: "5", label: "5 Coils", multiplier: 250, unit: "coils", actualQuantity: 250, actualUnit: "meters" },
+          { value: "10", label: "10 Coils", multiplier: 500, unit: "coils", actualQuantity: 500, actualUnit: "meters" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "meters", actualQuantity: 0, actualUnit: "meters" }
         ];
       }
       
       // Marble slabs specific quantities
       if (productName.includes('marble') || productName.includes('slab')) {
         return [
-          { value: "1", label: "1 Slab", multiplier: 1, unit: "pieces" },
-          { value: "5", label: "5 Slabs", multiplier: 5, unit: "pieces" },
-          { value: "10", label: "10 Slabs", multiplier: 10, unit: "pieces" },
-          { value: "20", label: "20 Slabs", multiplier: 20, unit: "pieces" },
-          { value: "50", label: "50 Slabs", multiplier: 50, unit: "pieces" },
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces" }
+          { value: "1", label: "1 Slab", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
+          { value: "5", label: "5 Slabs", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
+          { value: "10", label: "10 Slabs", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
+          { value: "20", label: "20 Slabs", multiplier: 20, unit: "pieces", actualQuantity: 20, actualUnit: "pieces" },
+          { value: "50", label: "50 Slabs", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
+          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
+          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
+          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
         ];
       }
       
       // Paints specific quantities
       if (productName.includes('paint')) {
         return [
-          { value: "1", label: "1 Liter", multiplier: 1, unit: "liters" },
-          { value: "5", label: "5 Liters", multiplier: 5, unit: "liters" },
-          { value: "10", label: "10 Liters", multiplier: 10, unit: "liters" },
-          { value: "20", label: "20 Liters", multiplier: 20, unit: "liters" },
-          { value: "50", label: "50 Liters", multiplier: 50, unit: "liters" },
-          { value: "100", label: "100 Liters", multiplier: 100, unit: "liters" },
-          { value: "1", label: "1 Bucket", multiplier: 20, unit: "buckets" },
-          { value: "2", label: "2 Buckets", multiplier: 40, unit: "buckets" },
-          { value: "5", label: "5 Buckets", multiplier: 100, unit: "buckets" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "liters" }
+          { value: "1", label: "1 Liter", multiplier: 1, unit: "liters", actualQuantity: 1, actualUnit: "liters" },
+          { value: "5", label: "5 Liters", multiplier: 5, unit: "liters", actualQuantity: 5, actualUnit: "liters" },
+          { value: "10", label: "10 Liters", multiplier: 10, unit: "liters", actualQuantity: 10, actualUnit: "liters" },
+          { value: "20", label: "20 Liters", multiplier: 20, unit: "liters", actualQuantity: 20, actualUnit: "liters" },
+          { value: "50", label: "50 Liters", multiplier: 50, unit: "liters", actualQuantity: 50, actualUnit: "liters" },
+          { value: "100", label: "100 Liters", multiplier: 100, unit: "liters", actualQuantity: 100, actualUnit: "liters" },
+          { value: "1", label: "1 Bucket", multiplier: 20, unit: "buckets", actualQuantity: 20, actualUnit: "liters" },
+          { value: "2", label: "2 Buckets", multiplier: 40, unit: "buckets", actualQuantity: 40, actualUnit: "liters" },
+          { value: "5", label: "5 Buckets", multiplier: 100, unit: "buckets", actualQuantity: 100, actualUnit: "liters" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "liters", actualQuantity: 0, actualUnit: "liters" }
         ];
       }
       
       // Windows glass specific quantities
       if (productName.includes('window') || productName.includes('glass')) {
         return [
-          { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces" },
-          { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces" },
-          { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces" },
-          { value: "20", label: "20 Pieces", multiplier: 20, unit: "pieces" },
-          { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces" },
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces" }
+          { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
+          { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
+          { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
+          { value: "20", label: "20 Pieces", multiplier: 20, unit: "pieces", actualQuantity: 20, actualUnit: "pieces" },
+          { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
+          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
+          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
+          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
+          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
         ];
       }
       
       // Default construction quantities
       return [
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg" },
-        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg" },
-        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg" },
-        { value: "1", label: "1 Unit", multiplier: 1, unit: "units" },
-        { value: "5", label: "5 Units", multiplier: 5, unit: "units" },
-        { value: "10", label: "10 Units", multiplier: 10, unit: "units" },
-        { value: "50", label: "50 Units", multiplier: 50, unit: "units" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "units" }
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
+        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
+        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
+        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
+        { value: "1", label: "1 Unit", multiplier: 1, unit: "units", actualQuantity: 1, actualUnit: "units" },
+        { value: "5", label: "5 Units", multiplier: 5, unit: "units", actualQuantity: 5, actualUnit: "units" },
+        { value: "10", label: "10 Units", multiplier: 10, unit: "units", actualQuantity: 10, actualUnit: "units" },
+        { value: "50", label: "50 Units", multiplier: 50, unit: "units", actualQuantity: 50, actualUnit: "units" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "units", actualQuantity: 0, actualUnit: "units" }
       ];
     }
     
     const quantityOptionsByType = {
       oil: [
-        { value: "5", label: "5 Liters", multiplier: 5, unit: "liters" },
-        { value: "10", label: "10 Liters", multiplier: 10, unit: "liters" },
-        { value: "25", label: "25 Liters", multiplier: 25, unit: "liters" },
-        { value: "50", label: "50 Liters", multiplier: 50, unit: "liters" },
-        { value: "100", label: "100 Liters", multiplier: 100, unit: "liters" },
-        { value: "500", label: "500 Liters", multiplier: 500, unit: "liters" },
-        { value: "1000", label: "1,000 Liters", multiplier: 1000, unit: "liters" },
-        { value: "5000", label: "5,000 Liters", multiplier: 5000, unit: "liters" },
-        { value: "10000", label: "10,000 Liters", multiplier: 10000, unit: "liters" },
-        { value: "25000", label: "25,000 Liters", multiplier: 25000, unit: "liters" },
-        { value: "50000", label: "50,000 Liters", multiplier: 50000, unit: "liters" },
-        { value: "100000", label: "100,000 Liters", multiplier: 100000, unit: "liters" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "liters" }
+        { value: "5", label: "5 Liters", multiplier: 5, unit: "liters", actualQuantity: 5, actualUnit: "liters" },
+        { value: "10", label: "10 Liters", multiplier: 10, unit: "liters", actualQuantity: 10, actualUnit: "liters" },
+        { value: "25", label: "25 Liters", multiplier: 25, unit: "liters", actualQuantity: 25, actualUnit: "liters" },
+        { value: "50", label: "50 Liters", multiplier: 50, unit: "liters", actualQuantity: 50, actualUnit: "liters" },
+        { value: "100", label: "100 Liters", multiplier: 100, unit: "liters", actualQuantity: 100, actualUnit: "liters" },
+        { value: "500", label: "500 Liters", multiplier: 500, unit: "liters", actualQuantity: 500, actualUnit: "liters" },
+        { value: "1000", label: "1,000 Liters", multiplier: 1000, unit: "liters", actualQuantity: 1000, actualUnit: "liters" },
+        { value: "5000", label: "5,000 Liters", multiplier: 5000, unit: "liters", actualQuantity: 5000, actualUnit: "liters" },
+        { value: "10000", label: "10,000 Liters", multiplier: 10000, unit: "liters", actualQuantity: 10000, actualUnit: "liters" },
+        { value: "25000", label: "25,000 Liters", multiplier: 25000, unit: "liters", actualQuantity: 25000, actualUnit: "liters" },
+        { value: "50000", label: "50,000 Liters", multiplier: 50000, unit: "liters", actualQuantity: 50000, actualUnit: "liters" },
+        { value: "100000", label: "100,000 Liters", multiplier: 100000, unit: "liters", actualQuantity: 100000, actualUnit: "liters" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "liters", actualQuantity: 0, actualUnit: "liters" }
       ],
       
       rice: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg" },
-        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg" },
-        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg" },
-        { value: "25000", label: "25 Tons", multiplier: 25000, unit: "kg" },
-        { value: "50000", label: "50 Tons", multiplier: 50000, unit: "kg" },
-        { value: "100000", label: "100 Tons", multiplier: 100000, unit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
+        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
+        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
+        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
+        { value: "25000", label: "25 Tons", multiplier: 25000, unit: "kg", actualQuantity: 25000, actualUnit: "kg" },
+        { value: "50000", label: "50 Tons", multiplier: 50000, unit: "kg", actualQuantity: 50000, actualUnit: "kg" },
+        { value: "100000", label: "100 Tons", multiplier: 100000, unit: "kg", actualQuantity: 100000, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       pulses: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg" },
-        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg" },
-        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
+        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
+        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
+        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       spices: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
+        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       dryfruits: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       tea: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       fruits: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "1", label: "1 Box", multiplier: 1, unit: "boxes" },
-        { value: "5", label: "5 Boxes", multiplier: 5, unit: "boxes" },
-        { value: "10", label: "10 Boxes", multiplier: 10, unit: "boxes" },
-        { value: "25", label: "25 Boxes", multiplier: 25, unit: "boxes" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "1", label: "1 Box", multiplier: 1, unit: "boxes", actualQuantity: 10, actualUnit: "kg" },
+        { value: "5", label: "5 Boxes", multiplier: 5, unit: "boxes", actualQuantity: 50, actualUnit: "kg" },
+        { value: "10", label: "10 Boxes", multiplier: 10, unit: "boxes", actualQuantity: 100, actualUnit: "kg" },
+        { value: "25", label: "25 Boxes", multiplier: 25, unit: "boxes", actualQuantity: 250, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       vegetables: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg" },
-        { value: "1", label: "1 Crate", multiplier: 1, unit: "crates" },
-        { value: "5", label: "5 Crates", multiplier: 5, unit: "crates" },
-        { value: "10", label: "10 Crates", multiplier: 10, unit: "crates" },
-        { value: "25", label: "25 Crates", multiplier: 25, unit: "crates" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
+        { value: "1", label: "1 Crate", multiplier: 1, unit: "crates", actualQuantity: 15, actualUnit: "kg" },
+        { value: "5", label: "5 Crates", multiplier: 5, unit: "crates", actualQuantity: 75, actualUnit: "kg" },
+        { value: "10", label: "10 Crates", multiplier: 10, unit: "crates", actualQuantity: 150, actualUnit: "kg" },
+        { value: "25", label: "25 Crates", multiplier: 25, unit: "crates", actualQuantity: 375, actualUnit: "kg" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       beverages: [
-        { value: "12", label: "12 Bottles", multiplier: 12, unit: "bottles" },
-        { value: "24", label: "24 Bottles", multiplier: 24, unit: "bottles" },
-        { value: "50", label: "50 Bottles", multiplier: 50, unit: "bottles" },
-        { value: "100", label: "100 Bottles", multiplier: 100, unit: "bottles" },
-        { value: "500", label: "500 Bottles", multiplier: 500, unit: "bottles" },
-        { value: "10", label: "10 Liters", multiplier: 10, unit: "liters" },
-        { value: "25", label: "25 Liters", multiplier: 25, unit: "liters" },
-        { value: "50", label: "50 Liters", multiplier: 50, unit: "liters" },
-        { value: "100", label: "100 Liters", multiplier: 100, unit: "liters" },
-        { value: "500", label: "500 Liters", multiplier: 500, unit: "liters" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bottles" }
+        { value: "12", label: "12 Bottles", multiplier: 12, unit: "bottles", actualQuantity: 12, actualUnit: "pieces" },
+        { value: "24", label: "24 Bottles", multiplier: 24, unit: "bottles", actualQuantity: 24, actualUnit: "pieces" },
+        { value: "50", label: "50 Bottles", multiplier: 50, unit: "bottles", actualQuantity: 50, actualUnit: "pieces" },
+        { value: "100", label: "100 Bottles", multiplier: 100, unit: "bottles", actualQuantity: 100, actualUnit: "pieces" },
+        { value: "500", label: "500 Bottles", multiplier: 500, unit: "bottles", actualQuantity: 500, actualUnit: "pieces" },
+        { value: "10", label: "10 Liters", multiplier: 10, unit: "liters", actualQuantity: 10, actualUnit: "liters" },
+        { value: "25", label: "25 Liters", multiplier: 25, unit: "liters", actualQuantity: 25, actualUnit: "liters" },
+        { value: "50", label: "50 Liters", multiplier: 50, unit: "liters", actualQuantity: 50, actualUnit: "liters" },
+        { value: "100", label: "100 Liters", multiplier: 100, unit: "liters", actualQuantity: 100, actualUnit: "liters" },
+        { value: "500", label: "500 Liters", multiplier: 500, unit: "liters", actualQuantity: 500, actualUnit: "liters" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bottles", actualQuantity: 0, actualUnit: "pieces" }
       ],
       
       gadgets: [
-        { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces" },
-        { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces" },
-        { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces" },
-        { value: "25", label: "25 Pieces", multiplier: 25, unit: "pieces" },
-        { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces" },
-        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces" }
+        { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
+        { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
+        { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
+        { value: "25", label: "25 Pieces", multiplier: 25, unit: "pieces", actualQuantity: 25, actualUnit: "pieces" },
+        { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
+        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
       ],
       
       clothing: [
-        { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces" },
-        { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces" },
-        { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces" },
-        { value: "25", label: "25 Pieces", multiplier: 25, unit: "pieces" },
-        { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces" },
-        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces" }
+        { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
+        { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
+        { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
+        { value: "25", label: "25 Pieces", multiplier: 25, unit: "pieces", actualQuantity: 25, actualUnit: "pieces" },
+        { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
+        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
       ],
       
       chocolate: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg" },
-        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces" },
-        { value: "500", label: "500 Pieces", multiplier: 500, unit: "pieces" },
-        { value: "1000", label: "1,000 Pieces", multiplier: 1000, unit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg" }
+        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
+        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
+        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
+        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
+        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
+        { value: "500", label: "500 Pieces", multiplier: 500, unit: "pieces", actualQuantity: 500, actualUnit: "pieces" },
+        { value: "1000", label: "1,000 Pieces", multiplier: 1000, unit: "pieces", actualQuantity: 1000, actualUnit: "pieces" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
       ],
       
       perfume: [
-        { value: "1", label: "1 Bottle", multiplier: 1, unit: "bottles" },
-        { value: "5", label: "5 Bottles", multiplier: 5, unit: "bottles" },
-        { value: "10", label: "10 Bottles", multiplier: 10, unit: "bottles" },
-        { value: "25", label: "25 Bottles", multiplier: 25, unit: "bottles" },
-        { value: "50", label: "50 Bottles", multiplier: 50, unit: "bottles" },
-        { value: "100", label: "100 Bottles", multiplier: 100, unit: "bottles" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bottles" }
+        { value: "1", label: "1 Bottle", multiplier: 1, unit: "bottles", actualQuantity: 1, actualUnit: "pieces" },
+        { value: "5", label: "5 Bottles", multiplier: 5, unit: "bottles", actualQuantity: 5, actualUnit: "pieces" },
+        { value: "10", label: "10 Bottles", multiplier: 10, unit: "bottles", actualQuantity: 10, actualUnit: "pieces" },
+        { value: "25", label: "25 Bottles", multiplier: 25, unit: "bottles", actualQuantity: 25, actualUnit: "pieces" },
+        { value: "50", label: "50 Bottles", multiplier: 50, unit: "bottles", actualQuantity: 50, actualUnit: "pieces" },
+        { value: "100", label: "100 Bottles", multiplier: 100, unit: "bottles", actualQuantity: 100, actualUnit: "pieces" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bottles", actualQuantity: 0, actualUnit: "pieces" }
       ],
       
       flowers: [
-        { value: "12", label: "12 Stems", multiplier: 12, unit: "stems" },
-        { value: "24", label: "24 Stems", multiplier: 24, unit: "stems" },
-        { value: "50", label: "50 Stems", multiplier: 50, unit: "stems" },
-        { value: "100", label: "100 Stems", multiplier: 100, unit: "stems" },
-        { value: "500", label: "500 Stems", multiplier: 500, unit: "stems" },
-        { value: "1", label: "1 Bouquet", multiplier: 1, unit: "bouquets" },
-        { value: "5", label: "5 Bouquets", multiplier: 5, unit: "bouquets" },
-        { value: "10", label: "10 Bouquets", multiplier: 10, unit: "bouquets" },
-        { value: "25", label: "25 Bouquets", multiplier: 25, unit: "bouquets" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "stems" }
+        { value: "12", label: "12 Stems", multiplier: 12, unit: "stems", actualQuantity: 12, actualUnit: "pieces" },
+        { value: "24", label: "24 Stems", multiplier: 24, unit: "stems", actualQuantity: 24, actualUnit: "pieces" },
+        { value: "50", label: "50 Stems", multiplier: 50, unit: "stems", actualQuantity: 50, actualUnit: "pieces" },
+        { value: "100", label: "100 Stems", multiplier: 100, unit: "stems", actualQuantity: 100, actualUnit: "pieces" },
+        { value: "500", label: "500 Stems", multiplier: 500, unit: "stems", actualQuantity: 500, actualUnit: "pieces" },
+        { value: "1", label: "1 Bouquet", multiplier: 1, unit: "bouquets", actualQuantity: 12, actualUnit: "pieces" },
+        { value: "5", label: "5 Bouquets", multiplier: 5, unit: "bouquets", actualQuantity: 60, actualUnit: "pieces" },
+        { value: "10", label: "10 Bouquets", multiplier: 10, unit: "bouquets", actualQuantity: 120, actualUnit: "pieces" },
+        { value: "25", label: "25 Bouquets", multiplier: 25, unit: "bouquets", actualQuantity: 300, actualUnit: "pieces" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "stems", actualQuantity: 0, actualUnit: "pieces" }
       ],
       
       default: [
-        { value: "1", label: "1 Unit", multiplier: 1, unit: "units" },
-        { value: "5", label: "5 Units", multiplier: 5, unit: "units" },
-        { value: "10", label: "10 Units", multiplier: 10, unit: "units" },
-        { value: "25", label: "25 Units", multiplier: 25, unit: "units" },
-        { value: "50", label: "50 Units", multiplier: 50, unit: "units" },
-        { value: "100", label: "100 Units", multiplier: 100, unit: "units" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "units" }
+        { value: "1", label: "1 Unit", multiplier: 1, unit: "units", actualQuantity: 1, actualUnit: "units" },
+        { value: "5", label: "5 Units", multiplier: 5, unit: "units", actualQuantity: 5, actualUnit: "units" },
+        { value: "10", label: "10 Units", multiplier: 10, unit: "units", actualQuantity: 10, actualUnit: "units" },
+        { value: "25", label: "25 Units", multiplier: 25, unit: "units", actualQuantity: 25, actualUnit: "units" },
+        { value: "50", label: "50 Units", multiplier: 50, unit: "units", actualQuantity: 50, actualUnit: "units" },
+        { value: "100", label: "100 Units", multiplier: 100, unit: "units", actualQuantity: 100, actualUnit: "units" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "units", actualQuantity: 0, actualUnit: "units" }
       ]
     };
     
@@ -1411,44 +1468,98 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     return gradeOptions[productType] || gradeOptions.default;
   };
 
-  // Calculate port cost based on selected port and quantity
-  const calculatePortCost = (portValue, quantityValue, productType) => {
-    if (!portValue || !quantityValue || quantityValue === "custom") return 0;
+  // NEW FUNCTION: Get tiered rate based on quantity
+  const getTieredRate = (tieredRates, quantity) => {
+    if (!tieredRates || !quantity) return 0;
+    
+    const quantityNum = parseFloat(quantity);
+    
+    // Find the appropriate tier based on quantity
+    for (const [range, rate] of Object.entries(tieredRates)) {
+      const [min, max] = range.split('-').map(str => str === '+' ? Infinity : parseFloat(str));
+      
+      if (quantityNum >= min && quantityNum <= max) {
+        return parseFloat(rate);
+      }
+    }
+    
+    // Default to the highest rate if no tier matches
+    return parseFloat(Object.values(tieredRates)[0]);
+  };
+
+  // UPDATED: Calculate port cost based on selected port and quantity with tiered pricing
+  const calculatePortCost = (portValue, quantityValue, productType, customQty = null) => {
+    if (!portValue || !quantityValue) return 0;
     
     const portData = portCosts[portValue];
     if (!portData) return 0;
     
-    const quantityOptionsList = getQuantityOptions();
-    const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
-    if (!selectedQuantity) return 0;
+    let actualQuantity = 0;
+    let actualUnit = "kg";
     
-    const qty = selectedQuantity.multiplier;
+    if (quantityValue === "custom") {
+      // For custom quantity, use the entered value directly
+      actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
+      actualUnit = getQuantityUnit().toLowerCase().includes('liter') ? 'liters' : 
+                   getQuantityUnit().toLowerCase().includes('piece') ? 'pieces' :
+                   getQuantityUnit().toLowerCase().includes('sqft') ? 'sqft' :
+                   getQuantityUnit().toLowerCase().includes('meter') ? 'meters' : 'kg';
+    } else {
+      // For predefined quantities, use the actual quantity and unit
+      const quantityOptionsList = getQuantityOptions();
+      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      if (!selectedQuantity) return 0;
+      
+      actualQuantity = selectedQuantity.actualQuantity;
+      actualUnit = selectedQuantity.actualUnit;
+    }
+    
+    if (actualQuantity <= 0) return 0;
+    
     let portCostValue = portData.baseCost;
     
-    // Add cost based on product type and quantity
-    if (productType === 'oil') {
-      portCostValue += qty * portData.perLiter;
-    } else if (['rice', 'pulses', 'spices', 'dryfruits', 'tea', 'fruits', 'vegetables', 'chocolate'].includes(productType)) {
-      portCostValue += qty * portData.perKg;
-    } else if (productType === 'construction') {
-      // Construction materials typically use per kg or per unit
-      if (selectedQuantity.unit === 'kg') {
-        portCostValue += qty * portData.perKg;
-      } else {
-        portCostValue += qty * portData.perUnit;
-      }
+    // Add cost based on product type and actual unit with tiered pricing
+    if (actualUnit === 'liters') {
+      const rate = getTieredRate(portData.perLiter, actualQuantity);
+      portCostValue += actualQuantity * rate;
+    } else if (actualUnit === 'kg') {
+      const rate = getTieredRate(portData.perKg, actualQuantity);
+      portCostValue += actualQuantity * rate;
+    } else if (actualUnit === 'pieces') {
+      const rate = getTieredRate(portData.perUnit, actualQuantity);
+      portCostValue += actualQuantity * rate;
+    } else if (actualUnit === 'sqft') {
+      const rate = getTieredRate(portData.perSqFt, actualQuantity);
+      portCostValue += actualQuantity * rate;
+    } else if (actualUnit === 'meters') {
+      const rate = getTieredRate(portData.perMeter, actualQuantity);
+      portCostValue += actualQuantity * rate;
     } else {
-      portCostValue += qty * portData.perUnit;
+      // Default to per unit pricing
+      const rate = getTieredRate(portData.perUnit, actualQuantity);
+      portCostValue += actualQuantity * rate;
     }
     
     return portCostValue;
   };
 
   // Calculate shipping cost based on quantity and product type - Reduced rates
-  const calculateShippingCost = (quantityValue, productType, productValue) => {
-    if (!quantityValue || quantityValue === "custom") return 0;
+  const calculateShippingCost = (quantityValue, productType, productValue, customQty = null) => {
+    if (!quantityValue) return 0;
     
-    const qty = parseFloat(quantityValue);
+    let actualQuantity = 0;
+    
+    if (quantityValue === "custom") {
+      actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
+    } else {
+      const quantityOptionsList = getQuantityOptions();
+      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      if (!selectedQuantity) return 0;
+      actualQuantity = selectedQuantity.actualQuantity;
+    }
+    
+    if (actualQuantity <= 0) return 0;
+    
     let baseRate = 0;
     
     // Reduced shipping rates
@@ -1472,7 +1583,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     };
     
     baseRate = shippingRates[productType] || shippingRates.default;
-    return Math.max(qty * baseRate, productValue * 0.02); // Reduced minimum from 5% to 2%
+    return Math.max(actualQuantity * baseRate, productValue * 0.02); // Reduced minimum from 5% to 2%
   };
 
   // Calculate insurance cost (0.5% of product value) - Reduced
@@ -1483,6 +1594,14 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
   // Calculate taxes and duties (3% of total) - Reduced
   const calculateTaxes = (subtotal) => {
     return subtotal * 0.03; // Reduced from 5% to 3%
+  };
+
+  // Calculate logo cost - REDUCED FROM 500 TO 35
+  const calculateLogoCost = (logoRequiredValue) => {
+    if (logoRequiredValue === "Yes") {
+      return 35; // Reduced from 500 to 35
+    }
+    return 0;
   };
 
   // Format number with commas
@@ -1561,27 +1680,22 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     const pricePerUnit = getPricePerUnit();
     const productType = getProductType();
     
+    let actualQuantity = 0;
+    
     if (quantityValue === "custom") {
-      const customQuantityValue = customQty || parseFloat(customQuantity) || 0;
-      if (customQuantityValue > 0) {
-        return customQuantityValue * pricePerUnit * gradeMultiplier;
-      }
-      return 0;
+      actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
+    } else {
+      const quantityOptionsList = getQuantityOptions();
+      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      if (!selectedQuantity) return 0;
+      actualQuantity = selectedQuantity.actualQuantity;
     }
     
-    const quantityOptionsList = getQuantityOptions();
-    const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
-    if (!selectedQuantity) return 0;
-    
-    const qty = selectedQuantity.multiplier;
+    if (actualQuantity <= 0) return 0;
     
     // For rice, we need to handle different units
     if (productType === 'rice') {
-      // If the quantity is in kg, use as is (since pricePerUnit is now per kg)
-      if (selectedQuantity.unit === 'kg') {
-        return qty * pricePerUnit * gradeMultiplier;
-      }
-      // For other units, you might need additional conversion logic
+      return actualQuantity * pricePerUnit * gradeMultiplier;
     }
     
     // For construction materials, handle different units
@@ -1589,31 +1703,10 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       const productName = product?.name?.toLowerCase() || '';
       
       // Handle different construction material units
-      if (selectedQuantity.unit === 'kg') {
-        return qty * pricePerUnit * gradeMultiplier;
-      } else if (selectedQuantity.unit === 'bags') {
-        // For cement bags (typically 50kg each)
-        if (productName.includes('cement')) {
-          return qty * (pricePerUnit * 50) * gradeMultiplier;
-        }
-        // For other bags, assume standard bag weight
-        return qty * (pricePerUnit * 25) * gradeMultiplier;
-      } else if (selectedQuantity.unit === 'pieces') {
-        // For bricks, blocks, etc.
-        return qty * pricePerUnit * gradeMultiplier;
-      } else if (selectedQuantity.unit === 'sqft') {
-        // For tiles, slabs, etc.
-        return qty * pricePerUnit * gradeMultiplier;
-      } else if (selectedQuantity.unit === 'meters') {
-        // For pipes, rods, etc.
-        return qty * pricePerUnit * gradeMultiplier;
-      } else if (selectedQuantity.unit === 'cubic_feet') {
-        // For wood, timber, etc.
-        return qty * pricePerUnit * gradeMultiplier;
-      }
+      return actualQuantity * pricePerUnit * gradeMultiplier;
     }
     
-    return qty * pricePerUnit * gradeMultiplier;
+    return actualQuantity * pricePerUnit * gradeMultiplier;
   };
 
   // Price calculation
@@ -1625,6 +1718,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     let insuranceCostValue = 0;
     let taxesValue = 0;
     let portCostValue = 0;
+    let logoCostValue = 0;
 
     // Get price per unit based on product type
     const pricePerUnit = getPricePerUnit();
@@ -1655,18 +1749,21 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     // Calculate port cost if port is selected
     if (port) {
       const productType = getProductType();
-      portCostValue = calculatePortCost(port, quantity, productType);
+      portCostValue = calculatePortCost(port, quantity, productType, customQuantity);
     }
+
+    // Calculate logo cost
+    logoCostValue = calculateLogoCost(logoRequired);
 
     // Calculate CIF costs only if CIF is required
     if (cifRequired === "Yes") {
       const productType = getProductType();
-      shippingCostValue = calculateShippingCost(quantity, productType, quantityPriceValue);
+      shippingCostValue = calculateShippingCost(quantity, productType, quantityPriceValue, customQuantity);
       insuranceCostValue = calculateInsuranceCost(quantityPriceValue);
-      taxesValue = calculateTaxes(quantityPriceValue + packingPriceValue + portCostValue);
+      taxesValue = calculateTaxes(quantityPriceValue + packingPriceValue + portCostValue + logoCostValue);
     }
 
-    const subtotal = quantityPriceValue + packingPriceValue + portCostValue + shippingCostValue + insuranceCostValue + taxesValue;
+    const subtotal = quantityPriceValue + packingPriceValue + portCostValue + logoCostValue + shippingCostValue + insuranceCostValue + taxesValue;
 
     // Convert all prices to selected currency
     setGradePrice(convertToCurrency(gradePriceValue).toFixed(2));
@@ -1676,6 +1773,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     setShippingCost(convertToCurrency(shippingCostValue).toFixed(2));
     setInsuranceCost(convertToCurrency(insuranceCostValue).toFixed(2));
     setTaxes(convertToCurrency(taxesValue).toFixed(2));
+    setLogoCost(convertToCurrency(logoCostValue).toFixed(2));
     setTotalPrice(convertToCurrency(subtotal).toFixed(2));
   };
 
@@ -1692,6 +1790,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       shippingCost: shippingCost,
       insuranceCost: insuranceCost,
       taxes: taxes,
+      logoCost: logoCost,
       totalPrice: totalPrice,
       finalTotalPrice: finalTotalPrice.toFixed(2),
       baseProductPrice: convertToCurrency(getPricePerUnit()).toFixed(2)
@@ -1937,10 +2036,17 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     const selectedQuantityOption = quantityOptions.find(opt => opt.value === quantity);
     
     let quantityDisplay = "";
+    let actualQuantity = 0;
+    let actualUnit = "";
+    
     if (quantity === "custom") {
       quantityDisplay = `${customQuantity} ${getQuantityUnit()}`;
+      actualQuantity = parseFloat(customQuantity);
+      actualUnit = getQuantityUnit();
     } else {
       quantityDisplay = selectedQuantityOption ? selectedQuantityOption.label : `${quantity} ${getQuantityUnit()}`;
+      actualQuantity = selectedQuantityOption ? selectedQuantityOption.actualQuantity : parseFloat(quantity);
+      actualUnit = selectedQuantityOption ? selectedQuantityOption.actualUnit : getQuantityUnit();
     }
 
     const displayPrices = getDisplayPrices();
@@ -1958,6 +2064,8 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       grade,
       packing,
       quantity: quantityDisplay,
+      actualQuantity,
+      actualUnit,
       port,
       cifRequired,
       logoRequired,
@@ -1968,6 +2076,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
         packingPrice: `${currencySymbol}${formatNumber(displayPrices.packingPrice)}/${packingUnit}`,
         quantityPrice: `${currencySymbol}${formatNumber(displayPrices.quantityPrice)}`,
         portCost: `${currencySymbol}${formatNumber(displayPrices.portCost)}`,
+        logoCost: `${currencySymbol}${formatNumber(displayPrices.logoCost)}`,
         subtotal: `${currencySymbol}${formatNumber(displayPrices.totalPrice)}`,
         finalTotal: `${currencySymbol}${formatNumber(displayPrices.finalTotalPrice)}`
       },
@@ -2005,13 +2114,14 @@ ${exchangeInfo ? `- Exchange Rate: ${exchangeInfo.example}` : ""}
   • Packing Price: ${currencySymbol}${formatNumber(displayPrices.packingPrice)}/${packingUnit}
   • Quantity Price: ${currencySymbol}${formatNumber(displayPrices.quantityPrice)}
   • Port Charges: ${currencySymbol}${formatNumber(displayPrices.portCost)}
+  ${logoRequired === "Yes" ? `• Logo Printing: ${currencySymbol}${formatNumber(displayPrices.logoCost)}` : ""}
   • Subtotal: ${currencySymbol}${formatNumber(displayPrices.totalPrice)}
   • Final Total: ${currencySymbol}${formatNumber(displayPrices.finalTotalPrice)}
 ${additionalInfo ? `- Additional Info: ${additionalInfo}` : ""}
 Thank you!`;
 
       window.open(
-        `https://wa.me/+919703744571?text=${encodeURIComponent(message)}`,
+        `https://wa.me/+917396007479?text=${encodeURIComponent(message)}`,
         "_blank"
       );
 
@@ -2043,6 +2153,7 @@ Thank you!`;
     setShippingCost("0.00");
     setInsuranceCost("0.00");
     setTaxes("0.00");
+    setLogoCost("0.00");
     setTotalPrice("0.00");
     if (!profile) {
       setFullName("");
@@ -2063,7 +2174,7 @@ Thank you!`;
   // Effects
   useEffect(() => {
     calculatePrices();
-  }, [grade, packing, quantity, port, cifRequired, currency, baseProductPrice, customQuantity]);
+  }, [grade, packing, quantity, port, cifRequired, currency, baseProductPrice, customQuantity, logoRequired]);
 
   useEffect(() => {
     if (isOpen && profile) {
@@ -2103,6 +2214,7 @@ Thank you!`;
       setShippingCost("0.00");
       setInsuranceCost("0.00");
       setTaxes("0.00");
+      setLogoCost("0.00");
       setTotalPrice("0.00");
       
       // Extract base price from product (this will be in INR)
@@ -2375,7 +2487,12 @@ Thank you!`;
                         <option value="No">No</option>
                       </select>
                       <div className="logo-info">
-                        <small>Add your logo to the packaging</small>
+                        <small>Add your logo to the packaging - Additional charge: {currencySymbol}35</small>
+                        {logoRequired === "Yes" && (
+                          <div className="logo-cost-preview">
+                            <small>Logo printing cost: {currencySymbol}{formatNumber(displayPrices.logoCost)}</small>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -2471,6 +2588,14 @@ Thank you!`;
                       <div className="price-item port-costs">
                         <span className="price-label">Port Charges ({port}):</span>
                         <span className="price-value">{currencySymbol}{formatNumber(displayPrices.portCost)}</span>
+                      </div>
+                    )}
+                    
+                    {/* Logo Cost - Only shown when logo is required */}
+                    {logoRequired === "Yes" && (
+                      <div className="price-item logo-costs">
+                        <span className="price-label">Logo Printing:</span>
+                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.logoCost)}</span>
                       </div>
                     )}
                     
@@ -2878,6 +3003,19 @@ Thank you!`;
           font-size: 0.75rem;
         }
 
+        .logo-cost-preview {
+          margin-top: 5px;
+          padding: 4px 8px;
+          background: rgba(101, 163, 13, 0.1);
+          border-radius: 4px;
+          border-left: 2px solid #65a30d;
+        }
+
+        .logo-cost-preview small {
+          color: #84cc16;
+          font-size: 0.75rem;
+        }
+
         .price-breakdown-section {
           padding: 20px;
           height: 100%;
@@ -2986,6 +3124,15 @@ Thank you!`;
           padding: 8px;
         }
 
+        .price-item.logo-costs {
+          color: #90cdf4;
+          border-left: 3px solid #4299e1;
+          padding-left: 8px;
+          background: rgba(66, 153, 225, 0.05);
+          margin: 3px -8px;
+          padding: 8px;
+        }
+
         .price-item.final-total {
           border-top: 2px solid #4299e1;
           border-bottom: none;
@@ -3014,6 +3161,10 @@ Thank you!`;
         }
 
         .price-item.port-costs .price-value {
+          color: #90cdf4;
+        }
+
+        .price-item.logo-costs .price-value {
           color: #90cdf4;
         }
 

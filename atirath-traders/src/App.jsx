@@ -7,6 +7,7 @@ import About from './components/About';
 import Leadership from './components/Leadership';
 import Services from './components/Services';
 import ServicesPage from './components/ServicesPage';
+import ServiceDetailPage from './components/ServiceDetailPage';
 import Feedback from './components/Feedback';
 import Footer from './components/Footer';
 import ProductPage from './components/ProductPage';
@@ -14,6 +15,7 @@ import AllProducts from './components/AllProducts';
 import Blog from './components/Blog';
 import BlogPost from './components/BlogPost';
 import JoinUs from './components/JoinUs';
+import TermsPolicy from './components/TermsPolicy';
 import { SignIn, SignUp } from './components/AuthPages';
 import IndianAgriRSSFeed from './components/IndianAgriRSSFeed';
 import {
@@ -62,6 +64,7 @@ const ContactPage = () => (
     <Footer id="contact" />
   </div>
 );
+const TermsPolicyPage = () => <TermsPolicy />;
 
 /* --------------------------------------------------------------------
    Router Wrapper
@@ -100,6 +103,7 @@ const RouterWrapper = () => {
           email: user.email,
           phone: user.phoneNumber || '',
           location: '',
+          photoURL: user.photoURL || '', // Add photoURL
           createdAt: user.metadata.creationTime || new Date().toISOString(),
         });
         try {
@@ -128,6 +132,7 @@ const RouterWrapper = () => {
         email: updatedUserData.email,
         phone: updatedUserData.phone,
         location: updatedUserData.location,
+        photoURL: updatedUserData.photoURL, // Add photoURL
         updatedAt: new Date().toISOString(),
       });
 
@@ -153,10 +158,12 @@ const RouterWrapper = () => {
   const goToLeadership = () => goTo('/leadership');
   const goToProducts = () => goTo('/products');
   const goToServices = () => goTo('/services');
+  const goToServiceDetail = (id) => goTo(`/service-detail/${id}`);
   const goToBlog = () => goTo('/blog');
   const goToJoinUs = () => goTo('/join-us');
   const goToFeedback = () => goTo('/feedback');
   const goToContact = () => goTo('/contact');
+  const goToTermsPolicy = () => goTo('/terms-policy');
   const goToProfile = () => {
     // Profile is now handled in navbar dropdown
     console.log('Profile navigation handled in navbar dropdown');
@@ -164,6 +171,7 @@ const RouterWrapper = () => {
 
   const handleServiceClick = (type) => goToProduct(type);
   const handleViewAllClick = () => goToAllProducts();
+  const handleServiceDetailClick = (id) => goToServiceDetail(id);
 
   /* ---------- Global search handlers ---------- */
   const handleGlobalSearchChange = (query) => {
@@ -247,6 +255,9 @@ const RouterWrapper = () => {
       case 'contact':
         goToContact();
         break;
+      case 'terms-policy':
+        goToTermsPolicy();
+        break;
       case 'profile':
         // Profile is now handled in dropdown, just close menus
         console.log('Profile handled in navbar dropdown');
@@ -257,6 +268,11 @@ const RouterWrapper = () => {
       default:
         goToHome();
     }
+  };
+
+  /* ---------- Check if current page is product page ---------- */
+  const isProductPage = () => {
+    return location.pathname.startsWith('/product/') || location.pathname === '/all-products';
   };
 
   /* ---------- auth overlay ---------- */
@@ -297,6 +313,7 @@ const RouterWrapper = () => {
         onGlobalSearchChange={handleGlobalSearchChange}
         onGlobalSearchClear={handleGlobalSearchClear}
         onProfileUpdate={handleProfileUpdate}
+        isProductPage={isProductPage()}
       />
 
       {showRSS && <IndianAgriRSSFeed />}
@@ -331,8 +348,9 @@ const RouterWrapper = () => {
               } 
             />
             
-            {/* Services Page */}
+            {/* Services Pages */}
             <Route path="/services" element={<ServicesPageComponent />} />
+            <Route path="/service-detail/:id" element={<ServiceDetailPage />} />
             
             {/* Blog Pages */}
             <Route path="/blog" element={<BlogPage />} />
@@ -342,6 +360,7 @@ const RouterWrapper = () => {
             <Route path="/join-us" element={<JoinUsPage />} />
             <Route path="/feedback" element={<FeedbackPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/terms-policy" element={<TermsPolicyPage />} />
 
             {/* Product Pages */}
             <Route

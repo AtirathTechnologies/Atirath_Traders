@@ -2,12 +2,12 @@ import React from 'react';
 
 const Leadership = () => {
   const leaders = [
-    {
-      name: "Ms. Tripti Gaur",
-      position: "Managing Director",
-      image: "/img/tripti.jpg",
-      description: "With 10+ years of expertise in Marketing, Export-Import, and Strategic Leadership, she brings a wealth of knowledge to the organization. An MBA in HR & Marketing, she has successfully driven global business expansion and positioned the company as a strong player in agro-trade and exports."
-    },
+    // {
+    //   name: "Ms. Tripti Gaur",
+    //   position: "Managing Director",
+    //   image: "/img/tripti.jpg",
+    //   description: "With 10+ years of expertise in Marketing, Export-Import, and Strategic Leadership, she brings a wealth of knowledge to the organization. An MBA in HR & Marketing, she has successfully driven global business expansion and positioned the company as a strong player in agro-trade and exports."
+    // },
     {
       name: "Mr. G. Chandar",
       position: "CEO",

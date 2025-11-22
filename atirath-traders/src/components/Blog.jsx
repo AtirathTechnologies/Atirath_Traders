@@ -114,7 +114,7 @@ const Blog = ({ id }) => {
       title: "Organic Farming: Benefits and Challenges",
       excerpt: "Understanding the growing demand for organic produce and the challenges farmers face in transitioning to organic methods.",
       category: "Organic",
-      image: "https://images.unsplash.com/photo-1565190462842-d57a3e05de48?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "https://www.unicropbiochem.com/assets/images/blogs/174722684419webp.webp",
       fullContent: `
         <h2>Organic Farming: Navigating Benefits and Challenges</h2>
         <p>The organic farming movement is gaining momentum worldwide, but the transition from conventional to organic practices presents unique challenges and opportunities.</p>

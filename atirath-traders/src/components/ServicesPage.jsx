@@ -90,11 +90,7 @@ const ServicesPage = () => {
   };
 
   const handleLearnMore = (serviceId) => {
-    // Show service details in a modal or alert for now
-    const service = services.find(s => s.id === serviceId);
-    if (service) {
-      alert(`Service: ${service.title}\n\nDescription: ${service.description}\n\nFeatures: ${service.features.join(', ')}`);
-    }
+    navigate(`/service-detail/${serviceId}`);
   };
 
   return (

@@ -64,10 +64,11 @@ const Feedback = () => {
                   <span className="fw-semibold">Website:</span> www.atirathtraders.com
                 </p>
                 <p className="small mb-2">
-                  <span className="fw-semibold">Email:</span> info@atirathtraders.com, Techteam@atirathtraders.com
+                  <span className="fw-semibold">Email:</span> info@atirathtradersltd.com
                 </p>
                 <p className="small mb-2">
-                  <span className="fw-semibold">Phone:</span> +91 9052976101
+                  <span className="fw-semibold">Phone:</span> +91 7396007479
+
                 </p>
                 <p className="small mb-2">
                   <span className="fw-semibold">Social Media:</span> @AtirathTraders (LinkedIn, Instagram, Facebook, Twitter)

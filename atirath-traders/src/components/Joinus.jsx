@@ -146,7 +146,7 @@ const JoinUs = () => {
                   </div>
                   <h6 className="text-white">Email Your Resume</h6>
                   <p className="text-light opacity-80 small">
-                    Send your resume to careers@atirathtraders.com
+                    Send your resume to info@atirathtradersltd.com
                   </p>
                 </div>
                 <div className="col-md-4">
@@ -155,7 +155,7 @@ const JoinUs = () => {
                   </div>
                   <h6 className="text-white">Call Us</h6>
                   <p className="text-light opacity-80 small">
-                    +91-XXXXXXXXXX<br />
+                    +91 7983168189<br />
                     Mon-Fri, 9AM-6PM
                   </p>
                 </div>

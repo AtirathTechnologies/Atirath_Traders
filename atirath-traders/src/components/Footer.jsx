@@ -1,5 +1,5 @@
 import React from 'react';
-import { Instagram, Twitter, Facebook, Linkedin } from 'lucide-react';
+import { Instagram, Twitter, Facebook, Linkedin, MessageCircle } from 'lucide-react';
 
 const Footer = () => {
   return (
@@ -47,9 +47,16 @@ const Footer = () => {
               <a 
                 href="https://www.linkedin.com/company/atirath-traders-india-private-ltd/" 
                 className="text-white hover-accent"
-                aria-label="YouTube"
+                aria-label="LinkedIn"
               >
                 <Linkedin className="w-5 h-5" />
+              </a>
+              <a 
+                href="https://whatsapp.com/channel/0029Vb6L0HcE50UiJzADHE28" 
+                className="text-white hover-accent"
+                aria-label="WhatsApp"
+              >
+                <MessageCircle className="w-5 h-5" />
               </a>
             </div>
           </div>

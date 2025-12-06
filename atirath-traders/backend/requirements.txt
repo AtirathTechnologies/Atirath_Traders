@@ -1,3 +1,4 @@
 fastapi
 httpx
 feedparser
+uvicorn[standard]

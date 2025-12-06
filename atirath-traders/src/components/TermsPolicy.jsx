@@ -155,7 +155,7 @@ const TermsPolicy = () => {
                   <h3 className="h5 fw-semibold text-accent mb-3">13. Contact Information</h3>
                   <p className="mb-1">ATIRATH TRADERS INDIA PVT.LTD</p>
                   <p className="mb-1">Email: info@atirathtradersltd.com</p>
-                  <p className="mb-1">Phone: +91 7983168189</p>
+                  <p className="mb-1">Phone: +91 7396007479</p>
                   <p>Address: Flat No:45, Jai Hind Silicon valley, Madhapur Hyderabad, Telangana, 500081</p>
                 </div>
 

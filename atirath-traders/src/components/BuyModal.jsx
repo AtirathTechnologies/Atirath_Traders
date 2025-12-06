@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import ThankYouPopup from "../components/ThankYouPopup";
-import { submitQuote } from "../firebasequote";
+import { submitQuote } from "../firebase";
+import { 
+  varietyGrades, 
+  gradePrices, 
+  getPackingOptions, 
+  getQuantityOptions, 
+  transportData,
+  getPackingUnit,
+  getAvailableGrades,
+  stateOptions,
+  getPortOptions,
+  getTransportPrice,
+  getUnitType
+} from "../data/ProductData";
 
-const BuyModal = ({ isOpen, onClose, product, profile }) => {
+const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   // State declarations
   const [grade, setGrade] = useState("");
   const [packing, setPacking] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [port, setPort] = useState("");
   const [cifRequired, setCifRequired] = useState("");
   const [additionalInfo, setAdditionalInfo] = useState("");
   const [fullName, setFullName] = useState("");
@@ -23,16 +35,22 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
   const [quantityPrice, setQuantityPrice] = useState("0.00");
   const [totalPrice, setTotalPrice] = useState("0.00");
   const [currency, setCurrency] = useState("INR");
-  const [logoRequired, setLogoRequired] = useState("");
+  const [brandingRequired, setBrandingRequired] = useState("");
   const [shippingCost, setShippingCost] = useState("0.00");
   const [insuranceCost, setInsuranceCost] = useState("0.00");
   const [taxes, setTaxes] = useState("0.00");
-  const [portCost, setPortCost] = useState("0.00");
   const [exchangeRates, setExchangeRates] = useState({});
   const [isLoadingRates, setIsLoadingRates] = useState(false);
   const [baseProductPrice, setBaseProductPrice] = useState("0.00");
   const [customQuantity, setCustomQuantity] = useState("");
-  const [logoCost, setLogoCost] = useState("0.00");
+  const [brandingCost, setBrandingCost] = useState("0.00");
+  const [transportCost, setTransportCost] = useState("0.00");
+  
+  // New state for transport selection
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedPort, setSelectedPort] = useState("");
+  const [portOptions, setPortOptions] = useState([]);
+  const [transportPrice, setTransportPrice] = useState("0-0");
   
   const modalRef = useRef(null);
   const formContainerRef = useRef(null);
@@ -61,83 +79,13 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     { value: "CNY", symbol: "¥", name: "Chinese Yuan" }
   ];
 
-  // Enhanced Port costs data with tiered pricing based on quantity ranges
-  const portCosts = {
-    "Mundra": { 
-      baseCost: 2500, 
-      perKg: { "0-100": 1.2, "101-500": 1.0, "501-1000": 0.8, "1001-5000": 0.6, "5001+": 0.4 },
-      perLiter: { "0-100": 0.8, "101-500": 0.7, "501-1000": 0.6, "1001-5000": 0.5, "5001+": 0.4 },
-      perUnit: { "0-10": 8, "11-50": 6, "51-100": 5, "101-500": 4, "501+": 3 },
-      perSqFt: { "0-100": 2.5, "101-500": 2.0, "501-1000": 1.5, "1001-5000": 1.2, "5001+": 1.0 },
-      perMeter: { "0-100": 1.8, "101-500": 1.5, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 }
-    },
-    "Kandla": { 
-      baseCost: 2300, 
-      perKg: { "0-100": 1.1, "101-500": 0.9, "501-1000": 0.7, "1001-5000": 0.5, "5001+": 0.3 },
-      perLiter: { "0-100": 0.7, "101-500": 0.6, "501-1000": 0.5, "1001-5000": 0.4, "5001+": 0.3 },
-      perUnit: { "0-10": 7, "11-50": 5, "51-100": 4, "101-500": 3, "501+": 2 },
-      perSqFt: { "0-100": 2.2, "101-500": 1.8, "501-1000": 1.4, "1001-5000": 1.1, "5001+": 0.9 },
-      perMeter: { "0-100": 1.6, "101-500": 1.3, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 }
-    },
-    "Nhava Sheva": { 
-      baseCost: 2800, 
-      perKg: { "0-100": 1.4, "101-500": 1.2, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 },
-      perLiter: { "0-100": 0.9, "101-500": 0.8, "501-1000": 0.7, "1001-5000": 0.6, "5001+": 0.5 },
-      perUnit: { "0-10": 9, "11-50": 7, "51-100": 6, "101-500": 5, "501+": 4 },
-      perSqFt: { "0-100": 2.8, "101-500": 2.3, "501-1000": 1.8, "1001-5000": 1.5, "5001+": 1.2 },
-      perMeter: { "0-100": 2.0, "101-500": 1.7, "501-1000": 1.4, "1001-5000": 1.2, "5001+": 1.0 }
-    },
-    "Chennai": { 
-      baseCost: 2200, 
-      perKg: { "0-100": 1.0, "101-500": 0.8, "501-1000": 0.6, "1001-5000": 0.4, "5001+": 0.3 },
-      perLiter: { "0-100": 0.6, "101-500": 0.5, "501-1000": 0.4, "1001-5000": 0.3, "5001+": 0.2 },
-      perUnit: { "0-10": 6, "11-50": 4, "51-100": 3, "101-500": 2, "501+": 1.5 },
-      perSqFt: { "0-100": 2.0, "101-500": 1.6, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 },
-      perMeter: { "0-100": 1.4, "101-500": 1.1, "501-1000": 0.9, "1001-5000": 0.7, "5001+": 0.5 }
-    },
-    "Vizag": { 
-      baseCost: 2100, 
-      perKg: { "0-100": 0.9, "101-500": 0.7, "501-1000": 0.5, "1001-5000": 0.3, "5001+": 0.2 },
-      perLiter: { "0-100": 0.5, "101-500": 0.4, "501-1000": 0.3, "1001-5000": 0.2, "5001+": 0.15 },
-      perUnit: { "0-10": 5, "11-50": 3, "51-100": 2, "101-500": 1.5, "501+": 1 },
-      perSqFt: { "0-100": 1.8, "101-500": 1.4, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 },
-      perMeter: { "0-100": 1.2, "101-500": 0.9, "501-1000": 0.7, "1001-5000": 0.5, "5001+": 0.4 }
-    },
-    "Kolkata": { 
-      baseCost: 2400, 
-      perKg: { "0-100": 1.1, "101-500": 0.9, "501-1000": 0.7, "1001-5000": 0.5, "5001+": 0.4 },
-      perLiter: { "0-100": 0.7, "101-500": 0.6, "501-1000": 0.5, "1001-5000": 0.4, "5001+": 0.3 },
-      perUnit: { "0-10": 7, "11-50": 5, "51-100": 4, "101-500": 3, "501+": 2 },
-      perSqFt: { "0-100": 2.2, "101-500": 1.8, "501-1000": 1.4, "1001-5000": 1.1, "5001+": 0.9 },
-      perMeter: { "0-100": 1.6, "101-500": 1.3, "501-1000": 1.0, "1001-5000": 0.8, "5001+": 0.6 }
-    },
-    "Mumbai": { 
-      baseCost: 2700, 
-      perKg: { "0-100": 1.3, "101-500": 1.1, "501-1000": 0.9, "1001-5000": 0.7, "5001+": 0.5 },
-      perLiter: { "0-100": 0.8, "101-500": 0.7, "501-1000": 0.6, "1001-5000": 0.5, "5001+": 0.4 },
-      perUnit: { "0-10": 8, "11-50": 6, "51-100": 5, "101-500": 4, "501+": 3 },
-      perSqFt: { "0-100": 2.5, "101-500": 2.0, "501-1000": 1.5, "1001-5000": 1.2, "5001+": 1.0 },
-      perMeter: { "0-100": 1.8, "101-500": 1.5, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 }
-    },
-    "Cochin": { 
-      baseCost: 2150, 
-      perKg: { "0-100": 1.0, "101-500": 0.8, "501-1000": 0.6, "1001-5000": 0.4, "5001+": 0.3 },
-      perLiter: { "0-100": 0.6, "101-500": 0.5, "501-1000": 0.4, "1001-5000": 0.3, "5001+": 0.2 },
-      perUnit: { "0-10": 6, "11-50": 4, "51-100": 3, "101-500": 2, "501+": 1.5 },
-      perSqFt: { "0-100": 2.0, "101-500": 1.6, "501-1000": 1.2, "1001-5000": 1.0, "5001+": 0.8 },
-      perMeter: { "0-100": 1.4, "101-500": 1.1, "501-1000": 0.9, "1001-5000": 0.7, "5001+": 0.5 }
-    }
-  };
-
   // Extract base price from product price string and convert to number
   const extractBasePrice = (priceString) => {
     if (!priceString) return 0;
     
     try {
-      // Handle different price formats like "₹120-140 per liter", "₹7,250-8,650 per quintal"
       const priceMatch = priceString.match(/(\d+(?:,\d+)*(?:\.\d+)?)/);
       if (priceMatch) {
-        // Take the first price (lower range) and convert to number
         const priceValue = parseFloat(priceMatch[1].replace(/,/g, ''));
         return priceValue;
       }
@@ -149,982 +97,18 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     }
   };
 
-  // Get quantity options based on product type - UPDATED CONSTRUCTION QUANTITIES
-  const getQuantityOptions = () => {
+  // Get quantity options based on product type
+  const getQuantityOptionsForProduct = () => {
     const productType = getProductType();
     const productName = product?.name?.toLowerCase() || '';
-    
-    // Construction material specific quantity options
-    if (productType === 'construction') {
-      // Cement specific quantities
-      if (productName.includes('cement')) {
-        return [
-          { value: "1", label: "1 Bag (50kg)", multiplier: 50, unit: "bags", actualQuantity: 50, actualUnit: "kg" },
-          { value: "5", label: "5 Bags (250kg)", multiplier: 250, unit: "bags", actualQuantity: 250, actualUnit: "kg" },
-          { value: "10", label: "10 Bags (500kg)", multiplier: 500, unit: "bags", actualQuantity: 500, actualUnit: "kg" },
-          { value: "20", label: "20 Bags (1 ton)", multiplier: 1000, unit: "bags", actualQuantity: 1000, actualUnit: "kg" },
-          { value: "50", label: "50 Bags (2.5 tons)", multiplier: 2500, unit: "bags", actualQuantity: 2500, actualUnit: "kg" },
-          { value: "100", label: "100 Bags (5 tons)", multiplier: 5000, unit: "bags", actualQuantity: 5000, actualUnit: "kg" },
-          { value: "200", label: "200 Bags (10 tons)", multiplier: 10000, unit: "bags", actualQuantity: 10000, actualUnit: "kg" },
-          { value: "500", label: "500 Bags (25 tons)", multiplier: 25000, unit: "bags", actualQuantity: 25000, actualUnit: "kg" },
-          { value: "1000", label: "1,000 Bags (50 tons)", multiplier: 50000, unit: "bags", actualQuantity: 50000, actualUnit: "kg" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bags", actualQuantity: 0, actualUnit: "kg" }
-        ];
-      }
-      
-      // Steel bars specific quantities
-      if (productName.includes('steel') || productName.includes('rod') || productName.includes('tmt')) {
-        return [
-          { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-          { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
-          { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
-          { value: "2000", label: "2 Tons", multiplier: 2000, unit: "kg", actualQuantity: 2000, actualUnit: "kg" },
-          { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
-          { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
-          { value: "1", label: "1 Bundle", multiplier: 2000, unit: "bundles", actualQuantity: 2000, actualUnit: "kg" },
-          { value: "2", label: "2 Bundles", multiplier: 4000, unit: "bundles", actualQuantity: 4000, actualUnit: "kg" },
-          { value: "5", label: "5 Bundles", multiplier: 10000, unit: "bundles", actualQuantity: 10000, actualUnit: "kg" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-        ];
-      }
-      
-      // Bricks specific quantities
-      if (productName.includes('brick')) {
-        return [
-          { value: "100", label: "100 Bricks", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
-          { value: "500", label: "500 Bricks", multiplier: 500, unit: "pieces", actualQuantity: 500, actualUnit: "pieces" },
-          { value: "1000", label: "1,000 Bricks", multiplier: 1000, unit: "pieces", actualQuantity: 1000, actualUnit: "pieces" },
-          { value: "5000", label: "5,000 Bricks", multiplier: 5000, unit: "pieces", actualQuantity: 5000, actualUnit: "pieces" },
-          { value: "10000", label: "10,000 Bricks", multiplier: 10000, unit: "pieces", actualQuantity: 10000, actualUnit: "pieces" },
-          { value: "50000", label: "50,000 Bricks", multiplier: 50000, unit: "pieces", actualQuantity: 50000, actualUnit: "pieces" },
-          { value: "100000", label: "100,000 Bricks", multiplier: 100000, unit: "pieces", actualQuantity: 100000, actualUnit: "pieces" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
-        ];
-      }
-      
-      // Sand, gravel, aggregate specific quantities
-      if (productName.includes('sand') || productName.includes('gravel') || productName.includes('aggregate')) {
-        return [
-          { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-          { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
-          { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
-          { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
-          { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
-          { value: "25000", label: "25 Tons", multiplier: 25000, unit: "kg", actualQuantity: 25000, actualUnit: "kg" },
-          { value: "50000", label: "50 Tons", multiplier: 50000, unit: "kg", actualQuantity: 50000, actualUnit: "kg" },
-          { value: "1", label: "1 Truck Load", multiplier: 5000, unit: "trucks", actualQuantity: 5000, actualUnit: "kg" },
-          { value: "2", label: "2 Truck Loads", multiplier: 10000, unit: "trucks", actualQuantity: 10000, actualUnit: "kg" },
-          { value: "5", label: "5 Truck Loads", multiplier: 25000, unit: "trucks", actualQuantity: 25000, actualUnit: "kg" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-        ];
-      }
-      
-      // Concrete blocks specific quantities
-      if (productName.includes('concrete') && productName.includes('block')) {
-        return [
-          { value: "50", label: "50 Blocks", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
-          { value: "100", label: "100 Blocks", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
-          { value: "500", label: "500 Blocks", multiplier: 500, unit: "pieces", actualQuantity: 500, actualUnit: "pieces" },
-          { value: "1000", label: "1,000 Blocks", multiplier: 1000, unit: "pieces", actualQuantity: 1000, actualUnit: "pieces" },
-          { value: "5000", label: "5,000 Blocks", multiplier: 5000, unit: "pieces", actualQuantity: 5000, actualUnit: "pieces" },
-          { value: "10000", label: "10,000 Blocks", multiplier: 10000, unit: "pieces", actualQuantity: 10000, actualUnit: "pieces" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
-        ];
-      }
-      
-      // Wood/timber specific quantities
-      if (productName.includes('wood') || productName.includes('timber') || productName.includes('plywood')) {
-        return [
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
-          { value: "500", label: "500 Sq Ft", multiplier: 500, unit: "sqft", actualQuantity: 500, actualUnit: "sqft" },
-          { value: "1000", label: "1,000 Sq Ft", multiplier: 1000, unit: "sqft", actualQuantity: 1000, actualUnit: "sqft" },
-          { value: "1", label: "1 Cubic Foot", multiplier: 1, unit: "cubic_feet", actualQuantity: 1, actualUnit: "cubic_feet" },
-          { value: "5", label: "5 Cubic Feet", multiplier: 5, unit: "cubic_feet", actualQuantity: 5, actualUnit: "cubic_feet" },
-          { value: "10", label: "10 Cubic Feet", multiplier: 10, unit: "cubic_feet", actualQuantity: 10, actualUnit: "cubic_feet" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "sqft", actualQuantity: 0, actualUnit: "sqft" }
-        ];
-      }
-      
-      // Pipes specific quantities
-      if (productName.includes('pipe')) {
-        return [
-          { value: "10", label: "10 Meters", multiplier: 10, unit: "meters", actualQuantity: 10, actualUnit: "meters" },
-          { value: "50", label: "50 Meters", multiplier: 50, unit: "meters", actualQuantity: 50, actualUnit: "meters" },
-          { value: "100", label: "100 Meters", multiplier: 100, unit: "meters", actualQuantity: 100, actualUnit: "meters" },
-          { value: "500", label: "500 Meters", multiplier: 500, unit: "meters", actualQuantity: 500, actualUnit: "meters" },
-          { value: "1000", label: "1,000 Meters", multiplier: 1000, unit: "meters", actualQuantity: 1000, actualUnit: "meters" },
-          { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
-          { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
-          { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
-          { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "meters", actualQuantity: 0, actualUnit: "meters" }
-        ];
-      }
-      
-      // Tiles specific quantities
-      if (productName.includes('tile')) {
-        return [
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
-          { value: "500", label: "500 Sq Ft", multiplier: 500, unit: "sqft", actualQuantity: 500, actualUnit: "sqft" },
-          { value: "1000", label: "1,000 Sq Ft", multiplier: 1000, unit: "sqft", actualQuantity: 1000, actualUnit: "sqft" },
-          { value: "1", label: "1 Box", multiplier: 10, unit: "boxes", actualQuantity: 10, actualUnit: "sqft" },
-          { value: "5", label: "5 Boxes", multiplier: 50, unit: "boxes", actualQuantity: 50, actualUnit: "sqft" },
-          { value: "10", label: "10 Boxes", multiplier: 100, unit: "boxes", actualQuantity: 100, actualUnit: "sqft" },
-          { value: "50", label: "50 Boxes", multiplier: 500, unit: "boxes", actualQuantity: 500, actualUnit: "sqft" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "sqft", actualQuantity: 0, actualUnit: "sqft" }
-        ];
-      }
-      
-      // Wires specific quantities
-      if (productName.includes('wire')) {
-        return [
-          { value: "50", label: "50 Meters", multiplier: 50, unit: "meters", actualQuantity: 50, actualUnit: "meters" },
-          { value: "100", label: "100 Meters", multiplier: 100, unit: "meters", actualQuantity: 100, actualUnit: "meters" },
-          { value: "500", label: "500 Meters", multiplier: 500, unit: "meters", actualQuantity: 500, actualUnit: "meters" },
-          { value: "1000", label: "1,000 Meters", multiplier: 1000, unit: "meters", actualQuantity: 1000, actualUnit: "meters" },
-          { value: "1", label: "1 Coil", multiplier: 50, unit: "coils", actualQuantity: 50, actualUnit: "meters" },
-          { value: "2", label: "2 Coils", multiplier: 100, unit: "coils", actualQuantity: 100, actualUnit: "meters" },
-          { value: "5", label: "5 Coils", multiplier: 250, unit: "coils", actualQuantity: 250, actualUnit: "meters" },
-          { value: "10", label: "10 Coils", multiplier: 500, unit: "coils", actualQuantity: 500, actualUnit: "meters" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "meters", actualQuantity: 0, actualUnit: "meters" }
-        ];
-      }
-      
-      // Marble slabs specific quantities
-      if (productName.includes('marble') || productName.includes('slab')) {
-        return [
-          { value: "1", label: "1 Slab", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
-          { value: "5", label: "5 Slabs", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
-          { value: "10", label: "10 Slabs", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
-          { value: "20", label: "20 Slabs", multiplier: 20, unit: "pieces", actualQuantity: 20, actualUnit: "pieces" },
-          { value: "50", label: "50 Slabs", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
-        ];
-      }
-      
-      // Paints specific quantities
-      if (productName.includes('paint')) {
-        return [
-          { value: "1", label: "1 Liter", multiplier: 1, unit: "liters", actualQuantity: 1, actualUnit: "liters" },
-          { value: "5", label: "5 Liters", multiplier: 5, unit: "liters", actualQuantity: 5, actualUnit: "liters" },
-          { value: "10", label: "10 Liters", multiplier: 10, unit: "liters", actualQuantity: 10, actualUnit: "liters" },
-          { value: "20", label: "20 Liters", multiplier: 20, unit: "liters", actualQuantity: 20, actualUnit: "liters" },
-          { value: "50", label: "50 Liters", multiplier: 50, unit: "liters", actualQuantity: 50, actualUnit: "liters" },
-          { value: "100", label: "100 Liters", multiplier: 100, unit: "liters", actualQuantity: 100, actualUnit: "liters" },
-          { value: "1", label: "1 Bucket", multiplier: 20, unit: "buckets", actualQuantity: 20, actualUnit: "liters" },
-          { value: "2", label: "2 Buckets", multiplier: 40, unit: "buckets", actualQuantity: 40, actualUnit: "liters" },
-          { value: "5", label: "5 Buckets", multiplier: 100, unit: "buckets", actualQuantity: 100, actualUnit: "liters" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "liters", actualQuantity: 0, actualUnit: "liters" }
-        ];
-      }
-      
-      // Windows glass specific quantities
-      if (productName.includes('window') || productName.includes('glass')) {
-        return [
-          { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
-          { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
-          { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
-          { value: "20", label: "20 Pieces", multiplier: 20, unit: "pieces", actualQuantity: 20, actualUnit: "pieces" },
-          { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
-          { value: "10", label: "10 Sq Ft", multiplier: 10, unit: "sqft", actualQuantity: 10, actualUnit: "sqft" },
-          { value: "50", label: "50 Sq Ft", multiplier: 50, unit: "sqft", actualQuantity: 50, actualUnit: "sqft" },
-          { value: "100", label: "100 Sq Ft", multiplier: 100, unit: "sqft", actualQuantity: 100, actualUnit: "sqft" },
-          { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
-        ];
-      }
-      
-      // Default construction quantities
-      return [
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
-        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
-        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
-        { value: "1", label: "1 Unit", multiplier: 1, unit: "units", actualQuantity: 1, actualUnit: "units" },
-        { value: "5", label: "5 Units", multiplier: 5, unit: "units", actualQuantity: 5, actualUnit: "units" },
-        { value: "10", label: "10 Units", multiplier: 10, unit: "units", actualQuantity: 10, actualUnit: "units" },
-        { value: "50", label: "50 Units", multiplier: 50, unit: "units", actualQuantity: 50, actualUnit: "units" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "units", actualQuantity: 0, actualUnit: "units" }
-      ];
-    }
-    
-    const quantityOptionsByType = {
-      oil: [
-        { value: "5", label: "5 Liters", multiplier: 5, unit: "liters", actualQuantity: 5, actualUnit: "liters" },
-        { value: "10", label: "10 Liters", multiplier: 10, unit: "liters", actualQuantity: 10, actualUnit: "liters" },
-        { value: "25", label: "25 Liters", multiplier: 25, unit: "liters", actualQuantity: 25, actualUnit: "liters" },
-        { value: "50", label: "50 Liters", multiplier: 50, unit: "liters", actualQuantity: 50, actualUnit: "liters" },
-        { value: "100", label: "100 Liters", multiplier: 100, unit: "liters", actualQuantity: 100, actualUnit: "liters" },
-        { value: "500", label: "500 Liters", multiplier: 500, unit: "liters", actualQuantity: 500, actualUnit: "liters" },
-        { value: "1000", label: "1,000 Liters", multiplier: 1000, unit: "liters", actualQuantity: 1000, actualUnit: "liters" },
-        { value: "5000", label: "5,000 Liters", multiplier: 5000, unit: "liters", actualQuantity: 5000, actualUnit: "liters" },
-        { value: "10000", label: "10,000 Liters", multiplier: 10000, unit: "liters", actualQuantity: 10000, actualUnit: "liters" },
-        { value: "25000", label: "25,000 Liters", multiplier: 25000, unit: "liters", actualQuantity: 25000, actualUnit: "liters" },
-        { value: "50000", label: "50,000 Liters", multiplier: 50000, unit: "liters", actualQuantity: 50000, actualUnit: "liters" },
-        { value: "100000", label: "100,000 Liters", multiplier: 100000, unit: "liters", actualQuantity: 100000, actualUnit: "liters" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "liters", actualQuantity: 0, actualUnit: "liters" }
-      ],
-      
-      rice: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
-        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
-        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
-        { value: "25000", label: "25 Tons", multiplier: 25000, unit: "kg", actualQuantity: 25000, actualUnit: "kg" },
-        { value: "50000", label: "50 Tons", multiplier: 50000, unit: "kg", actualQuantity: 50000, actualUnit: "kg" },
-        { value: "100000", label: "100 Tons", multiplier: 100000, unit: "kg", actualQuantity: 100000, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      pulses: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
-        { value: "5000", label: "5 Tons", multiplier: 5000, unit: "kg", actualQuantity: 5000, actualUnit: "kg" },
-        { value: "10000", label: "10 Tons", multiplier: 10000, unit: "kg", actualQuantity: 10000, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      spices: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "500", label: "500 Kg", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
-        { value: "1000", label: "1 Ton", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      dryfruits: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      tea: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      fruits: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "1", label: "1 Box", multiplier: 1, unit: "boxes", actualQuantity: 10, actualUnit: "kg" },
-        { value: "5", label: "5 Boxes", multiplier: 5, unit: "boxes", actualQuantity: 50, actualUnit: "kg" },
-        { value: "10", label: "10 Boxes", multiplier: 10, unit: "boxes", actualQuantity: 100, actualUnit: "kg" },
-        { value: "25", label: "25 Boxes", multiplier: 25, unit: "boxes", actualQuantity: 250, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      vegetables: [
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Kg", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-        { value: "1", label: "1 Crate", multiplier: 1, unit: "crates", actualQuantity: 15, actualUnit: "kg" },
-        { value: "5", label: "5 Crates", multiplier: 5, unit: "crates", actualQuantity: 75, actualUnit: "kg" },
-        { value: "10", label: "10 Crates", multiplier: 10, unit: "crates", actualQuantity: 150, actualUnit: "kg" },
-        { value: "25", label: "25 Crates", multiplier: 25, unit: "crates", actualQuantity: 375, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      beverages: [
-        { value: "12", label: "12 Bottles", multiplier: 12, unit: "bottles", actualQuantity: 12, actualUnit: "pieces" },
-        { value: "24", label: "24 Bottles", multiplier: 24, unit: "bottles", actualQuantity: 24, actualUnit: "pieces" },
-        { value: "50", label: "50 Bottles", multiplier: 50, unit: "bottles", actualQuantity: 50, actualUnit: "pieces" },
-        { value: "100", label: "100 Bottles", multiplier: 100, unit: "bottles", actualQuantity: 100, actualUnit: "pieces" },
-        { value: "500", label: "500 Bottles", multiplier: 500, unit: "bottles", actualQuantity: 500, actualUnit: "pieces" },
-        { value: "10", label: "10 Liters", multiplier: 10, unit: "liters", actualQuantity: 10, actualUnit: "liters" },
-        { value: "25", label: "25 Liters", multiplier: 25, unit: "liters", actualQuantity: 25, actualUnit: "liters" },
-        { value: "50", label: "50 Liters", multiplier: 50, unit: "liters", actualQuantity: 50, actualUnit: "liters" },
-        { value: "100", label: "100 Liters", multiplier: 100, unit: "liters", actualQuantity: 100, actualUnit: "liters" },
-        { value: "500", label: "500 Liters", multiplier: 500, unit: "liters", actualQuantity: 500, actualUnit: "liters" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bottles", actualQuantity: 0, actualUnit: "pieces" }
-      ],
-      
-      gadgets: [
-        { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
-        { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
-        { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
-        { value: "25", label: "25 Pieces", multiplier: 25, unit: "pieces", actualQuantity: 25, actualUnit: "pieces" },
-        { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
-        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
-      ],
-      
-      clothing: [
-        { value: "1", label: "1 Piece", multiplier: 1, unit: "pieces", actualQuantity: 1, actualUnit: "pieces" },
-        { value: "5", label: "5 Pieces", multiplier: 5, unit: "pieces", actualQuantity: 5, actualUnit: "pieces" },
-        { value: "10", label: "10 Pieces", multiplier: 10, unit: "pieces", actualQuantity: 10, actualUnit: "pieces" },
-        { value: "25", label: "25 Pieces", multiplier: 25, unit: "pieces", actualQuantity: 25, actualUnit: "pieces" },
-        { value: "50", label: "50 Pieces", multiplier: 50, unit: "pieces", actualQuantity: 50, actualUnit: "pieces" },
-        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "pieces", actualQuantity: 0, actualUnit: "pieces" }
-      ],
-      
-      chocolate: [
-        { value: "1", label: "1 Kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
-        { value: "5", label: "5 Kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 Kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 Kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 Kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "100", label: "100 Pieces", multiplier: 100, unit: "pieces", actualQuantity: 100, actualUnit: "pieces" },
-        { value: "500", label: "500 Pieces", multiplier: 500, unit: "pieces", actualQuantity: 500, actualUnit: "pieces" },
-        { value: "1000", label: "1,000 Pieces", multiplier: 1000, unit: "pieces", actualQuantity: 1000, actualUnit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ],
-      
-      perfume: [
-        { value: "1", label: "1 Bottle", multiplier: 1, unit: "bottles", actualQuantity: 1, actualUnit: "pieces" },
-        { value: "5", label: "5 Bottles", multiplier: 5, unit: "bottles", actualQuantity: 5, actualUnit: "pieces" },
-        { value: "10", label: "10 Bottles", multiplier: 10, unit: "bottles", actualQuantity: 10, actualUnit: "pieces" },
-        { value: "25", label: "25 Bottles", multiplier: 25, unit: "bottles", actualQuantity: 25, actualUnit: "pieces" },
-        { value: "50", label: "50 Bottles", multiplier: 50, unit: "bottles", actualQuantity: 50, actualUnit: "pieces" },
-        { value: "100", label: "100 Bottles", multiplier: 100, unit: "bottles", actualQuantity: 100, actualUnit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "bottles", actualQuantity: 0, actualUnit: "pieces" }
-      ],
-      
-      flowers: [
-        { value: "12", label: "12 Stems", multiplier: 12, unit: "stems", actualQuantity: 12, actualUnit: "pieces" },
-        { value: "24", label: "24 Stems", multiplier: 24, unit: "stems", actualQuantity: 24, actualUnit: "pieces" },
-        { value: "50", label: "50 Stems", multiplier: 50, unit: "stems", actualQuantity: 50, actualUnit: "pieces" },
-        { value: "100", label: "100 Stems", multiplier: 100, unit: "stems", actualQuantity: 100, actualUnit: "pieces" },
-        { value: "500", label: "500 Stems", multiplier: 500, unit: "stems", actualQuantity: 500, actualUnit: "pieces" },
-        { value: "1", label: "1 Bouquet", multiplier: 1, unit: "bouquets", actualQuantity: 12, actualUnit: "pieces" },
-        { value: "5", label: "5 Bouquets", multiplier: 5, unit: "bouquets", actualQuantity: 60, actualUnit: "pieces" },
-        { value: "10", label: "10 Bouquets", multiplier: 10, unit: "bouquets", actualQuantity: 120, actualUnit: "pieces" },
-        { value: "25", label: "25 Bouquets", multiplier: 25, unit: "bouquets", actualQuantity: 300, actualUnit: "pieces" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "stems", actualQuantity: 0, actualUnit: "pieces" }
-      ],
-      
-      default: [
-        { value: "1", label: "1 Unit", multiplier: 1, unit: "units", actualQuantity: 1, actualUnit: "units" },
-        { value: "5", label: "5 Units", multiplier: 5, unit: "units", actualQuantity: 5, actualUnit: "units" },
-        { value: "10", label: "10 Units", multiplier: 10, unit: "units", actualQuantity: 10, actualUnit: "units" },
-        { value: "25", label: "25 Units", multiplier: 25, unit: "units", actualQuantity: 25, actualUnit: "units" },
-        { value: "50", label: "50 Units", multiplier: 50, unit: "units", actualQuantity: 50, actualUnit: "units" },
-        { value: "100", label: "100 Units", multiplier: 100, unit: "units", actualQuantity: 100, actualUnit: "units" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "units", actualQuantity: 0, actualUnit: "units" }
-      ]
-    };
-    
-    return quantityOptionsByType[productType] || quantityOptionsByType.default;
+    return getQuantityOptions(productType, productName);
   };
 
-  // Product-specific packing options - UPDATED CONSTRUCTION PACKING
-  const getPackingOptions = () => {
+  // Product-specific packing options
+  const getPackingOptionsForProduct = () => {
     const productType = getProductType();
     const productName = product?.name?.toLowerCase() || '';
-    
-    // Construction material specific packing options
-    if (productType === 'construction') {
-      // Cement specific packing
-      if (productName.includes('cement')) {
-        return [
-          { value: "PP Bags (50kg)", price: "12" },
-          { value: "HDPE Bags (50kg)", price: "14" },
-          { value: "Paper Bags (50kg)", price: "10" },
-          { value: "Jumbo Bags (1 ton)", price: "25" },
-          { value: "Bulk Tanker", price: "8" },
-          { value: "Loose Bulk", price: "5" },
-          { value: "Export Packaging", price: "35" },
-          { value: "Custom Packaging", price: "50" }
-        ];
-      }
-      
-      // Steel bars specific packing
-      if (productName.includes('steel') || productName.includes('rod') || productName.includes('tmt')) {
-        return [
-          { value: "Steel Bundles", price: "35" },
-          { value: "Wire Rod Bundles", price: "25" },
-          { value: "Corrugated Boxes", price: "15" },
-          { value: "Wooden Crates", price: "30" },
-          { value: "Plastic Wrapping", price: "12" },
-          { value: "Waterproof Cover", price: "18" },
-          { value: "Export Packaging", price: "40" },
-          { value: "Custom Packaging", price: "45" }
-        ];
-      }
-      
-      // Bricks specific packing
-      if (productName.includes('brick')) {
-        return [
-          { value: "Wooden Pallets", price: "40" },
-          { value: "Plastic Pallets", price: "35" },
-          { value: "Corrugated Boxes", price: "15" },
-          { value: "Brick Pallets", price: "45" },
-          { value: "Loose Packing", price: "8" },
-          { value: "Weatherproof Cover", price: "20" },
-          { value: "Export Packaging", price: "38" },
-          { value: "Custom Packaging", price: "42" }
-        ];
-      }
-      
-      // Sand, gravel, aggregate specific packing
-      if (productName.includes('sand') || productName.includes('gravel') || productName.includes('aggregate')) {
-        return [
-          { value: "Jumbo Bags", price: "22" },
-          { value: "PP Bags", price: "10" },
-          { value: "Bulk Truck", price: "15" },
-          { value: "Loose Bulk", price: "5" },
-          { value: "Container Load", price: "30" },
-          { value: "Weatherproof Cover", price: "18" },
-          { value: "Export Packaging", price: "32" },
-          { value: "Custom Packaging", price: "40" }
-        ];
-      }
-      
-      // Concrete blocks specific packing
-      if (productName.includes('concrete') && productName.includes('block')) {
-        return [
-          { value: "Wooden Pallets", price: "38" },
-          { value: "Plastic Pallets", price: "32" },
-          { value: "Corrugated Boxes", price: "16" },
-          { value: "Block Pallets", price: "42" },
-          { value: "Loose Packing", price: "10" },
-          { value: "Weatherproof Cover", price: "22" },
-          { value: "Export Packaging", price: "36" },
-          { value: "Custom Packaging", price: "44" }
-        ];
-      }
-      
-      // Wood/timber specific packing
-      if (productName.includes('wood') || productName.includes('timber') || productName.includes('plywood')) {
-        return [
-          { value: "Wooden Crates", price: "32" },
-          { value: "Plastic Wrapping", price: "14" },
-          { value: "Corrugated Boxes", price: "18" },
-          { value: "Waterproof Cover", price: "20" },
-          { value: "Bundle Packing", price: "16" },
-          { value: "Export Packaging", price: "34" },
-          { value: "Custom Packaging", price: "38" }
-        ];
-      }
-      
-      // Pipes specific packing
-      if (productName.includes('pipe')) {
-        return [
-          { value: "Pipe Bundles", price: "22" },
-          { value: "Wooden Crates", price: "28" },
-          { value: "Plastic Wrapping", price: "15" },
-          { value: "Corrugated Boxes", price: "18" },
-          { value: "Waterproof Cover", price: "20" },
-          { value: "Export Packaging", price: "32" },
-          { value: "Custom Packaging", price: "36" }
-        ];
-      }
-      
-      // Tiles specific packing
-      if (productName.includes('tile')) {
-        return [
-          { value: "Tile Boxes", price: "18" },
-          { value: "Corrugated Boxes", price: "16" },
-          { value: "Wooden Crates", price: "26" },
-          { value: "Plastic Wrapping", price: "12" },
-          { value: "Protective Corner", price: "14" },
-          { value: "Export Packaging", price: "30" },
-          { value: "Custom Packaging", price: "34" }
-        ];
-      }
-      
-      // Wires specific packing
-      if (productName.includes('wire')) {
-        return [
-          { value: "Wire Coils", price: "20" },
-          { value: "Plastic Spools", price: "16" },
-          { value: "Corrugated Boxes", price: "14" },
-          { value: "Wooden Crates", price: "24" },
-          { value: "Waterproof Cover", price: "18" },
-          { value: "Export Packaging", price: "28" },
-          { value: "Custom Packaging", price: "32" }
-        ];
-      }
-      
-      // Marble slabs specific packing
-      if (productName.includes('marble') || productName.includes('slab')) {
-        return [
-          { value: "Glass Crates", price: "28" },
-          { value: "Wooden Crates", price: "32" },
-          { value: "Protective Corner", price: "22" },
-          { value: "Foam Wrapping", price: "18" },
-          { value: "Waterproof Cover", price: "24" },
-          { value: "Export Packaging", price: "36" },
-          { value: "Custom Packaging", price: "40" }
-        ];
-      }
-      
-      // Paints specific packing
-      if (productName.includes('paint')) {
-        return [
-          { value: "Paint Cans", price: "15" },
-          { value: "Plastic Buckets", price: "12" },
-          { value: "Corrugated Boxes", price: "14" },
-          { value: "Wooden Crates", price: "22" },
-          { value: "Protective Wrapping", price: "16" },
-          { value: "Export Packaging", price: "26" },
-          { value: "Custom Packaging", price: "30" }
-        ];
-      }
-      
-      // Windows glass specific packing
-      if (productName.includes('window') || productName.includes('glass')) {
-        return [
-          { value: "Glass Crates", price: "28" },
-          { value: "Wooden Crates", price: "30" },
-          { value: "Protective Corner", price: "20" },
-          { value: "Foam Wrapping", price: "16" },
-          { value: "Waterproof Cover", price: "22" },
-          { value: "Export Packaging", price: "34" },
-          { value: "Custom Packaging", price: "38" }
-        ];
-      }
-      
-      // Default construction packing
-      return [
-        { value: "Wooden Crates", price: "30" },
-        { value: "Plastic Crates", price: "20" },
-        { value: "Corrugated Boxes", price: "15" },
-        { value: "Steel Boxes", price: "35" },
-        { value: "Wooden Pallets", price: "40" },
-        { value: "Plastic Pallets", price: "35" },
-        { value: "Bulk Packaging", price: "8" },
-        { value: "Export Packaging", price: "35" },
-        { value: "Custom Packaging", price: "50" }
-      ];
-    }
-    
-    const packingOptionsByType = {
-      oil: [
-        { value: "PET Bottles", price: "8" },
-        { value: "Glass Bottles", price: "12" },
-        { value: "Plastic Cans", price: "10" },
-        { value: "Tin Cans", price: "15" },
-        { value: "Flexi Pouches", price: "6" },
-        { value: "Drum Packaging", price: "25" },
-        { value: "Bulk Tankers", price: "5" },
-        { value: "Aseptic Packaging", price: "18" }
-      ],
-      
-      rice: [
-        { value: "PP Bags", price: "10" },
-        { value: "Non-Woven Bags", price: "15" },
-        { value: "Jute Bags", price: "20" },
-        { value: "BOPP Bags", price: "16" },
-        { value: "LDPE Bags", price: "12" },
-        { value: "HDPE Bags", price: "11" },
-        { value: "Vacuum Packed", price: "24" },
-        { value: "Paper Bags", price: "9" },
-        { value: "Bulk Packaging", price: "6" },
-        { value: "Custom Packaging", price: "30" }
-      ],
-      
-      pulses: [
-        { value: "PP Bags", price: "8" },
-        { value: "Jute Bags", price: "18" },
-        { value: "LDPE Bags", price: "10" },
-        { value: "HDPE Bags", price: "9" },
-        { value: "Vacuum Packed", price: "22" },
-        { value: "Paper Bags", price: "7" },
-        { value: "Bulk Packaging", price: "5" },
-        { value: "Retail Pouches", price: "12" }
-      ],
-      
-      spices: [
-        { value: "PP Pouches", price: "6" },
-        { value: "Aluminum Pouches", price: "15" },
-        { value: "Glass Jars", price: "18" },
-        { value: "Plastic Jars", price: "12" },
-        { value: "Vacuum Packed", price: "20" },
-        { value: "Stand-up Pouches", price: "10" },
-        { value: "Bulk Bags", price: "8" },
-        { value: "Retail Boxes", price: "14" }
-      ],
-      
-      dryfruits: [
-        { value: "Vacuum Packed", price: "22" },
-        { value: "PP Pouches", price: "8" },
-        { value: "Aluminum Foil Bags", price: "16" },
-        { value: "Glass Jars", price: "20" },
-        { value: "Tin Cans", price: "18" },
-        { value: "Stand-up Pouches", price: "12" },
-        { value: "Bulk Bags", price: "10" },
-        { value: "Gift Boxes", price: "25" }
-      ],
-      
-      tea: [
-        { value: "Tea Bags", price: "15" },
-        { value: "Aluminum Pouches", price: "12" },
-        { value: "Paper Bags", price: "8" },
-        { value: "Tin Cans", price: "20" },
-        { value: "Glass Jars", price: "18" },
-        { value: "Vacuum Packed", price: "16" },
-        { value: "Gift Boxes", price: "22" },
-        { value: "Bulk Packaging", price: "6" }
-      ],
-      
-      fruits: [
-        { value: "Corrugated Boxes", price: "15" },
-        { value: "Wooden Crates", price: "25" },
-        { value: "Plastic Crates", price: "18" },
-        { value: "Mesh Bags", price: "8" },
-        { value: "Bulk Packaging", price: "6" },
-        { value: "Gift Boxes", price: "22" },
-        { value: "Vacuum Packed", price: "20" },
-        { value: "Modified Atmosphere", price: "28" }
-      ],
-      
-      vegetables: [
-        { value: "Mesh Bags", price: "7" },
-        { value: "Corrugated Boxes", price: "12" },
-        { value: "Plastic Crates", price: "15" },
-        { value: "Jute Bags", price: "10" },
-        { value: "Bulk Packaging", price: "5" },
-        { value: "Vacuum Packed", price: "18" },
-        { value: "Modified Atmosphere", price: "25" },
-        { value: "Retail Trays", price: "14" }
-      ],
-      
-      beverages: [
-        { value: "Glass Bottles", price: "12" },
-        { value: "PET Bottles", price: "8" },
-        { value: "Aluminum Cans", price: "10" },
-        { value: "Tetra Packs", price: "9" },
-        { value: "Plastic Jugs", price: "11" },
-        { value: "Bulk Drums", price: "15" },
-        { value: "Multi-packs", price: "14" },
-        { value: "Gift Packs", price: "20" }
-      ],
-      
-      chocolate: [
-        { value: "Foil Wrapping", price: "8" },
-        { value: "Paper Boxes", price: "12" },
-        { value: "Plastic Boxes", price: "10" },
-        { value: "Gift Boxes", price: "18" },
-        { value: "Bulk Packaging", price: "6" },
-        { value: "Retail Bars", price: "9" },
-        { value: "Truffle Boxes", price: "22" },
-        { value: "Seasonal Packaging", price: "25" }
-      ],
-      
-      perfume: [
-        { value: "Glass Bottles", price: "25" },
-        { value: "Premium Boxes", price: "30" },
-        { value: "Gift Sets", price: "35" },
-        { value: "Travel Packs", price: "20" },
-        { value: "Luxury Packaging", price: "40" },
-        { value: "Sample Vials", price: "15" },
-        { value: "Custom Bottles", price: "45" },
-        { value: "Display Boxes", price: "28" }
-      ],
-      
-      flowers: [
-        { value: "Bouquet Wrapping", price: "12" },
-        { value: "Vase Packaging", price: "18" },
-        { value: "Gift Boxes", price: "15" },
-        { value: "Floral Foam", price: "10" },
-        { value: "Cellophane Wrap", price: "8" },
-        { value: "Premium Boxes", price: "22" },
-        { value: "Custom Arrangements", price: "25" },
-        { value: "Event Packaging", price: "30" }
-      ],
-      
-      clothing: [
-        { value: "Poly Bags", price: "6" },
-        { value: "Cardboard Boxes", price: "12" },
-        { value: "Hanger Packs", price: "15" },
-        { value: "Gift Boxes", price: "18" },
-        { value: "Vacuum Packed", price: "10" },
-        { value: "Bulk Cartons", price: "8" },
-        { value: "Premium Packaging", price: "22" },
-        { value: "Retail Ready", price: "14" }
-      ],
-      
-      gadgets: [
-        { value: "Retail Boxes", price: "25" },
-        { value: "Blister Packs", price: "18" },
-        { value: "Clamshell Packaging", price: "20" },
-        { value: "Gift Boxes", price: "30" },
-        { value: "Bulk Cartons", price: "15" },
-        { value: "Premium Packaging", price: "35" },
-        { value: "Display Boxes", price: "28" },
-        { value: "Security Packaging", price: "22" }
-      ],
-      
-      default: [
-        { value: "Standard Packaging", price: "10" },
-        { value: "Bulk Packaging", price: "6" },
-        { value: "Custom Packaging", price: "25" },
-        { value: "Retail Packaging", price: "12" },
-        { value: "Export Packaging", price: "18" }
-      ]
-    };
-    
-    return packingOptionsByType[productType] || packingOptionsByType.default;
-  };
-
-  // NEW FUNCTION: Get packing unit for display
-  const getPackingUnit = (packingValue) => {
-    if (!packingValue) return "unit";
-    
-    const packingLower = packingValue.toLowerCase();
-    
-    // Boxes and cases
-    if (packingLower.includes('box') || packingLower.includes('case') || 
-        packingLower.includes('gift') || packingLower.includes('display')) {
-      return "box";
-    }
-    
-    // Bags
-    if (packingLower.includes('bag') || packingLower.includes('pouch') || 
-        packingLower.includes('sack')) {
-      return "bag";
-    }
-    
-    // Bottles
-    if (packingLower.includes('bottle') || packingLower.includes('jar') || 
-        packingLower.includes('vial')) {
-      return "bottle";
-    }
-    
-    // Cans and containers
-    if (packingLower.includes('can') || packingLower.includes('tin') || 
-        packingLower.includes('drum') || packingLower.includes('container')) {
-      return "can";
-    }
-    
-    // Crates
-    if (packingLower.includes('crate') || packingLower.includes('pallet')) {
-      return "crate";
-    }
-    
-    // Wrapping
-    if (packingLower.includes('wrap') || packingLower.includes('foil') || 
-        packingLower.includes('cellophane')) {
-      return "wrap";
-    }
-    
-    // Sets and packs
-    if (packingLower.includes('set') || packingLower.includes('pack') || 
-        packingLower.includes('multi-pack')) {
-      return "set";
-    }
-    
-    // Construction specific
-    if (packingLower.includes('bundle') || packingLower.includes('coil')) {
-      return "bundle";
-    }
-    
-    if (packingLower.includes('silo') || packingLower.includes('tanker')) {
-      return "unit";
-    }
-    
-    // Default to unit
-    return "unit";
-  };
-
-  const varietyGrades = {
-    "1121 Basmati":[
-      "1121 Steam A+",
-      "1121 Steam A",
-      "1121 Golden Sella A",
-      "1121 Golden Sella A+",
-      "1121 White Sella A+",
-      "1121 White Sella A"
-    ],
-    "1509 Basmati": [
-      "1509 Steam A+",
-      "1509 Steam A",
-      "1509 Golden Sella A+",
-      "1509 Golden Sella A",
-      "1509 White Sella A+",
-      "1509 White Sella A"
-    ],
-    "1401 Basmati": [
-      "1401 Steam A+",
-      "1401 Steam A",
-      "1401 white Sella A+",
-      "1401 white Sella A",
-      "1401 Golden Sella A+",
-      "1401 Golden Sella A"
-    ],
-    "Pusa Basmati": [
-      "Pusa Golden Sella A",
-      "Pusa Golden Sella A+",
-      "Pusa White Sella A+",
-      "Pusa White Sella A",
-      "Pusa Steam A",
-      "Pusa Steam A+"
-    ],
-    "Traditional Basmati": [
-      "Traditional Golden Sella A",
-      "Traditional Golden Sella A+",
-      "Traditional White Sella A+",
-      "Traditional White Sella A",
-      "Traditional Steam A",
-      "Traditional Steam A+"
-    ],
-    "1885 Basmati": [
-      "1885 Golden Sella A",
-      "1885 Golden Sella A+",
-      "1885 White Sella A+",
-      "1885 White Sella A",
-      "1885 Steam A",
-      "1885 Steam A+"
-    ],
-    "1718 Basmati": [
-      "1718 White Sella A+",
-      "1718 White Sella A",
-      "1718 Golden Sella A+",
-      "1718 Golden Sella A",
-      "1718 Steam A+",
-      "1718 Steam A"
-    ],
-    "Sugandha (Non-Basmati)": [
-      "Sugandha Creamy Parboiled",
-      "Sugandha Golden",
-      "Sugandha Steam",
-      "Sugandha Sella"
-    ],
-    "Sharbati (Non-Basmati)": [
-      "Sharbati Creamy Parboiled",
-      "Sharbati Golden",
-      "Sharbati Steam",
-      "Sharbati Sella"
-    ],
-    "PR-11/14 (Non-Basmati)": [
-      "PR-11/14 Creamy Parboiled",
-      "PR-11/14 Golden",
-      "PR-11/14 Steam",
-      "PR-11/14 Sella"
-    ],
-    "PR-06/47 (Non-Basmati)": [
-      "PR-06/47 Creamy Parboiled",
-      "PR-06/47 Golden",
-      "PR-06/47 Steam",
-      "PR-06/47 Sella"
-    ],
-    "RH-10 (Non-Basmati)": [
-      "Creamy Parboiled",
-      "RH-10 Golden",
-      "RH-10 Steam",
-      "RH-10 Sella"
-    ],
-    "Sona Masoori (Non-Basmati)": [
-      "Sona Masoori Steam",
-      "Sona Masoori Sella",
-      "Sona Masoori Creamy Parboiled",
-      "Sona Masoori Golden"
-    ],
-    "Long Grain (Non-Basmati)": [
-      "Long Grain Parboiled",
-      "Long Grain Creamy Parboiled",
-      "Long Grain Sella",
-      "Long Grain Golden",
-      "Long Grain Steam"
-    ],
-    "IR-8 (Non-Basmati)": [
-      "IR-8 Parboiled",
-      "IR-8 Creamy Parboiled",
-      "IR-8 Sella",
-      "IR-8 Golden",
-      "IR-8 Steam"
-    ],
-    "GR-11 (Non-Basmati)": [
-      "GR-11 Creamy Parboiled",
-      "GR-11 Parboiled",
-      "GR-11 Sella",
-      "GR-11 Steam",
-      "GR-11 Golden"
-    ],
-    "Swarna (Non-Basmati)": [
-      "Swarna Steam",
-      "Swarna sella",
-      "Swarna Creamy Parboiled",
-      "Swarna Parboiled",
-      "Swarna Golden"
-    ],
-    "Kalizeera (Non-Basmati)": [
-      "Kalizeera steam",
-      "Kalizeera Golden",
-      "Kalizeera Creamy Parboiled",
-      "Kalizeera Parboiled",
-      "Kalizeera Sella"
-    ],
-    "Ponni Rice (Non-Basmati)": [
-      "Pooni Rice Steam",
-      "Ponni Rice Sella",
-      "Ponni Rice Golden",
-      "Ponni Rice Creamy Parboiled",
-      "Ponni Rice Parboiled"
-    ]
-  };
-
-  const gradePrices = {
-    "1121 Steam A+": "1.10", "1121 Steam A": "1.00", "1121 Golden Sella A": "1.05",
-    "1121 Golden Sella A+": "1.15", "1121 White Sella A+": "1.08", "1121 White Sella A": "0.98",
-    "1509 Steam A+": "0.95", "1509 Steam A": "0.85", "1509 Golden Sella A+": "1.00",
-    "1509 Golden Sella A": "0.90", "1509 White Sella A+": "0.92", "1509 White Sella A": "0.82",
-    "1401 Steam A+": "0.85", "1401 Steam A": "0.75", "1401 white Sella A+": "0.82",
-    "1401 white Sella A": "0.72", "1401 Golden Sella A+": "0.84", "1401 Golden Sella A": "0.74",
-    "Pusa Golden Sella A": "0.82", "Pusa Golden Sella A+": "0.92", "Pusa White Sella A+": "0.88",
-    "Pusa White Sella A": "0.78", "Pusa Steam A": "0.80", "Pusa Steam A+": "0.90",
-    "Traditional Golden Sella A": "0.78", "Traditional Golden Sella A+": "0.88",
-    "Traditional White Sella A+": "0.84", "Traditional White Sella A": "0.74",
-    "Traditional Steam A": "0.76", "Traditional Steam A+": "0.86",
-    "1885 Golden Sella A": "0.80", "1885 Golden Sella A+": "0.90", "1885 White Sella A+": "0.86",
-    "1885 White Sella A": "0.76", "1885 Steam A": "0.78", "1885 Steam A+": "0.88",
-    "1718 White Sella A+": "0.86", "1718 White Sella A": "0.76", "1718 Golden Sella A+": "0.88",
-    "1718 Golden Sella A": "0.78", "1718 Steam A+": "0.84", "1718 Steam A": "0.74",
-    
-    "Sugandha Creamy Parboiled": "0.55", "Sugandha Golden": "0.50", "Sugandha Steam": "0.52", "Sugandha Sella": "0.50",
-    "Sharbati Creamy Parboiled": "0.52", "Sharbati Golden": "0.48", "Sharbati Steam": "0.50", "Sharbati Sella": "0.48",
-    "PR-11/14 Creamy Parboiled": "0.50", "PR-11/14 Golden": "0.45", "PR-11/14 Steam": "0.48", "PR-11/14 Sella": "0.45",
-    "PR-06/47 Creamy Parboiled": "0.48", "PR-06/47 Golden": "0.43", "PR-06/47 Steam": "0.46", "PR-06/47 Sella": "0.43",
-    "Creamy Parboiled": "0.46", "RH-10 Golden": "0.41", "RH-10 Steam": "0.44", "RH-10 Sella": "0.41",
-    "Sona Masoori Steam": "0.58", "Sona Masoori Sella": "0.55", "Sona Masoori Creamy Parboiled": "0.60", "Sona Masoori Golden": "0.52",
-    "Long Grain Parboiled": "0.44", "Long Grain Creamy Parboiled": "0.48", "Long Grain Sella": "0.42",
-    "Long Grain Golden": "0.40", "Long Grain Steam": "0.46",
-    "IR-8 Parboiled": "0.38", "IR-8 Creamy Parboiled": "0.42", "IR-8 Sella": "0.36",
-    "IR-8 Golden": "0.34", "IR-8 Steam": "0.40",
-    "GR-11 Creamy Parboiled": "0.43", "GR-11 Parboiled": "0.38", "GR-11 Sella": "0.36",
-    "GR-11 Steam": "0.41", "GR-11 Golden": "0.34",
-    "Swarna Steam": "0.42", "Swarna sella": "0.40", "Swarna Creamy Parboiled": "0.46",
-    "Swarna Parboiled": "0.38", "Swarna Golden": "0.36",
-    "Kalizeera steam": "0.48", "Kalizeera Golden": "0.44", "Kalizeera Creamy Parboiled": "0.52",
-    "Kalizeera Parboiled": "0.44", "Kalizeera Sella": "0.42",
-    "Pooni Rice Steam": "0.50", "Ponni Rice Sella": "0.48", "Ponni Rice Golden": "0.46",
-    "Ponni Rice Creamy Parboiled": "0.54", "Ponni Rice Parboiled": "0.46"
+    return getPackingOptions(productType, productName);
   };
 
   // Helper functions
@@ -1139,15 +123,12 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
   const getProductType = () => {
     if (!product) return 'default';
     
-    // Check if product has a category property
     if (product.category) {
       return product.category;
     }
     
-    // Check product name for keywords
     const productName = product.name?.toLowerCase() || '';
     
-    // Oil detection
     if (productName.includes('oil') || 
         productName.includes('sunflower') || 
         productName.includes('olive') || 
@@ -1159,14 +140,12 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'oil';
     }
     
-    // Rice detection
     if (productName.includes('rice') || 
         productName.includes('basmati') || 
         product.variety) {
       return 'rice';
     }
     
-    // Pulses detection
     if (productName.includes('dal') || 
         productName.includes('chana') || 
         productName.includes('moong') || 
@@ -1179,7 +158,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'pulses';
     }
     
-    // Spices detection
     if (productName.includes('spice') || 
         productName.includes('turmeric') || 
         productName.includes('chilli') || 
@@ -1192,7 +170,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'spices';
     }
     
-    // Tea detection
     if (productName.includes('tea') || 
         productName.includes('green tea') || 
         productName.includes('black tea') || 
@@ -1201,7 +178,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'tea';
     }
     
-    // Dry fruits detection
     if (productName.includes('almond') || 
         productName.includes('cashew') || 
         productName.includes('raisin') || 
@@ -1212,7 +188,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'dryfruits';
     }
     
-    // Construction detection
     if (productName.includes('cement') || 
         productName.includes('steel') || 
         productName.includes('brick') || 
@@ -1244,7 +219,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'construction';
     }
     
-    // Fruits detection
     if (productName.includes('apple') || 
         productName.includes('banana') || 
         productName.includes('orange') || 
@@ -1253,7 +227,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'fruits';
     }
     
-    // Vegetables detection
     if (productName.includes('vegetable') || 
         productName.includes('potato') || 
         productName.includes('tomato') || 
@@ -1263,7 +236,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'vegetables';
     }
     
-    // Beverages detection
     if (productName.includes('juice') || 
         productName.includes('soda') || 
         productName.includes('drink') || 
@@ -1271,7 +243,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'beverages';
     }
     
-    // Gadgets detection
     if (productName.includes('phone') || 
         productName.includes('laptop') || 
         productName.includes('tablet') || 
@@ -1280,7 +251,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'gadgets';
     }
     
-    // Clothing detection
     if (productName.includes('shirt') || 
         productName.includes('dress') || 
         productName.includes('pants') || 
@@ -1290,7 +260,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'clothing';
     }
     
-    // Chocolate detection
     if (productName.includes('chocolate') || 
         productName.includes('cocoa') || 
         productName.includes('dark chocolate') || 
@@ -1298,7 +267,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'chocolate';
     }
     
-    // Perfume detection
     if (productName.includes('perfume') || 
         productName.includes('fragrance') || 
         productName.includes('cologne') || 
@@ -1306,7 +274,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return 'perfume';
     }
     
-    // Flowers detection
     if (productName.includes('flower') || 
         productName.includes('rose') || 
         productName.includes('lily') || 
@@ -1319,231 +286,13 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     return 'default';
   };
 
-  const getAvailableGrades = (productType, productData) => {
-    if (productType === 'rice' && productData) {
-      const productVariety = productData.variety || '';
-      const productName = productData.name || '';
-      
-      let matchedVariety = null;
-      
-      if (productVariety && varietyGrades[productVariety]) {
-        matchedVariety = productVariety;
-      } else if (productVariety) {
-        for (const varietyKey in varietyGrades) {
-          const cleanVariety = productVariety.replace('Rice', '').replace('rice', '').trim();
-          const cleanKey = varietyKey.replace('Rice', '').replace('rice', '').trim();
-          if (cleanVariety.includes(cleanKey) || cleanKey.includes(cleanVariety)) {
-            matchedVariety = varietyKey;
-            break;
-          }
-        }
-      } else if (productName) {
-        for (const varietyKey in varietyGrades) {
-          const cleanName = productName.replace('Rice', '').replace('rice', '').trim();
-          const cleanKey = varietyKey.replace('Rice', '').replace('rice', '').trim();
-          if (cleanName.includes(cleanKey) || cleanKey.includes(cleanName)) {
-            matchedVariety = varietyKey;
-            break;
-          }
-        }
-      }
-
-      if (matchedVariety && varietyGrades[matchedVariety]) {
-        return varietyGrades[matchedVariety].map(grade => ({
-          value: grade,
-          price: gradePrices[grade] || "1.00"
-        }));
-      }
-
-      const allRiceGrades = Object.values(varietyGrades).flat();
-      const uniqueGrades = [...new Set(allRiceGrades)];
-      return uniqueGrades.map(grade => ({
-        value: grade,
-        price: gradePrices[grade] || "1.00"
-      }));
-    }
-
-    const gradeOptions = {
-      oil: [
-        { value: "Extra Virgin", price: "1.20" }, { value: "Virgin", price: "1.10" },
-        { value: "Pure", price: "1.00" }, { value: "Refined", price: "0.95" },
-        { value: "Cold Pressed", price: "1.25" }, { value: "Organic", price: "1.30" }
-      ],
-      construction: [
-        { value: "Grade A", price: "1.15" }, { value: "Grade B", price: "1.00" },
-        { value: "Industrial Grade", price: "0.90" }, { value: "Commercial Grade", price: "1.05" },
-        { value: "Premium Quality", price: "1.25" }, { value: "Standard Quality", price: "0.95" },
-        { value: "Structural Grade", price: "1.10" }, { value: "Reinforcement Grade", price: "1.08" },
-        { value: "Waterproof Grade", price: "1.20" }, { value: "Weather Resistant", price: "1.18" },
-        { value: "Fire Resistant", price: "1.25" }, { value: "Load Bearing", price: "1.12" }
-      ],
-      fruits: [
-        { value: "Grade A", price: "1.10" }, { value: "Grade B", price: "0.95" },
-        { value: "Export Quality", price: "1.20" }, { value: "Premium", price: "1.15" },
-        { value: "Standard", price: "0.85" }, { value: "Organic", price: "1.25" }
-      ],
-      vegetables: [
-        { value: "Grade A", price: "1.05" }, { value: "Grade B", price: "0.90" },
-        { value: "Fresh", price: "1.10" }, { value: "Organic", price: "1.15" },
-        { value: "Premium", price: "1.08" }, { value: "Standard", price: "0.85" }
-      ],
-      pulses: [
-        { value: "Premium Grade", price: "1.10" }, { value: "Standard Grade", price: "1.00" },
-        { value: "Export Quality", price: "1.15" }, { value: "First Quality", price: "1.05" },
-        { value: "Commercial Grade", price: "0.95" }, { value: "Top Quality", price: "1.12" },
-        { value: "Superior Quality", price: "1.08" }, { value: "Regular Quality", price: "0.90" }
-      ],
-      spices: [
-        { value: "Premium Grade", price: "1.20" }, { value: "Standard Grade", price: "1.05" },
-        { value: "Export Quality", price: "1.25" }, { value: "First Quality", price: "1.15" },
-        { value: "Commercial Grade", price: "1.00" }, { value: "A Grade", price: "1.18" },
-        { value: "B Grade", price: "1.08" }, { value: "C Grade", price: "0.95" },
-        { value: "Top Quality", price: "1.22" }, { value: "Superior Quality", price: "1.12" },
-        { value: "Regular Quality", price: "0.98" }
-      ],
-      tea: [
-        { value: "Premium Grade", price: "1.25" }, { value: "First Flush", price: "1.35" },
-        { value: "Second Flush", price: "1.30" }, { value: "Orthodox", price: "1.40" },
-        { value: "CTC", price: "1.15" }, { value: "Green Tea", price: "1.28" },
-        { value: "White Tea", price: "1.45" }, { value: "Oolong Tea", price: "1.32" },
-        { value: "Darjeeling Tea", price: "1.50" }, { value: "Assam Tea", price: "1.20" },
-        { value: "Organic Tea", price: "1.30" }, { value: "Commercial Grade", price: "1.10" }
-      ],
-      clothing: [
-        { value: "Premium Quality", price: "1.30" }, { value: "Export Quality", price: "1.25" },
-        { value: "First Quality", price: "1.20" }, { value: "Commercial Grade", price: "1.10" },
-        { value: "Standard Quality", price: "1.15" }, { value: "Luxury Grade", price: "1.40" },
-        { value: "Boutique Quality", price: "1.35" }, { value: "Mass Market", price: "1.05" },
-        { value: "Designer Grade", price: "1.45" }, { value: "Economy Grade", price: "1.00" }
-      ],
-      chocolate: [
-        { value: "Premium Grade", price: "1.25" }, { value: "Belgian Chocolate", price: "1.35" },
-        { value: "Swiss Chocolate", price: "1.32" }, { value: "Dark Chocolate", price: "1.20" },
-        { value: "Milk Chocolate", price: "1.15" }, { value: "White Chocolate", price: "1.18" },
-        { value: "Organic Chocolate", price: "1.28" }, { value: "Sugar-Free", price: "1.22" },
-        { value: "Commercial Grade", price: "1.10" }, { value: "Artisanal", price: "1.40" },
-        { value: "Couverture", price: "1.38" }, { value: "Compound", price: "1.08" }
-      ],
-      beverages: [
-        { value: "Premium Grade", price: "1.15" }, { value: "Natural", price: "1.18" },
-        { value: "Organic", price: "1.22" }, { value: "Sugar-Free", price: "1.20" },
-        { value: "Concentrate", price: "1.10" }, { value: "Ready-to-Drink", price: "1.25" },
-        { value: "Commercial Grade", price: "1.05" }, { value: "Export Quality", price: "1.23" },
-        { value: "First Quality", price: "1.12" }, { value: "Standard Quality", price: "1.08" }
-      ],
-      perfume: [
-        { value: "Premium Grade", price: "1.35" }, { value: "Luxury", price: "1.45" },
-        { value: "Designer", price: "1.40" }, { value: "Niche", price: "1.50" },
-        { value: "Export Quality", price: "1.32" }, { value: "Commercial Grade", price: "1.20" },
-        { value: "First Quality", price: "1.28" }, { value: "Standard Quality", price: "1.25" },
-        { value: "Organic", price: "1.38" }, { value: "Natural", price: "1.42" }
-      ],
-      flowers: [
-        { value: "Premium Grade", price: "1.10" }, { value: "Export Quality", price: "1.15" },
-        { value: "First Quality", price: "1.08" }, { value: "Commercial Grade", price: "1.00" },
-        { value: "Standard Quality", price: "1.05" }, { value: "Luxury Grade", price: "1.20" },
-        { value: "Organic", price: "1.12" }, { value: "Fresh Cut", price: "1.06" },
-        { value: "Bouquet Quality", price: "1.18" }, { value: "Event Grade", price: "0.95" }
-      ],
-      dryfruits: [
-        { value: "Premium Grade", price: "1.25" }, { value: "Export Quality", price: "1.30" },
-        { value: "First Quality", price: "1.22" }, { value: "Commercial Grade", price: "1.10" },
-        { value: "Standard Quality", price: "1.15" }, { value: "Organic", price: "1.35" },
-        { value: "Natural", price: "1.28" }, { value: "Roasted", price: "1.20" },
-        { value: "Raw", price: "1.18" }, { value: "Salted", price: "1.23" },
-        { value: "Unsalted", price: "1.22" }, { value: "Blanched", price: "1.26" }
-      ],
-      gadgets: [
-        { value: "Premium Grade", price: "1.30" }, { value: "Brand New", price: "1.35" },
-        { value: "Refurbished", price: "1.20" }, { value: "Original", price: "1.32" },
-        { value: "Standard Quality", price: "1.25" }
-      ],
-      default: [
-        { value: "Premium Grade", price: "1.10" }, { value: "Standard Grade", price: "1.00" },
-        { value: "Export Quality", price: "1.15" }, { value: "First Quality", price: "1.05" },
-        { value: "Commercial Grade", price: "0.95" }
-      ]
-    };
-
-    return gradeOptions[productType] || gradeOptions.default;
+  // Get available grades using the imported function
+  const getAvailableGradesForProduct = () => {
+    const productType = getProductType();
+    return getAvailableGrades(productType, product);
   };
 
-  // NEW FUNCTION: Get tiered rate based on quantity
-  const getTieredRate = (tieredRates, quantity) => {
-    if (!tieredRates || !quantity) return 0;
-    
-    const quantityNum = parseFloat(quantity);
-    
-    // Find the appropriate tier based on quantity
-    for (const [range, rate] of Object.entries(tieredRates)) {
-      const [min, max] = range.split('-').map(str => str === '+' ? Infinity : parseFloat(str));
-      
-      if (quantityNum >= min && quantityNum <= max) {
-        return parseFloat(rate);
-      }
-    }
-    
-    // Default to the highest rate if no tier matches
-    return parseFloat(Object.values(tieredRates)[0]);
-  };
-
-  // UPDATED: Calculate port cost based on selected port and quantity with tiered pricing
-  const calculatePortCost = (portValue, quantityValue, productType, customQty = null) => {
-    if (!portValue || !quantityValue) return 0;
-    
-    const portData = portCosts[portValue];
-    if (!portData) return 0;
-    
-    let actualQuantity = 0;
-    let actualUnit = "kg";
-    
-    if (quantityValue === "custom") {
-      // For custom quantity, use the entered value directly
-      actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
-      actualUnit = getQuantityUnit().toLowerCase().includes('liter') ? 'liters' : 
-                   getQuantityUnit().toLowerCase().includes('piece') ? 'pieces' :
-                   getQuantityUnit().toLowerCase().includes('sqft') ? 'sqft' :
-                   getQuantityUnit().toLowerCase().includes('meter') ? 'meters' : 'kg';
-    } else {
-      // For predefined quantities, use the actual quantity and unit
-      const quantityOptionsList = getQuantityOptions();
-      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
-      if (!selectedQuantity) return 0;
-      
-      actualQuantity = selectedQuantity.actualQuantity;
-      actualUnit = selectedQuantity.actualUnit;
-    }
-    
-    if (actualQuantity <= 0) return 0;
-    
-    let portCostValue = portData.baseCost;
-    
-    // Add cost based on product type and actual unit with tiered pricing
-    if (actualUnit === 'liters') {
-      const rate = getTieredRate(portData.perLiter, actualQuantity);
-      portCostValue += actualQuantity * rate;
-    } else if (actualUnit === 'kg') {
-      const rate = getTieredRate(portData.perKg, actualQuantity);
-      portCostValue += actualQuantity * rate;
-    } else if (actualUnit === 'pieces') {
-      const rate = getTieredRate(portData.perUnit, actualQuantity);
-      portCostValue += actualQuantity * rate;
-    } else if (actualUnit === 'sqft') {
-      const rate = getTieredRate(portData.perSqFt, actualQuantity);
-      portCostValue += actualQuantity * rate;
-    } else if (actualUnit === 'meters') {
-      const rate = getTieredRate(portData.perMeter, actualQuantity);
-      portCostValue += actualQuantity * rate;
-    } else {
-      // Default to per unit pricing
-      const rate = getTieredRate(portData.perUnit, actualQuantity);
-      portCostValue += actualQuantity * rate;
-    }
-    
-    return portCostValue;
-  };
-
-  // Calculate shipping cost based on quantity and product type - Reduced rates
+  // Calculate shipping cost based on quantity and product type
   const calculateShippingCost = (quantityValue, productType, productValue, customQty = null) => {
     if (!quantityValue) return 0;
     
@@ -1552,7 +301,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     if (quantityValue === "custom") {
       actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
     } else {
-      const quantityOptionsList = getQuantityOptions();
+      const quantityOptionsList = getQuantityOptionsForProduct();
       const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
       if (!selectedQuantity) return 0;
       actualQuantity = selectedQuantity.actualQuantity;
@@ -1562,46 +311,73 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     
     let baseRate = 0;
     
-    // Reduced shipping rates
     const shippingRates = {
-      oil: 1.5,           // Reduced from 3
-      rice: 2.5,          // Reduced from 5
-      pulses: 2,          // Reduced from 4
-      spices: 3,          // Reduced from 6
-      dryfruits: 3.5,     // Reduced from 7
-      tea: 4,             // Reduced from 8
-      construction: 1,    // Reduced from 2
-      fruits: 5,          // Reduced from 10
-      vegetables: 4.5,    // Reduced from 9
-      beverages: 0.8,     // Reduced from 1.6
-      gadgets: 50,        // Reduced from 100
-      clothing: 20,       // Reduced from 40
-      chocolate: 2.5,     // Reduced from 5
-      perfume: 30,        // Reduced from 60
-      flowers: 1,         // Reduced from 2
-      default: 2          // Reduced from 4
+      oil: 1.5,
+      rice: 2.5,
+      pulses: 2,
+      spices: 3,
+      dryfruits: 3.5,
+      tea: 4,
+      construction: 1,
+      fruits: 5,
+      vegetables: 4.5,
+      beverages: 0.8,
+      gadgets: 50,
+      clothing: 20,
+      chocolate: 2.5,
+      perfume: 30,
+      flowers: 1,
+      default: 2
     };
     
     baseRate = shippingRates[productType] || shippingRates.default;
-    return Math.max(actualQuantity * baseRate, productValue * 0.02); // Reduced minimum from 5% to 2%
+    return Math.max(actualQuantity * baseRate, productValue * 0.02);
   };
 
-  // Calculate insurance cost (0.5% of product value) - Reduced
+  // Calculate insurance cost
   const calculateInsuranceCost = (productValue) => {
-    return productValue * 0.005; // Reduced from 1% to 0.5%
+    return productValue * 0.005;
   };
 
-  // Calculate taxes and duties (3% of total) - Reduced
+  // Calculate taxes and duties
   const calculateTaxes = (subtotal) => {
-    return subtotal * 0.03; // Reduced from 5% to 3%
+    return subtotal * 0.03;
   };
 
-  // Calculate logo cost - REDUCED FROM 500 TO 35
-  const calculateLogoCost = (logoRequiredValue) => {
-    if (logoRequiredValue === "Yes") {
-      return 35; // Reduced from 500 to 35
+  // Calculate branding cost
+  const calculateBrandingCost = (brandingRequiredValue) => {
+    if (brandingRequiredValue === "Yes") {
+      return 35;
     }
     return 0;
+  };
+
+  // Calculate transport cost
+  const calculateTransportCost = (quantityValue, transportPriceRange, unitType, customQty = null) => {
+    if (!quantityValue || !transportPriceRange || transportPriceRange === "0-0") {
+      return 0;
+    }
+    
+    let actualQuantity = 0;
+    
+    if (quantityValue === "custom") {
+      actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
+    } else {
+      const quantityOptionsList = getQuantityOptionsForProduct();
+      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      if (!selectedQuantity) return 0;
+      actualQuantity = selectedQuantity.actualQuantity;
+    }
+    
+    if (actualQuantity <= 0) return 0;
+    
+    const [minPrice, maxPrice] = transportPriceRange.split('-').map(price => parseFloat(price.trim()));
+    
+    if (isNaN(minPrice) || isNaN(maxPrice)) return 0;
+    
+    const averagePrice = (minPrice + maxPrice) / 2;
+    
+    return actualQuantity * averagePrice;
   };
 
   // Format number with commas
@@ -1617,20 +393,41 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     if (currency === 'INR') return parseFloat(inrAmount);
     
     const exchangeRates = {
-      USD: 0.012,    // 1 INR = 0.012 USD
-      EUR: 0.011,    // 1 INR = 0.011 EUR
-      GBP: 0.0095,   // 1 INR = 0.0095 GBP
-      AED: 0.044,    // 1 INR = 0.044 AED
-      SAR: 0.045,    // 1 INR = 0.045 SAR
-      CAD: 0.016,    // 1 INR = 0.016 CAD
-      AUD: 0.018,    // 1 INR = 0.018 AUD
-      JPY: 1.8,      // 1 INR = 1.8 JPY
-      CNY: 0.087,    // 1 INR = 0.087 CNY
-      IRR: 504.5     // 1 INR = 504.5 IRR
+      USD: 0.012,
+      EUR: 0.011,
+      GBP: 0.0095,
+      AED: 0.044,
+      SAR: 0.045,
+      CAD: 0.016,
+      AUD: 0.018,
+      JPY: 1.8,
+      CNY: 0.087,
+      IRR: 504.5
     };
     
     const rate = exchangeRates[currency] || 1;
     return parseFloat(inrAmount) * rate;
+  };
+
+  // Convert from selected currency back to INR for database storage
+  const convertFromCurrency = (amount, fromCurrency) => {
+    if (fromCurrency === 'INR') return parseFloat(amount);
+    
+    const exchangeRates = {
+      USD: 83.33,
+      EUR: 90.91,
+      GBP: 105.26,
+      AED: 22.73,
+      SAR: 22.22,
+      CAD: 62.5,
+      AUD: 55.56,
+      JPY: 0.556,
+      CNY: 11.49,
+      IRR: 0.00198
+    };
+    
+    const rate = exchangeRates[fromCurrency] || 1;
+    return parseFloat(amount) / rate;
   };
 
   // Get price per unit based on product type
@@ -1638,40 +435,24 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     const productType = getProductType();
     const basePrice = parseFloat(baseProductPrice);
     
-    // For rice, the base price is per quintal (100kg), so convert to per kg
     if (productType === 'rice') {
-      return basePrice / 100; // Convert quintal price to per kg
+      return basePrice / 100;
     }
     
-    // For construction materials, handle different pricing units
     if (productType === 'construction') {
       const productName = product?.name?.toLowerCase() || '';
       
-      // Cement is typically priced per bag (50kg)
       if (productName.includes('cement')) {
-        return basePrice / 50; // Convert bag price to per kg
+        return basePrice / 50;
       }
       
-      // Steel is typically priced per kg
-      if (productName.includes('steel') || productName.includes('rod')) {
-        return basePrice; // Already per kg
-      }
-      
-      // Bricks are typically priced per piece
-      if (productName.includes('brick')) {
-        return basePrice; // Already per piece
-      }
-      
-      // Sand, gravel are typically priced per ton
       if (productName.includes('sand') || productName.includes('gravel') || productName.includes('aggregate')) {
-        return basePrice / 1000; // Convert ton price to per kg
+        return basePrice / 1000;
       }
       
-      // Default for construction
       return basePrice;
     }
     
-    // For other products, return the base price as is
     return basePrice;
   };
 
@@ -1685,7 +466,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     if (quantityValue === "custom") {
       actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
     } else {
-      const quantityOptionsList = getQuantityOptions();
+      const quantityOptionsList = getQuantityOptionsForProduct();
       const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
       if (!selectedQuantity) return 0;
       actualQuantity = selectedQuantity.actualQuantity;
@@ -1693,16 +474,11 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     
     if (actualQuantity <= 0) return 0;
     
-    // For rice, we need to handle different units
     if (productType === 'rice') {
       return actualQuantity * pricePerUnit * gradeMultiplier;
     }
     
-    // For construction materials, handle different units
     if (productType === 'construction') {
-      const productName = product?.name?.toLowerCase() || '';
-      
-      // Handle different construction material units
       return actualQuantity * pricePerUnit * gradeMultiplier;
     }
     
@@ -1717,67 +493,58 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     let shippingCostValue = 0;
     let insuranceCostValue = 0;
     let taxesValue = 0;
-    let portCostValue = 0;
-    let logoCostValue = 0;
+    let brandingCostValue = 0;
+    let transportCostValue = 0;
 
-    // Get price per unit based on product type
     const pricePerUnit = getPricePerUnit();
 
-    // Calculate grade multiplier
     let gradeMultiplier = 1;
     if (grade) {
-      const availableGrades = getAvailableGrades(getProductType(), product);
+      const availableGrades = getAvailableGradesForProduct();
       const selectedGrade = availableGrades.find(g => g.value === grade);
       if (selectedGrade) {
         gradeMultiplier = parseFloat(selectedGrade.price);
       }
     }
 
-    // Calculate grade price (this is the price per unit after grade adjustment)
     gradePriceValue = pricePerUnit * gradeMultiplier;
 
     if (packing) {
-      const selectedPacking = getPackingOptions().find(p => p.value === packing);
+      const selectedPacking = getPackingOptionsForProduct().find(p => p.value === packing);
       if (selectedPacking) {
         packingPriceValue = parseFloat(selectedPacking.price);
       }
     }
 
-    // Calculate quantity price
     quantityPriceValue = calculateQuantityPrice(quantity, gradeMultiplier);
 
-    // Calculate port cost if port is selected
-    if (port) {
-      const productType = getProductType();
-      portCostValue = calculatePortCost(port, quantity, productType, customQuantity);
-    }
+    brandingCostValue = calculateBrandingCost(brandingRequired);
 
-    // Calculate logo cost
-    logoCostValue = calculateLogoCost(logoRequired);
+    const productType = getProductType();
+    const productName = product?.name?.toLowerCase() || '';
+    const unitType = getUnitType(productType, productName);
+    transportCostValue = calculateTransportCost(quantity, transportPrice, unitType, customQuantity);
 
-    // Calculate CIF costs only if CIF is required
     if (cifRequired === "Yes") {
-      const productType = getProductType();
       shippingCostValue = calculateShippingCost(quantity, productType, quantityPriceValue, customQuantity);
       insuranceCostValue = calculateInsuranceCost(quantityPriceValue);
-      taxesValue = calculateTaxes(quantityPriceValue + packingPriceValue + portCostValue + logoCostValue);
+      taxesValue = calculateTaxes(quantityPriceValue + packingPriceValue + brandingCostValue + transportCostValue);
     }
 
-    const subtotal = quantityPriceValue + packingPriceValue + portCostValue + logoCostValue + shippingCostValue + insuranceCostValue + taxesValue;
+    const subtotal = quantityPriceValue + packingPriceValue + brandingCostValue + shippingCostValue + insuranceCostValue + taxesValue + transportCostValue;
 
-    // Convert all prices to selected currency
     setGradePrice(convertToCurrency(gradePriceValue).toFixed(2));
     setPackingPrice(convertToCurrency(packingPriceValue).toFixed(2));
     setQuantityPrice(convertToCurrency(quantityPriceValue).toFixed(2));
-    setPortCost(convertToCurrency(portCostValue).toFixed(2));
     setShippingCost(convertToCurrency(shippingCostValue).toFixed(2));
     setInsuranceCost(convertToCurrency(insuranceCostValue).toFixed(2));
     setTaxes(convertToCurrency(taxesValue).toFixed(2));
-    setLogoCost(convertToCurrency(logoCostValue).toFixed(2));
+    setBrandingCost(convertToCurrency(brandingCostValue).toFixed(2));
+    setTransportCost(convertToCurrency(transportCostValue).toFixed(2));
     setTotalPrice(convertToCurrency(subtotal).toFixed(2));
   };
 
-  // Get prices for display (with currency conversion)
+  // Get prices for display
   const getDisplayPrices = () => {
     const subtotal = parseFloat(totalPrice);
     const finalTotalPrice = subtotal;
@@ -1786,11 +553,11 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       gradePrice: gradePrice,
       packingPrice: packingPrice,
       quantityPrice: quantityPrice,
-      portCost: portCost,
       shippingCost: shippingCost,
       insuranceCost: insuranceCost,
       taxes: taxes,
-      logoCost: logoCost,
+      brandingCost: brandingCost,
+      transportCost: transportCost,
       totalPrice: totalPrice,
       finalTotalPrice: finalTotalPrice.toFixed(2),
       baseProductPrice: convertToCurrency(getPricePerUnit()).toFixed(2)
@@ -1817,10 +584,17 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     return exchangeRates[currency] || null;
   };
 
-  // Validation functions
-  const validatePhoneNumber = (number, code) => {
+  // FIXED: Validation functions - Skip validation for profile fields
+  const validatePhoneNumber = (number, code, isFromProfile = false) => {
+    // If field is read-only (auto-filled from profile), skip validation
+    if (isFromProfile) {
+      setPhoneError("");
+      return true;
+    }
+    
     const selectedCountry = countryOptions.find((opt) => opt.value === code);
     const expectedLength = selectedCountry?.length || 10;
+    
     if (!number) {
       setPhoneError("Phone number is required");
       return false;
@@ -1836,7 +610,13 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     }
   };
 
-  const validateEmail = (email) => {
+  const validateEmail = (email, isFromProfile = false) => {
+    // If field is read-only (auto-filled from profile), skip validation
+    if (isFromProfile) {
+      setEmailError("");
+      return true;
+    }
+    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
       setEmailError("Email is required");
@@ -1855,7 +635,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     if (!profile) {
       const newCode = e.target.value;
       setCountryCode(newCode);
-      validatePhoneNumber(phoneNumber, newCode);
+      validatePhoneNumber(phoneNumber, newCode, false);
       
       const selectedCountry = countryOptions.find(opt => opt.value === newCode);
       if (selectedCountry && selectedCountry.currency) {
@@ -1868,7 +648,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     if (!profile) {
       const value = e.target.value.replace(/\D/g, "");
       setPhoneNumber(value);
-      validatePhoneNumber(value, countryCode);
+      validatePhoneNumber(value, countryCode, false);
     }
   };
 
@@ -1876,7 +656,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     if (!profile) {
       const value = e.target.value;
       setEmail(value);
-      validateEmail(value);
+      validateEmail(value, false);
     }
   };
 
@@ -1900,7 +680,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     
     if (value && !isNaN(value) && parseFloat(value) > 0) {
       const pricePerUnit = getPricePerUnit();
-      const gradeMultiplier = grade ? parseFloat(getAvailableGrades(getProductType(), product).find(g => g.value === grade)?.price || 1) : 1;
+      const gradeMultiplier = grade ? parseFloat(getAvailableGradesForProduct().find(g => g.value === grade)?.price || 1) : 1;
       const calculatedPrice = parseFloat(value) * pricePerUnit * gradeMultiplier;
       setQuantityPrice(convertToCurrency(calculatedPrice).toFixed(2));
     } else {
@@ -1916,10 +696,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     setPacking(e.target.value);
   };
 
-  const handlePortChange = (e) => {
-    setPort(e.target.value);
-  };
-
   const handleCifChange = (e) => {
     setCifRequired(e.target.value);
   };
@@ -1928,8 +704,37 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     setCurrency(e.target.value);
   };
 
-  const handleLogoChange = (e) => {
-    setLogoRequired(e.target.value);
+  const handleBrandingChange = (e) => {
+    setBrandingRequired(e.target.value);
+  };
+
+  // New handlers for state and port selection
+  const handleStateChange = (e) => {
+    const state = e.target.value;
+    setSelectedState(state);
+    setSelectedPort("");
+    setPortOptions(getPortOptions(state));
+    
+    if (state) {
+      const productType = getProductType();
+      const productName = product?.name?.toLowerCase() || '';
+      const unitType = getUnitType(productType, productName);
+      setTransportPrice(getTransportPrice(state, "", unitType));
+    } else {
+      setTransportPrice("0-0");
+    }
+  };
+
+  const handlePortChange = (e) => {
+    const port = e.target.value;
+    setSelectedPort(port);
+    
+    if (selectedState && port) {
+      const productType = getProductType();
+      const productName = product?.name?.toLowerCase() || '';
+      const unitType = getUnitType(productType, productName);
+      setTransportPrice(getTransportPrice(selectedState, port, unitType));
+    }
   };
 
   // Helper function to get quantity unit for custom input placeholder
@@ -1938,7 +743,6 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     const productName = product?.name?.toLowerCase() || '';
     
     if (productType === 'construction') {
-      // Specific construction material units
       if (productName.includes('cement')) {
         return "Bags (50kg each)";
       } else if (productName.includes('steel') || productName.includes('rod') || productName.includes('tmt')) {
@@ -1988,10 +792,48 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     return unitMap[productType] || "Units";
   };
 
+  // FIXED: Auto-fill form with profile data - Don't validate initially
+  useEffect(() => {
+    if (isOpen && profile) {
+      const nameValue = profile.name || "";
+      setFullName(nameValue);
+      setEmail(profile.email || "");
+      
+      if (profile.phone) {
+        const cleanedPhone = profile.phone.replace(/\s+/g, "").replace(/[^+\d]/g, "");
+        const matchedCountry = countryOptions.find((opt) => cleanedPhone.startsWith(opt.value));
+        
+        if (matchedCountry) {
+          setCountryCode(matchedCountry.value);
+          const phoneWithoutCode = cleanedPhone.replace(matchedCountry.value, "");
+          setPhoneNumber(phoneWithoutCode);
+          if (matchedCountry.currency) {
+            setCurrency(matchedCountry.currency);
+          }
+          // Don't validate immediately for profile fields
+          setPhoneError("");
+        } else {
+          // Default to India if no country code found
+          setCountryCode("+91");
+          setPhoneNumber(cleanedPhone.replace(/^\+/, ""));
+          setPhoneError("");
+        }
+      } else {
+        // If no phone in profile, set default India
+        setCountryCode("+91");
+        setPhoneNumber("");
+        setPhoneError("");
+      }
+      
+      // Clear email error for profile fields
+      setEmailError("");
+    }
+  }, [isOpen, profile]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!quantity || !packing || !port || !grade || !fullName || !cifRequired || !logoRequired) {
+    if (!quantity || !packing || !grade || !fullName || !cifRequired || !brandingRequired) {
       alert("Please fill all required fields.");
       return;
     }
@@ -2006,8 +848,8 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return;
     }
 
-    if (logoRequired === "") {
-      alert("Please select if logo is required.");
+    if (brandingRequired === "") {
+      alert("Please select if branding is required.");
       return;
     }
 
@@ -2016,14 +858,15 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
       return;
     }
     
-    // Validate custom quantity if selected
     if (quantity === "custom" && (!customQuantity || parseFloat(customQuantity) <= 0)) {
       alert("Please enter a valid custom quantity.");
       return;
     }
     
-    const isPhoneValid = validatePhoneNumber(phoneNumber, countryCode);
-    const isEmailValid = validateEmail(email);
+    // Use isFromProfile parameter to skip validation for profile fields
+    const isFromProfile = !!profile;
+    const isPhoneValid = validatePhoneNumber(phoneNumber, countryCode, isFromProfile);
+    const isEmailValid = validateEmail(email, isFromProfile);
 
     if (!isPhoneValid || !isEmailValid) {
       if (!isPhoneValid) alert("Please enter a valid phone number.");
@@ -2032,7 +875,7 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     }
 
     const fullPhoneNumber = `${countryCode}${phoneNumber}`;
-    const quantityOptions = getQuantityOptions();
+    const quantityOptions = getQuantityOptionsForProduct();
     const selectedQuantityOption = quantityOptions.find(opt => opt.value === quantity);
     
     let quantityDisplay = "";
@@ -2053,46 +896,122 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
     const currencySymbol = getCurrencySymbol();
     const exchangeInfo = getExchangeRateInfo();
     const packingUnit = getPackingUnit(packing);
+    
+    // Get state and port labels
+    const stateLabel = selectedState ? stateOptions.find(s => s.value === selectedState)?.label || selectedState : "";
+    const portLabel = selectedPort ? portOptions.find(p => p.value === selectedPort)?.label || selectedPort : "";
 
+    // Calculate actual INR values for database
+    const baseProductPriceINR = convertFromCurrency(displayPrices.baseProductPrice, currency);
+    const gradePriceINR = convertFromCurrency(displayPrices.gradePrice, currency);
+    const packingPriceINR = convertFromCurrency(displayPrices.packingPrice, currency);
+    const quantityPriceINR = convertFromCurrency(displayPrices.quantityPrice, currency);
+    const brandingCostINR = convertFromCurrency(displayPrices.brandingCost, currency);
+    const transportCostINR = convertFromCurrency(displayPrices.transportCost, currency);
+    const shippingCostINR = cifRequired === "Yes" ? convertFromCurrency(displayPrices.shippingCost, currency) : 0;
+    const insuranceCostINR = cifRequired === "Yes" ? convertFromCurrency(displayPrices.insuranceCost, currency) : 0;
+    const taxesINR = cifRequired === "Yes" ? convertFromCurrency(displayPrices.taxes, currency) : 0;
+    const totalINR = convertFromCurrency(displayPrices.finalTotalPrice, currency);
+
+    // Prepare the quote data
     const quoteData = {
+      // Basic Information
       name: fullName,
-      email,
+      email: email,
       phone: fullPhoneNumber,
+      
+      // Product Information
       product: product?.name || "",
       variety: product?.variety || "",
       brand: product?.brand || "",
-      grade,
-      packing,
+      grade: grade,
+      packing: packing,
       quantity: quantityDisplay,
-      actualQuantity,
-      actualUnit,
-      port,
-      cifRequired,
-      logoRequired,
+      actualQuantity: actualQuantity,
+      actualUnit: actualUnit,
+      
+      // Requirements
+      cifRequired: cifRequired,
+      brandingRequired: brandingRequired,
       currency: currency,
+      
+      // Transport Information
+      state: stateLabel,
+      port: portLabel,
+      transportPrice: `₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}`,
+      
+      // Price Breakdown
       priceBreakdown: {
+        note: "This is an estimated bill. Final pricing may vary based on actual costs and market conditions.",
+        
+        ...(transportPrice !== "0-0" && {
+          transportPriceLine: `Transport Price: ₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}`
+        }),
+        
+        baseProductPrice: `Base Product Price: ₹${baseProductPriceINR.toFixed(2)}/unit`,
+        gradePrice: `Grade Price: ₹${gradePriceINR.toFixed(2)}/unit`,
+        packingPrice: `Packing Price: ₹${packingPriceINR.toFixed(2)}/${packingUnit}`,
+        quantityPrice: `Quantity Price: ₹${quantityPriceINR.toFixed(2)}`,
+        
+        ...(brandingRequired === "Yes" && {
+          brandingCostLine: `Branding/Custom Printing: ₹${brandingCostINR.toFixed(2)}`
+        }),
+        
+        ...(transportPrice !== "0-0" && {
+          transportCostLine: `Transport Cost: ₹${transportCostINR.toFixed(2)}`
+        }),
+        
+        ...(currency !== 'INR' && exchangeInfo && {
+          currencyNote: `All prices converted from INR to ${currency}. ${exchangeInfo.example}`
+        })
+      },
+      
+      calculatedValues: {
+        baseProductPriceINR: baseProductPriceINR,
+        gradePriceINR: gradePriceINR,
+        packingPriceINR: packingPriceINR,
+        quantityPriceINR: quantityPriceINR,
+        brandingCostINR: brandingCostINR,
+        transportCostINR: transportCostINR,
+        shippingCostINR: shippingCostINR,
+        insuranceCostINR: insuranceCostINR,
+        taxesINR: taxesINR,
+        totalINR: totalINR
+      },
+      
+      displayValues: {
         baseProductPrice: `${currencySymbol}${formatNumber(displayPrices.baseProductPrice)}/unit`,
         gradePrice: `${currencySymbol}${formatNumber(displayPrices.gradePrice)}/unit`,
         packingPrice: `${currencySymbol}${formatNumber(displayPrices.packingPrice)}/${packingUnit}`,
         quantityPrice: `${currencySymbol}${formatNumber(displayPrices.quantityPrice)}`,
-        portCost: `${currencySymbol}${formatNumber(displayPrices.portCost)}`,
-        logoCost: `${currencySymbol}${formatNumber(displayPrices.logoCost)}`,
+        brandingCost: brandingRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.brandingCost)}` : "Not Required",
+        transportCost: transportPrice !== "0-0" ? `${currencySymbol}${formatNumber(displayPrices.transportCost)}` : "Not Required",
+        shippingCost: cifRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.shippingCost)}` : "Not Required",
+        insuranceCost: cifRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.insuranceCost)}` : "Not Required",
+        taxes: cifRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.taxes)}` : "Not Required",
         subtotal: `${currencySymbol}${formatNumber(displayPrices.totalPrice)}`,
         finalTotal: `${currencySymbol}${formatNumber(displayPrices.finalTotalPrice)}`
       },
+      
       additionalInfo: additionalInfo || "",
+      
+      userId: profile?.uid || "guest",
       timestamp: Date.now(),
+      date: new Date().toLocaleString(),
       productType: getProductType(),
       status: "new",
-      source: "website"
+      source: "website",
+      isNew: true  // Add this flag to identify new orders
     };
 
     setIsSubmitting(true);
 
     try {
+      // Submit to Firebase
       const quoteId = await submitQuote(quoteData);
-      console.log('Quote submitted with ID:', quoteId);
-
+      console.log('Quote submitted successfully with ID:', quoteId);
+      
+      // Create WhatsApp message
       const message = `Hello! I want a quote for:
 - Name: ${fullName}
 - Email: ${email}
@@ -2103,29 +1022,43 @@ const BuyModal = ({ isOpen, onClose, product, profile }) => {
 - Grade: ${grade}
 - Packing: ${packing}
 - Quantity: ${quantityDisplay}
-- Port: ${port}
 - CIF Required: ${cifRequired}
-- Logo Required: ${logoRequired}
+- Brand Required: ${brandingRequired}
 - Currency: ${currency}
+${stateLabel ? `- State: ${stateLabel}` : ""}
+${portLabel ? `- Port: ${portLabel}` : ""}
+${transportPrice !== "0-0" ? `- Transport Price: ₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}` : ""}
 ${exchangeInfo ? `- Exchange Rate: ${exchangeInfo.example}` : ""}
 - Estimated Bill Breakdown:
   • Base Product Price: ${currencySymbol}${formatNumber(displayPrices.baseProductPrice)}/unit
   • Grade Price: ${currencySymbol}${formatNumber(displayPrices.gradePrice)}/unit
   • Packing Price: ${currencySymbol}${formatNumber(displayPrices.packingPrice)}/${packingUnit}
   • Quantity Price: ${currencySymbol}${formatNumber(displayPrices.quantityPrice)}
-  • Port Charges: ${currencySymbol}${formatNumber(displayPrices.portCost)}
-  ${logoRequired === "Yes" ? `• Logo Printing: ${currencySymbol}${formatNumber(displayPrices.logoCost)}` : ""}
+  ${brandingRequired === "Yes" ? `• Branding/Custom Printing: ${currencySymbol}${formatNumber(displayPrices.brandingCost)}` : ""}
+  ${transportPrice !== "0-0" ? `• Transport Cost: ${currencySymbol}${formatNumber(displayPrices.transportCost)}` : ""}
   • Subtotal: ${currencySymbol}${formatNumber(displayPrices.totalPrice)}
   • Final Total: ${currencySymbol}${formatNumber(displayPrices.finalTotalPrice)}
 ${additionalInfo ? `- Additional Info: ${additionalInfo}` : ""}
 Thank you!`;
 
+      // Open WhatsApp
       window.open(
         `https://wa.me/+917396007479?text=${encodeURIComponent(message)}`,
         "_blank"
       );
 
+      // Show success message with order count
+      alert(`✅ Order #${quoteId.substring(0, 8)} submitted successfully! Check "My Orders" for details.`);
+      
+      // Notify parent component about new order
+      if (onOrderSubmitted) {
+        onOrderSubmitted();
+      }
+
+      // Show thank you popup
       setShowThankYou(true);
+      
+      // Reset form
       resetForm();
 
     } catch (err) {
@@ -2140,21 +1073,25 @@ Thank you!`;
     setGrade("");
     setPacking("");
     setQuantity("");
-    setPort("");
     setCifRequired("");
     setCurrency("INR");
-    setLogoRequired("");
+    setBrandingRequired("");
     setAdditionalInfo("");
     setCustomQuantity("");
     setGradePrice("0.00");
     setPackingPrice("0.00");
     setQuantityPrice("0.00");
-    setPortCost("0.00");
     setShippingCost("0.00");
     setInsuranceCost("0.00");
     setTaxes("0.00");
-    setLogoCost("0.00");
+    setBrandingCost("0.00");
+    setTransportCost("0.00");
     setTotalPrice("0.00");
+    setSelectedState("");
+    setSelectedPort("");
+    setPortOptions([]);
+    setTransportPrice("0-0");
+    
     if (!profile) {
       setFullName("");
       setEmail("");
@@ -2174,54 +1111,32 @@ Thank you!`;
   // Effects
   useEffect(() => {
     calculatePrices();
-  }, [grade, packing, quantity, port, cifRequired, currency, baseProductPrice, customQuantity, logoRequired]);
-
-  useEffect(() => {
-    if (isOpen && profile) {
-      const nameValue = profile.fullName || profile.name || "";
-      setFullName(nameValue);
-      setEmail(profile.email || "");
-      if (profile.phone) {
-        const cleanedPhone = profile.phone.replace(/\s+/g, "").replace(/[^+\d]/g, "");
-        const matchedCountry = countryOptions.find((opt) => cleanedPhone.startsWith(opt.value));
-        
-        if (matchedCountry) {
-          setCountryCode(matchedCountry.value);
-          setPhoneNumber(cleanedPhone.replace(matchedCountry.value, ""));
-          if (matchedCountry.currency) {
-            setCurrency(matchedCountry.currency);
-          }
-        } else {
-          setCountryCode("+91");
-          setPhoneNumber(cleanedPhone.replace(/^\+/, ""));
-        }
-        validatePhoneNumber(phoneNumber, countryCode);
-      }
-    }
-  }, [isOpen, profile]);
+  }, [grade, packing, quantity, cifRequired, currency, baseProductPrice, customQuantity, brandingRequired, transportPrice, selectedState, selectedPort]);
 
   useEffect(() => {
     if (isOpen && product) {
       setGrade("");
       setCifRequired("");
       setCurrency("INR");
-      setLogoRequired("");
+      setBrandingRequired("");
       setCustomQuantity("");
       setGradePrice("0.00");
       setPackingPrice("0.00");
       setQuantityPrice("0.00");
-      setPortCost("0.00");
       setShippingCost("0.00");
       setInsuranceCost("0.00");
       setTaxes("0.00");
-      setLogoCost("0.00");
+      setBrandingCost("0.00");
+      setTransportCost("0.00");
       setTotalPrice("0.00");
+      setSelectedState("");
+      setSelectedPort("");
+      setPortOptions([]);
+      setTransportPrice("0-0");
       
-      // Extract base price from product (this will be in INR)
       const basePrice = extractBasePrice(product.price);
       setBaseProductPrice(basePrice.toFixed(2));
       
-      // Debug log to check product type detection
       console.log('Product detected as:', getProductType());
       console.log('Product details:', product);
     }
@@ -2247,14 +1162,15 @@ Thank you!`;
 
   if (!isOpen) return null;
 
-  const availableGrades = getAvailableGrades(getProductType(), product);
+  const availableGrades = getAvailableGradesForProduct();
   const currencySymbol = getCurrencySymbol();
-  const quantityOptions = getQuantityOptions();
+  const quantityOptions = getQuantityOptionsForProduct();
   const displayPrices = getDisplayPrices();
   const exchangeInfo = getExchangeRateInfo();
   const productType = getProductType();
-  const packingOptions = getPackingOptions();
+  const packingOptions = getPackingOptionsForProduct();
   const packingUnit = getPackingUnit(packing);
+  const unitType = getUnitType(productType, product?.name?.toLowerCase() || '');
 
   return (
     <>
@@ -2278,11 +1194,6 @@ Thank you!`;
                 {productType === 'construction' && (
                   <div className="construction-price-note">
                     <small>Construction materials: Prices calculated based on selected quantity and packaging type.</small>
-                  </div>
-                )}
-                {port && (
-                  <div className="port-selection-info">
-                    <small>Selected Port: {port} - Charges: {currencySymbol}{formatNumber(displayPrices.portCost)}</small>
                   </div>
                 )}
                 <div className="product-type-info">
@@ -2311,6 +1222,11 @@ Thank you!`;
                         className="form-input"
                         readOnly={!!profile}
                       />
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-group">
@@ -2324,6 +1240,11 @@ Thank you!`;
                         className="form-input"
                         readOnly={!!profile}
                       />
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
                       {emailError && <div className="error-message">{emailError}</div>}
                     </div>
 
@@ -2353,6 +1274,11 @@ Thank you!`;
                           readOnly={!!profile}
                         />
                       </div>
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
                       {phoneError && <div className="error-message">{phoneError}</div>}
                     </div>
                   </section>
@@ -2379,9 +1305,9 @@ Thank you!`;
                           value={product.variety}
                           className="form-input"
                           readOnly
-                        disabled
-                      />
-                    </div>
+                          disabled
+                        />
+                      </div>
                     )}
 
                     <div className="form-group">
@@ -2444,32 +1370,60 @@ Thank you!`;
                       )}
                     </div>
 
+                    {/* Transport Selection Section - UPDATED with alphabetical sorting */}
                     <div className="form-group">
-                      <label className="form-label">Port *</label>
-                      <select value={port} onChange={handlePortChange} required className="form-select">
-                        <option value="">Select Port</option>
-                        <option value="Mundra">Mundra</option>
-                        <option value="Kandla">Kandla</option>
-                        <option value="Nhava Sheva">Nhava Sheva</option>
-                        <option value="Chennai">Chennai</option>
-                        <option value="Vizag">Vizag</option>
-                        <option value="Kolkata">Kolkata</option>
-                        <option value="Mumbai">Mumbai</option>
-                        <option value="Cochin">Cochin</option>
-                      </select>
-                      <div className="port-info">
-                        <small>Port charges include handling, documentation, and loading fees</small>
-                        {port && (
-                          <div className="port-cost-preview">
-                            <small>Estimated port charges: {currencySymbol}{formatNumber(displayPrices.portCost)}</small>
+                      <label className="form-label">Transport Information</label>
+                      <div className="transport-selection-group">
+                        <div className="transport-row">
+                          <div className="transport-column">
+                            <label className="form-label">State</label>
+                            <select 
+                              value={selectedState} 
+                              onChange={handleStateChange} 
+                              className="form-select"
+                            >
+                              <option value="">Select State</option>
+                              {/* States displayed in alphabetical order */}
+                              {stateOptions
+                                .sort((a, b) => a.label.localeCompare(b.label))
+                                .map((state) => (
+                                  <option key={state.value} value={state.value}>
+                                    {state.label}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                          <div className="transport-column">
+                            <label className="form-label">Port/Destination</label>
+                            <select 
+                              value={selectedPort} 
+                              onChange={handlePortChange} 
+                              className="form-select"
+                              disabled={!selectedState}
+                            >
+                              <option value="">Select Port</option>
+                              {/* Ports displayed in alphabetical order */}
+                              {portOptions
+                                .sort((a, b) => a.label.localeCompare(b.label))
+                                .map((port, index) => (
+                                  <option key={index} value={port.value}>
+                                    {port.label}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        </div>
+                        {transportPrice !== "0-0" && (
+                          <div className="transport-price-info">
+                            <small>Transport Price: ₹{transportPrice} per {unitType}</small>
                           </div>
                         )}
                       </div>
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">CIF Required? *</label>
-                      <select value={cifRequired} onChange={handleCifChange} required className="form-select">
+                      <label className="form-label">CIF Required (If Any)</label>
+                      <select value={cifRequired} onChange={handleCifChange} className="form-select">
                         <option value="">Select Option</option>
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
@@ -2480,17 +1434,17 @@ Thank you!`;
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Logo Required? *</label>
-                      <select value={logoRequired} onChange={handleLogoChange} required className="form-select">
+                      <label className="form-label">Brand Required (If Any)</label>
+                      <select value={brandingRequired} onChange={handleBrandingChange} className="form-select">
                         <option value="">Select Option</option>
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
                       </select>
-                      <div className="logo-info">
-                        <small>Add your logo to the packaging - Additional charge: {currencySymbol}35</small>
-                        {logoRequired === "Yes" && (
-                          <div className="logo-cost-preview">
-                            <small>Logo printing cost: {currencySymbol}{formatNumber(displayPrices.logoCost)}</small>
+                      <div className="branding-info">
+                        <small>Add your logo/branding to the packaging - Additional charge: {currencySymbol}35</small>
+                        {brandingRequired === "Yes" && (
+                          <div className="branding-cost-preview">
+                            <small>Branding/custom printing cost: {currencySymbol}{formatNumber(displayPrices.brandingCost)}</small>
                           </div>
                         )}
                       </div>
@@ -2564,6 +1518,11 @@ Thank you!`;
                         <small>Prices converted from INR to {currency}. {exchangeInfo.example}</small>
                       </div>
                     )}
+                    {transportPrice !== "0-0" && (
+                      <div className="transport-price-display">
+                        <small>Transport Price: ₹{transportPrice} per {unitType}</small>
+                      </div>
+                    )}
                   </div>
                   <div className="price-breakdown-grid">
                     <div className="price-item">
@@ -2583,23 +1542,20 @@ Thank you!`;
                       <span className="price-value">{currencySymbol}{formatNumber(displayPrices.quantityPrice)}</span>
                     </div>
                     
-                    {/* Port Charges - Always shown when port is selected */}
-                    {port && (
-                      <div className="price-item port-costs">
-                        <span className="price-label">Port Charges ({port}):</span>
-                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.portCost)}</span>
+                    {brandingRequired === "Yes" && (
+                      <div className="price-item branding-costs">
+                        <span className="price-label">Branding/Custom Printing:</span>
+                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.brandingCost)}</span>
                       </div>
                     )}
                     
-                    {/* Logo Cost - Only shown when logo is required */}
-                    {logoRequired === "Yes" && (
-                      <div className="price-item logo-costs">
-                        <span className="price-label">Logo Printing:</span>
-                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.logoCost)}</span>
+                    {transportPrice !== "0-0" && (
+                      <div className="price-item transport-costs">
+                        <span className="price-label">Transport Cost:</span>
+                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.transportCost)}</span>
                       </div>
                     )}
                     
-                    {/* CIF Costs - Only shown when CIF is required */}
                     {cifRequired === "Yes" && (
                       <>
                         <div className="price-item">
@@ -2777,19 +1733,6 @@ Thank you!`;
           font-size: 0.75rem;
         }
 
-        .port-selection-info {
-          margin-top: 5px;
-          padding: 4px 8px;
-          background: rgba(101, 163, 13, 0.1);
-          border-radius: 4px;
-          border-left: 2px solid #65a30d;
-        }
-
-        .port-selection-info small {
-          color: #84cc16;
-          font-size: 0.75rem;
-        }
-
         .product-type-info {
           margin-top: 5px;
           padding: 4px 8px;
@@ -2936,7 +1879,7 @@ Thank you!`;
 
         .country-code-select {
           appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2363b3ed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2363b3ed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 14px center;
           background-size: 14px;
@@ -2978,11 +1921,17 @@ Thank you!`;
           margin-top: 5px;
         }
 
+        .profile-autofill-note {
+          margin-top: 5px;
+          color: #84cc16;
+          font-size: 0.75rem;
+          font-style: italic;
+        }
+
         .grade-info,
         .cif-info,
-        .logo-info,
+        .branding-info,
         .currency-info,
-        .port-info,
         .packing-info {
           margin-top: 5px;
           color: rgba(255, 255, 255, 0.6);
@@ -2990,7 +1939,7 @@ Thank you!`;
           line-height: 1.3;
         }
 
-        .port-cost-preview {
+        .branding-cost-preview {
           margin-top: 5px;
           padding: 4px 8px;
           background: rgba(101, 163, 13, 0.1);
@@ -2998,22 +1947,53 @@ Thank you!`;
           border-left: 2px solid #65a30d;
         }
 
-        .port-cost-preview small {
+        .branding-cost-preview small {
           color: #84cc16;
           font-size: 0.75rem;
         }
 
-        .logo-cost-preview {
+        /* Transport Selection Styles */
+        .transport-selection-group {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .transport-row {
+          display: flex;
+          gap: 10px;
+        }
+
+        .transport-column {
+          flex: 1;
+        }
+
+        .transport-price-info {
           margin-top: 5px;
-          padding: 4px 8px;
+          padding: 8px;
           background: rgba(101, 163, 13, 0.1);
-          border-radius: 4px;
-          border-left: 2px solid #65a30d;
+          border-radius: 6px;
+          border-left: 3px solid #65a30d;
         }
 
-        .logo-cost-preview small {
+        .transport-price-info small {
+          color: #84cc16;
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+
+        .transport-price-display {
+          margin-top: 8px;
+          padding: 8px;
+          background: rgba(101, 163, 13, 0.1);
+          border-radius: 5px;
+          border-left: 3px solid #65a30d;
+        }
+
+        .transport-price-display small {
           color: #84cc16;
           font-size: 0.75rem;
+          line-height: 1.3;
         }
 
         .price-breakdown-section {
@@ -3115,7 +2095,7 @@ Thank you!`;
           border-bottom: none;
         }
 
-        .price-item.port-costs {
+        .price-item.branding-costs {
           color: #90cdf4;
           border-left: 3px solid #4299e1;
           padding-left: 8px;
@@ -3124,11 +2104,11 @@ Thank you!`;
           padding: 8px;
         }
 
-        .price-item.logo-costs {
-          color: #90cdf4;
-          border-left: 3px solid #4299e1;
+        .price-item.transport-costs {
+          color: #68d391;
+          border-left: 3px solid #68d391;
           padding-left: 8px;
-          background: rgba(66, 153, 225, 0.05);
+          background: rgba(104, 211, 145, 0.05);
           margin: 3px -8px;
           padding: 8px;
         }
@@ -3160,12 +2140,12 @@ Thank you!`;
           white-space: nowrap;
         }
 
-        .price-item.port-costs .price-value {
+        .price-item.branding-costs .price-value {
           color: #90cdf4;
         }
 
-        .price-item.logo-costs .price-value {
-          color: #90cdf4;
+        .price-item.transport-costs .price-value {
+          color: #68d391;
         }
 
         .price-item.final-total .price-value {
@@ -3327,6 +2307,11 @@ Thank you!`;
 
           .country-code-select {
             width: 100%;
+          }
+
+          .transport-row {
+            flex-direction: column;
+            gap: 10px;
           }
 
           .price-breakdown-section {

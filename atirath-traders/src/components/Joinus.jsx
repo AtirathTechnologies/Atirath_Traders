@@ -155,7 +155,7 @@ const JoinUs = () => {
                   </div>
                   <h6 className="text-white">Call Us</h6>
                   <p className="text-light opacity-80 small">
-                    +91 7983168189<br />
+                    +91 7396007479<br />
                     Mon-Fri, 9AM-6PM
                   </p>
                 </div>

@@ -292,7 +292,7 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
           <>
             {/* Removed the selected brand info display section */}
             
-            <div className="products-grid" style={{ marginTop: isMobile && !localSearchQuery ? '7rem' : '2rem',marginLeft: isMobile ? '1rem' : '5rem', }}>
+            <div className="products-grid" style={{ marginTop: isMobile && !localSearchQuery ? '7rem' : '6rem',marginLeft: isMobile ? '1rem' : '5rem', }}>
               {filteredProducts.length === 0 ? (
                 <div className="no-products-message">
                   <p className="h5 accent">No products found</p>

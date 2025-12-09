@@ -1,8 +1,8 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom'; // Added for navigation
+import { useNavigate } from 'react-router-dom';
 
 const Services = ({ onServiceClick, onViewAllClick }) => {
-  const navigate = useNavigate(); // For programmatic navigation
+  const navigate = useNavigate();
 
   const services = [
     {
@@ -38,7 +38,7 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
     {
       name: "Vegetables",
       product: "vegetables",
-      image: "https://www.bhg.com/thmb/Mwd_YEkDbVg_fPsUDcWr3eZk9W0=/5645x0/filters:no_upscale():strip_icc()/difference-between-fruits-vegetables-01-5f92e7ec706b463287bcfb46985698f9.jpg",
+      image: "https://cdn.britannica.com/17/196817-050-6A15DAC3/vegetables.jpg?w=400&h=300&c=crop",
       description: "Fresh and organic vegetables for healthy living."
     },
     {
@@ -103,10 +103,8 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
   const handleServiceClick = (productType) => {
     console.log('Service card clicked:', productType);
     if (onServiceClick) {
-      // Restore fromAllProducts flag for tracking
       onServiceClick(productType, { fromAllProducts: true });
     } else {
-      // Fallback: Direct navigation if onServiceClick is not provided
       navigate(`/product/${productType}`);
     }
   };
@@ -116,8 +114,7 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
     if (onViewAllClick) {
       onViewAllClick();
     } else {
-      // Fallback: Navigate to AllProducts page
-      navigate('/allproducts');
+      navigate('/all-products');
     }
   };
 
@@ -127,7 +124,7 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
         <h3
           className="h2 fw-bold text-center accent mb-5"
           data-aos="zoom-in"
-          style={{ marginTop: '80px' }} // Keep navbar fix
+          style={{ marginTop: '80px' }}
         >
           Our Products
         </h3>
@@ -174,10 +171,16 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
           ))}
         </div>
 
+        {/* View All Button - ALWAYS VISIBLE */}
         <div className="text-center mt-5" data-aos="fade-up">
           <button 
             className="btn btn-primary btn-lg px-5"
             onClick={handleViewAllClick}
+            style={{ 
+              display: 'inline-block',
+              visibility: 'visible',
+              opacity: 1
+            }}
           >
             View All Products
           </button>

@@ -51,6 +51,12 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const [selectedPort, setSelectedPort] = useState("");
   const [portOptions, setPortOptions] = useState([]);
   const [transportPrice, setTransportPrice] = useState("0-0");
+
+  // New state for profile fields
+  const [country, setCountry] = useState("India");
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
+  const [pincode, setPincode] = useState("");
   
   const modalRef = useRef(null);
   const formContainerRef = useRef(null);
@@ -59,11 +65,27 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   // Constants
   const countryOptions = [
     { value: "+91", flag: "🇮🇳", name: "India", length: 10, currency: "INR" },
+    { value: "+968", flag: "🇴🇲", name: "Oman", length: 8, currency: "OMR" },
+    { value: "+44", flag: "🇬🇧", name: "United Kingdom", length: 10, currency: "GBP" },
     { value: "+1", flag: "🇺🇸", name: "USA", length: 10, currency: "USD" },
-    { value: "+44", flag: "🇬🇧", name: "UK", length: 10, currency: "GBP" },
     { value: "+971", flag: "🇦🇪", name: "UAE", length: 9, currency: "AED" },
     { value: "+61", flag: "🇦🇺", name: "Australia", length: 9, currency: "AUD" },
     { value: "+98", flag: "🇮🇷", name: "Iran", length: 10, currency: "IRR" },
+  ];
+
+  const countryNames = [
+    { name: "India", code: "IN" },
+    { name: "Oman", code: "OM" },
+    { name: "United Kingdom", code: "GB" },
+    { name: "United States", code: "US" },
+    { name: "UAE", code: "AE" },
+    { name: "Australia", code: "AU" },
+    { name: "Canada", code: "CA" },
+    { name: "Germany", code: "DE" },
+    { name: "France", code: "FR" },
+    { name: "Singapore", code: "SG" },
+    { name: "Japan", code: "JP" },
+    { name: "China", code: "CN" }
   ];
 
   const currencyOptions = [
@@ -632,38 +654,51 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
 
   // Event handlers
   const handleCountryChange = (e) => {
-    if (!profile) {
-      const newCode = e.target.value;
-      setCountryCode(newCode);
-      validatePhoneNumber(phoneNumber, newCode, false);
-      
-      const selectedCountry = countryOptions.find(opt => opt.value === newCode);
-      if (selectedCountry && selectedCountry.currency) {
+    const newCode = e.target.value;
+    setCountryCode(newCode);
+    
+    // Update country name based on country code
+    const selectedCountry = countryOptions.find(opt => opt.value === newCode);
+    if (selectedCountry) {
+      setCountry(selectedCountry.name);
+      if (selectedCountry.currency) {
         setCurrency(selectedCountry.currency);
       }
     }
+    
+    validatePhoneNumber(phoneNumber, newCode, !!profile);
   };
 
   const handlePhoneChange = (e) => {
-    if (!profile) {
-      const value = e.target.value.replace(/\D/g, "");
-      setPhoneNumber(value);
-      validatePhoneNumber(value, countryCode, false);
-    }
+    const value = e.target.value.replace(/\D/g, "");
+    setPhoneNumber(value);
+    validatePhoneNumber(value, countryCode, !!profile);
   };
 
   const handleEmailChange = (e) => {
-    if (!profile) {
-      const value = e.target.value;
-      setEmail(value);
-      validateEmail(value, false);
-    }
+    const value = e.target.value;
+    setEmail(value);
+    validateEmail(value, !!profile);
   };
 
   const handleFullNameChange = (e) => {
-    if (!profile) {
-      setFullName(e.target.value);
-    }
+    setFullName(e.target.value);
+  };
+
+  const handleCountryNameChange = (e) => {
+    setCountry(e.target.value);
+  };
+
+  const handleStateChangeInput = (e) => {
+    setState(e.target.value);
+  };
+
+  const handleCityChange = (e) => {
+    setCity(e.target.value);
+  };
+
+  const handlePincodeChange = (e) => {
+    setPincode(e.target.value);
   };
 
   const handleQuantityChange = (e) => {
@@ -710,16 +745,16 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
 
   // New handlers for state and port selection
   const handleStateChange = (e) => {
-    const state = e.target.value;
-    setSelectedState(state);
+    const stateValue = e.target.value;
+    setSelectedState(stateValue);
     setSelectedPort("");
-    setPortOptions(getPortOptions(state));
+    setPortOptions(getPortOptions(stateValue));
     
-    if (state) {
+    if (stateValue) {
       const productType = getProductType();
       const productName = product?.name?.toLowerCase() || '';
       const unitType = getUnitType(productType, productName);
-      setTransportPrice(getTransportPrice(state, "", unitType));
+      setTransportPrice(getTransportPrice(stateValue, "", unitType));
     } else {
       setTransportPrice("0-0");
     }
@@ -792,41 +827,84 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     return unitMap[productType] || "Units";
   };
 
-  // FIXED: Auto-fill form with profile data - Don't validate initially
+  // FIXED: Auto-fill form with profile data
   useEffect(() => {
     if (isOpen && profile) {
-      const nameValue = profile.name || "";
-      setFullName(nameValue);
-      setEmail(profile.email || "");
+      console.log('📋 Auto-filling form with profile data:', profile);
       
+      // Fill all fields from profile
+      setFullName(profile.name || "");
+      setEmail(profile.email || "");
+      setCountry(profile.country || "India");
+      setState(profile.state || "");
+      setCity(profile.city || "");
+      setPincode(profile.pincode || "");
+      
+      // Handle phone number - extract country code and number
       if (profile.phone) {
-        const cleanedPhone = profile.phone.replace(/\s+/g, "").replace(/[^+\d]/g, "");
-        const matchedCountry = countryOptions.find((opt) => cleanedPhone.startsWith(opt.value));
+        const phoneStr = profile.phone.toString();
+        let foundCountryCode = "+91"; // Default to India
         
+        // Find country code from phone number
+        const matchedCountry = countryOptions.find((opt) => phoneStr.startsWith(opt.value));
         if (matchedCountry) {
-          setCountryCode(matchedCountry.value);
-          const phoneWithoutCode = cleanedPhone.replace(matchedCountry.value, "");
+          foundCountryCode = matchedCountry.value;
+          const phoneWithoutCode = phoneStr.replace(matchedCountry.value, "");
           setPhoneNumber(phoneWithoutCode);
+          setCountryCode(foundCountryCode);
+          
+          // Set currency based on country
           if (matchedCountry.currency) {
             setCurrency(matchedCountry.currency);
           }
-          // Don't validate immediately for profile fields
-          setPhoneError("");
         } else {
-          // Default to India if no country code found
-          setCountryCode("+91");
-          setPhoneNumber(cleanedPhone.replace(/^\+/, ""));
-          setPhoneError("");
+          // Check for known country codes
+          if (phoneStr.startsWith('968')) {
+            setCountryCode('+968');
+            setPhoneNumber(phoneStr.substring(3));
+            setCountry('Oman');
+          } else if (phoneStr.startsWith('44')) {
+            setCountryCode('+44');
+            setPhoneNumber(phoneStr.substring(2));
+            setCountry('United Kingdom');
+          } else if (phoneStr.startsWith('1')) {
+            setCountryCode('+1');
+            setPhoneNumber(phoneStr.substring(1));
+            setCountry('United States');
+          } else if (phoneStr.startsWith('971')) {
+            setCountryCode('+971');
+            setPhoneNumber(phoneStr.substring(3));
+            setCountry('UAE');
+          } else if (phoneStr.startsWith('61')) {
+            setCountryCode('+61');
+            setPhoneNumber(phoneStr.substring(2));
+            setCountry('Australia');
+          } else {
+            // Default to India
+            setCountryCode('+91');
+            setPhoneNumber(phoneStr);
+            setCountry('India');
+          }
         }
       } else {
-        // If no phone in profile, set default India
         setCountryCode("+91");
         setPhoneNumber("");
-        setPhoneError("");
       }
       
-      // Clear email error for profile fields
+      // Clear validation errors for profile fields
+      setPhoneError("");
       setEmailError("");
+      
+      console.log('✅ Form auto-filled with:', {
+        name: profile.name,
+        email: profile.email,
+        country: profile.country,
+        state: profile.state,
+        city: profile.city,
+        pincode: profile.pincode,
+        phone: phoneNumber,
+        countryCode: countryCode
+      });
     }
   }, [isOpen, profile]);
 
@@ -919,6 +997,10 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
       name: fullName,
       email: email,
       phone: fullPhoneNumber,
+      country: country,
+      state: state,
+      city: city,
+      pincode: pincode,
       
       // Product Information
       product: product?.name || "",
@@ -936,7 +1018,7 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
       currency: currency,
       
       // Transport Information
-      state: stateLabel,
+      transportState: stateLabel,
       port: portLabel,
       transportPrice: `₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}`,
       
@@ -1016,6 +1098,10 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
 - Name: ${fullName}
 - Email: ${email}
 - Phone: ${fullPhoneNumber}
+- Country: ${country}
+- State: ${state}
+- City: ${city}
+- Pincode: ${pincode}
 - Product: ${product?.name || ""}
 - Variety: ${product?.variety || ""}
 - Brand: ${product?.brand || ""}
@@ -1025,8 +1111,8 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
 - CIF Required: ${cifRequired}
 - Brand Required: ${brandingRequired}
 - Currency: ${currency}
-${stateLabel ? `- State: ${stateLabel}` : ""}
-${portLabel ? `- Port: ${portLabel}` : ""}
+${selectedState ? `- Transport State: ${stateLabel}` : ""}
+${selectedPort ? `- Port: ${portLabel}` : ""}
 ${transportPrice !== "0-0" ? `- Transport Price: ₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}` : ""}
 ${exchangeInfo ? `- Exchange Rate: ${exchangeInfo.example}` : ""}
 - Estimated Bill Breakdown:
@@ -1092,12 +1178,18 @@ Thank you!`;
     setPortOptions([]);
     setTransportPrice("0-0");
     
+    // Reset profile fields if no profile
     if (!profile) {
       setFullName("");
       setEmail("");
       setPhoneNumber("");
       setCountryCode("+91");
+      setCountry("India");
+      setState("");
+      setCity("");
+      setPincode("");
     }
+    
     setPhoneError("");
     setEmailError("");
   };
@@ -1246,6 +1338,83 @@ Thank you!`;
                         </div>
                       )}
                       {emailError && <div className="error-message">{emailError}</div>}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Country *</label>
+                      <select
+                        value={country}
+                        onChange={handleCountryNameChange}
+                        required
+                        className="form-select"
+                        disabled={!!profile}
+                      >
+                        <option value="">Select Country</option>
+                        {countryNames.map((countryOption) => (
+                          <option key={countryOption.code} value={countryOption.name}>
+                            {countryOption.name}
+                          </option>
+                        ))}
+                      </select>
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">State/Province *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter your state/province"
+                        value={state}
+                        onChange={handleStateChangeInput}
+                        required
+                        className="form-input"
+                        readOnly={!!profile}
+                      />
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">City/Town *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter your city/town"
+                        value={city}
+                        onChange={handleCityChange}
+                        required
+                        className="form-input"
+                        readOnly={!!profile}
+                      />
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Pincode/ZIP *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter your pincode/ZIP"
+                        value={pincode}
+                        onChange={handlePincodeChange}
+                        required
+                        className="form-input"
+                        readOnly={!!profile}
+                      />
+                      {profile && (
+                        <div className="profile-autofill-note">
+                          <small>Auto-filled from your profile</small>
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-group">

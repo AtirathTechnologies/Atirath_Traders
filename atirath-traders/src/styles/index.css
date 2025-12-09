@@ -23,6 +23,8 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 /* ==========================================================================
    MOBILE PROFILE POPUP STYLES
@@ -399,6 +401,9 @@ body {
   min-height: 80px !important;
   padding: 0.25rem 0.5rem !important;
   z-index: 1000 !important;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 /* Company Name - Ultra Compact */
 .company-name-compact {
@@ -1234,6 +1239,8 @@ body {
   min-height: 100vh;
   position: relative;
   width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 .product-main-content {
   width: 100%;
@@ -4150,4 +4157,454 @@ html {
   font-size: 0.6rem;
   min-width: 16px;
   height: 16px;
+}
+
+/* ==========================================================================
+   RESPONSIVE FIXES FOR ALL SCREEN SIZES
+   ========================================================================== */
+/* Base responsive adjustments */
+* {
+  box-sizing: border-box;
+}
+
+/* Main container adjustments */
+#home-page,
+.product-page,
+.all-products-page {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Container width adjustments */
+.container,
+.product-main-content {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Hero section responsive fixes */
+.slideshow-container {
+  width: 100%;
+  height: 100vh;
+  max-height: 900px;
+}
+
+.slide-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1.2;
+}
+
+.slide-subtitle {
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  line-height: 1.4;
+}
+
+/* Grid adjustments */
+.products-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+/* Card width adjustments */
+.product-card,
+.service-card,
+.blog-card {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Navbar responsiveness improvements */
+@media (min-width: 1200px) {
+  .container,
+  .product-main-content {
+    max-width: 1400px;
+    padding: 0 40px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .container,
+  .product-main-content {
+    max-width: 1600px;
+    padding: 0 60px;
+  }
+  
+  .slide-title {
+    font-size: 4rem;
+  }
+  
+  .slide-subtitle {
+    font-size: 1.75rem;
+  }
+}
+
+/* Fix for very wide screens */
+@media (min-width: 1800px) {
+  .container,
+  .product-main-content {
+    max-width: 1700px;
+  }
+}
+
+/* Ensure images don't overflow */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Fix for RSS feed on wide screens */
+.IndianAgriRSSFeed {
+  width: 100%;
+}
+
+.scrolling-container {
+  width: 100%;
+}
+
+/* Fix for auth forms on wide screens */
+.auth-form-transparent {
+  max-width: min(500px, 90vw);
+}
+
+/* Fix for profile dropdown on wide screens */
+.profile-dropdown-card {
+  min-width: min(350px, 90vw);
+}
+
+/* Ensure buttons are properly sized */
+.btn, button {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Fix for text overflow in narrow containers */
+.company-name-compact,
+.company-tagline-compact,
+.nav-link-btn,
+.auth-btn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ensure proper spacing on all screen sizes */
+@media (max-width: 1400px) {
+  .product-main-content.sidebar-open {
+    padding-left: 320px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .product-main-content.sidebar-open {
+    padding-left: 340px;
+  }
+  
+  .categories-sidebar {
+    width: 300px;
+  }
+}
+
+/* Fix for mobile menu on all screens */
+.mobile-menu {
+  width: min(85%, 320px);
+}
+
+/* Ensure content doesn't get too wide on large screens */
+.content-max-width {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Fix for product cards on wide screens */
+@media (min-width: 1600px) {
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
+
+/* Ensure proper line heights for better readability */
+p, li, .card-text, .product-title {
+  line-height: 1.6;
+}
+
+/* Fix for footer and other section widths */
+footer, section {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Add smooth transitions for responsive changes */
+.product-main-content,
+.products-grid,
+.navbar,
+.container {
+  transition: all 0.3s ease;
+}
+/* ==========================================================================
+   SIGNUP FORM ENHANCEMENTS - PHONE INPUT WITH COUNTRY CODE
+   ========================================================================== */
+.phone-input-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.country-code-selector {
+  flex: 0 0 180px;
+}
+
+.country-code-select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.75rem;
+  width: 100%;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.country-code-select option {
+  background: rgba(25, 35, 56, 0.95);
+  color: white;
+  padding: 10px;
+}
+
+.phone-number-input {
+  flex: 1;
+}
+
+/* ==========================================================================
+   PROFILE EDIT FORM ENHANCEMENTS
+   ========================================================================== */
+.profile-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+/* ==========================================================================
+   MODAL ENHANCEMENTS FOR USER DETAILS
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  backdrop-filter: blur(5px);
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.modal-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.modal-body {
+  padding: 30px;
+  background: #f8f9fa;
+}
+
+.order-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.detail-section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.detail-section h3 {
+  color: #333;
+  font-size: 1.1rem;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #4ade80;
+  display: flex;
+  align-items: center;
+}
+
+.detail-section.full-width {
+  grid-column: 1 / -1;
+}
+
+.details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-item:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #666;
+  min-width: 140px;
+}
+
+.detail-value {
+  color: #333;
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 20px 30px;
+  background: white;
+  border-radius: 0 0 16px 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .phone-input-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .country-code-selector {
+    width: 100%;
+  }
+  
+  .profile-edit-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal-content {
+    margin: 10px;
+    max-height: 95vh;
+  }
+  
+  .order-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-item {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .detail-label, .detail-value {
+    text-align: left;
+    min-width: auto;
+  }
+  
+  .footer-actions {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .modal-header-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 }

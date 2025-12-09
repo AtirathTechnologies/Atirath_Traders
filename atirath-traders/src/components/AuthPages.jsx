@@ -21,53 +21,72 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
       [e.target.name]: e.target.value
     });
   };
+  const ADMIN_EMAIL = "admin@atirath.com"; 
+  const ADMIN_PASSWORD = "Admin@123";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
+    // 1️⃣ HARD-CODED ADMIN LOGIN
+    if (formData.email === ADMIN_EMAIL && formData.password === ADMIN_PASSWORD) {
+      console.log("Admin login: success");
+      setSignInSuccess(true);
+      setTimeout(() => {
+        window.location.href = "/admin";
+      }, 1500);
+      return;
+    }
+
+    // 2️⃣ NORMAL USER LOGIN (FIREBASE)
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+
       const user = userCredential.user;
+      console.log('🔵 User authenticated:', user.uid);
       
-      // Get user data from Firebase - IMPORTANT: Get phone number from database
-      const userDataFromDB = await getUserProfile(user.uid);
+      // Fetch user profile from Firebase
+      const userDB = await getUserProfile(user.uid);
       
+      console.log('📊 User data from Firebase:', userDB);
+
       const userData = {
         uid: user.uid,
-        name: userDataFromDB?.name || user.displayName || 'User Name',
+        name: userDB?.name || user.displayName || "User",
         email: user.email,
-        phone: userDataFromDB?.phone || '', // Get phone from database
-        location: userDataFromDB?.location || '', // Get location from database
-        photoURL: userDataFromDB?.photoURL || '', // Get photoURL from database
-        createdAt: userDataFromDB?.createdAt || new Date().toISOString()
+        phone: userDB?.phone || "",
+        countryCode: userDB?.countryCode || "+91",
+        country: userDB?.country || "",
+        state: userDB?.state || "",
+        city: userDB?.city || "",
+        pincode: userDB?.pincode || "",
+        location: userDB?.location || "",
+        photoURL: userDB?.photoURL || "",
+        createdAt: userDB?.createdAt || new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        userKey: userDB?.userKey || '',
+        userNumber: userDB?.userNumber || null
       };
+
+      console.log('✅ Final user data for app:', userData);
       
-      console.log('Sign in successful, user data:', {
-        name: userData.name,
-        phone: userData.phone, // Debug log
-        hasPhone: !!userData.phone
-      });
-      
-      // Show success message
+      // Update last login timestamp
+      const { updateLastLogin } = await import('../firebase');
+      await updateLastLogin(user.uid);
+
       setSignInSuccess(true);
-      
-      // Wait 1.5 seconds then redirect
       setTimeout(() => {
         onSignIn(userData);
         onClose();
       }, 1500);
-      
-    } catch (error) {
-      console.error('Sign in error:', error);
-      let errorMessage = 'Sign in failed. Please try again.';
-      
-      if (error.code === 'auth/invalid-email') errorMessage = 'Invalid email address.';
-      else if (error.code === 'auth/user-disabled') errorMessage = 'This account has been disabled.';
-      else if (error.code === 'auth/user-not-found') errorMessage = 'No account found with this email.';
-      else if (error.code === 'auth/wrong-password') errorMessage = 'Incorrect password.';
-      
-      alert(errorMessage);
+
+    } catch (err) {
+      console.error("Firebase login failed:", err);
+      alert("Invalid email or password.");
       setLoading(false);
     }
   };
@@ -80,7 +99,6 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
     alert(`Password reset link has been sent to ${formData.email}. Please check your email.`);
   };
 
-  // Render success message
   if (signInSuccess) {
     return (
       <div className="auth-form-with-video">
@@ -216,7 +234,12 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    countryCode: '+91', // Default to India
     phone: '',
+    country: 'India',
+    state: '',
+    city: '',
+    pincode: '',
     password: '',
     confirmPassword: ''
   });
@@ -224,11 +247,15 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
   const [passwordValid, setPasswordValid] = useState(false);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
 
+  // Country data with codes and validation patterns
+  const countries = [
+    { name: 'India', code: '+91', flag: '🇮🇳', pattern: /^[6-9]\d{9}$/, placeholder: '9876543210' },
+    { name: 'Oman', code: '+968', flag: '🇴🇲', pattern: /^[9]\d{7}$/, placeholder: '9XXXXXXX' },
+    { name: 'United Kingdom', code: '+44', flag: '🇬🇧', pattern: /^[1-9]\d{9,10}$/, placeholder: '20XXXXXXXXX' }
+  ];
+
   // Strong password regex
   const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
-
-  // Indian phone number regex (10 digits starting with 6-9)
-  const phoneRegex = /^[6-9]\d{9}$/;
 
   const validatePassword = (pwd) => {
     const isValid = strongPasswordRegex.test(pwd);
@@ -236,19 +263,39 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     return isValid;
   };
 
-  const validatePhone = (phone) => {
-    return phoneRegex.test(phone);
+  const validatePhone = () => {
+    const selectedCountry = countries.find(c => c.code === formData.countryCode);
+    if (!selectedCountry || !formData.phone) return false;
+    return selectedCountry.pattern.test(formData.phone);
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    // Only allow numbers for phone field and limit to 10 digits
+    // Special handling for phone number based on country
     if (name === 'phone') {
-      const numericValue = value.replace(/\D/g, '').slice(0, 10);
+      const selectedCountry = countries.find(c => c.code === formData.countryCode);
+      let numericValue = value.replace(/\D/g, '');
+      
+      // Apply max length based on country
+      if (selectedCountry) {
+        if (selectedCountry.code === '+91') numericValue = numericValue.slice(0, 10);
+        else if (selectedCountry.code === '+968') numericValue = numericValue.slice(0, 8);
+        else if (selectedCountry.code === '+44') numericValue = numericValue.slice(0, 11);
+      }
+      
       setFormData(prev => ({
         ...prev,
         [name]: numericValue
+      }));
+    } else if (name === 'countryCode') {
+      // When country code changes, reset phone number
+      const selectedCountry = countries.find(c => c.code === value);
+      setFormData(prev => ({
+        ...prev,
+        countryCode: value,
+        country: selectedCountry ? selectedCountry.name : 'India',
+        phone: '' // Reset phone number
       }));
     } else {
       setFormData(prev => ({
@@ -266,8 +313,15 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     e.preventDefault();
 
     // Validate phone number
-    if (!validatePhone(formData.phone)) {
-      alert('Please enter a valid 10-digit Indian phone number.');
+    if (!validatePhone()) {
+      const selectedCountry = countries.find(c => c.code === formData.countryCode);
+      alert(`Please enter a valid phone number for ${selectedCountry.name}.`);
+      return;
+    }
+
+    // Validate pincode
+    if (formData.pincode && !/^\d{4,10}$/.test(formData.pincode)) {
+      alert('Please enter a valid pincode (4-10 digits).');
       return;
     }
 
@@ -285,34 +339,66 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      // 1. Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        formData.email, 
+        formData.password
+      );
       const user = userCredential.user;
 
+      console.log('✅ User created in Auth:', user.uid);
+
+      // 2. Update user profile in Auth
       await updateProfile(user, { 
         displayName: formData.name 
       });
 
-      // UPDATED: Include all user data including phone number
+      // 3. Prepare complete user data for Realtime Database
       const userData = {
         uid: user.uid,
         name: formData.name,
         email: formData.email,
-        phone: formData.phone, // PHONE NUMBER INCLUDED
-        location: '', // Initialize location as empty
-        photoURL: '', // Initialize photoURL as empty
+        phone: formData.phone,
+        countryCode: formData.countryCode,
+        country: formData.country,
+        state: formData.state,
+        city: formData.city,
+        pincode: formData.pincode,
+        location: `${formData.city}, ${formData.state}, ${formData.country}`,
+        photoURL: '',
         createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
+        lastLogin: new Date().toISOString(),
+        accountStatus: 'active',
+        emailVerified: false,
+        phoneVerified: false,
+        orderCount: 0,
+        totalSpent: 0,
+        lastOrderDate: null
       };
 
-      console.log('Storing user data with phone:', userData.phone); // Debug log
+      console.log('💾 Attempting to store user data in Firebase Realtime Database:', userData);
       
-      // Store user profile in Firebase Realtime Database
-      await storeUserProfile(userData);
+      // 4. Store user profile in Firebase Realtime Database
+      const storeResult = await storeUserProfile(userData);
       
-      // Show success message
+      if (!storeResult.success) {
+        console.error('❌ Failed to store user data:', storeResult.error);
+        alert('Account created but failed to save profile data. Please update your profile later.');
+      } else {
+        console.log('✅ User data stored successfully in Realtime DB:', storeResult);
+        
+        // Verify the data was stored
+        setTimeout(async () => {
+          const verifyData = await getUserProfile(user.uid);
+          console.log('🔍 Verification - Retrieved user data:', verifyData);
+        }, 1000);
+      }
+      
+      // 5. Show success message
       setSignUpSuccess(true);
       
-      // Wait 2 seconds then redirect to sign in
+      // 6. Wait 2 seconds then redirect to sign in
       setTimeout(() => {
         setLoading(false);
         // Navigate to sign in with pre-filled email
@@ -320,17 +406,24 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       }, 2000);
 
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error('❌ Sign up error:', error);
       let errorMessage = 'Sign up failed. Please try again.';
 
-      if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered. Please sign in instead.';
-      else if (error.code === 'auth/invalid-email') errorMessage = 'Invalid email address.';
-      else if (error.code === 'auth/weak-password') errorMessage = 'Password is too weak. Please use a stronger password.';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already registered. Please sign in instead.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please use a stronger password.';
+      }
 
       alert(errorMessage);
       setLoading(false);
     }
   };
+
+  // Get selected country details
+  const selectedCountry = countries.find(c => c.code === formData.countryCode);
 
   // Password criteria check
   const criteria = [
@@ -341,7 +434,6 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     { label: 'One special character (!@#$%^&*)', test: /[!@#$%^&*]/.test(formData.password) }
   ];
 
-  // Render success message
   if (signUpSuccess) {
     return (
       <div className="auth-form-with-video">
@@ -377,8 +469,12 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                 </div>
                 <h3 className="text-white mb-3">Account Created Successfully!</h3>
                 <p className="text-white opacity-80 mb-4">
-                  Your account has been created. You will be redirected to sign in page...
+                  Your account has been created and data saved to Firebase. You will be redirected to sign in...
                 </p>
+                <div className="database-sync-status mb-3">
+                  <span className="database-icon">✅</span>
+                  <span>Data saved to Firebase Realtime Database</span>
+                </div>
                 <div className="spinner-border text-accent" role="status">
                   <span className="visually-hidden">Loading...</span>
                 </div>
@@ -444,19 +540,96 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                 />
               </div>
               
+              {/* Phone Number with Country Code */}
               <div className="form-group">
                 <label className="form-label fw-semibold">Phone Number</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
+                <div className="phone-input-container">
+                  <div className="country-code-selector">
+                    <select
+                      name="countryCode"
+                      value={formData.countryCode}
+                      onChange={handleChange}
+                      className="form-control search-bar-transparent country-code-select"
+                    >
+                      {countries.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.flag} {country.name} ({country.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="form-control search-bar-transparent phone-number-input"
+                    placeholder={selectedCountry?.placeholder || "Phone number"}
+                    required
+                  />
+                </div>
+                <small className="text-sm opacity-80 d-block mt-1">
+                  {selectedCountry ? `Valid ${selectedCountry.name} number format required` : 'Enter valid phone number'}
+                </small>
+              </div>
+              
+              {/* Country Selection */}
+              <div className="form-group">
+                <label className="form-label fw-semibold">Country</label>
+                <select
+                  name="country"
+                  value={formData.country}
                   onChange={handleChange}
                   className="form-control search-bar-transparent"
-                  placeholder="Enter 10-digit phone number"
-                  maxLength="10"
+                  required
+                >
+                  <option value="India">India</option>
+                  <option value="Oman">Oman</option>
+                  <option value="United Kingdom">United Kingdom</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              
+              {/* State */}
+              <div className="form-group">
+                <label className="form-label fw-semibold">State/Province</label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleChange}
+                  className="form-control search-bar-transparent"
+                  placeholder="Enter your state or province"
                   required
                 />
-                <small className="text-sm opacity-80 d-block mt-1">10-digit Indian phone number (e.g., 9876543210)</small>
+              </div>
+              
+              {/* City */}
+              <div className="form-group">
+                <label className="form-label fw-semibold">City/Town</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  className="form-control search-bar-transparent"
+                  placeholder="Enter your city or town"
+                  required
+                />
+              </div>
+              
+              {/* Pincode */}
+              <div className="form-group">
+                <label className="form-label fw-semibold">Pincode/ZIP Code</label>
+                <input
+                  type="text"
+                  name="pincode"
+                  value={formData.pincode}
+                  onChange={handleChange}
+                  className="form-control search-bar-transparent"
+                  placeholder="Enter your pincode or ZIP code"
+                  required
+                />
               </div>
               
               <div className="form-group">
@@ -510,7 +683,7 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
               <button
                 type="submit"
                 className="btn btn-primary-transparent w-100 py-3 fw-semibold"
-                disabled={loading || !passwordValid || formData.password !== formData.confirmPassword || !validatePhone(formData.phone)}
+                disabled={loading || !passwordValid || formData.password !== formData.confirmPassword || !validatePhone()}
               >
                 {loading ? (
                   <>

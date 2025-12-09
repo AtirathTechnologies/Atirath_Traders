@@ -14,7 +14,7 @@ import ProductPage from './components/ProductPage';
 import AllProducts from './components/AllProducts';
 import Blog from './components/Blog';
 import BlogPost from './components/BlogPost';
-import JoinUs from './components/JoinUs';
+import JoinUs from './components/Joinus';
 import TermsPolicy from './components/TermsPolicy';
 import TransportPage from './components/TransportPage';
 import { SignIn, SignUp } from './components/AuthPages';
@@ -23,19 +23,26 @@ import {
   auth,
   database,
   ref,
+  set,
   update,
   onAuthStateChanged,
   signOut,
   getUserProfile,
   updateUserProfile,
   updateLastLogin,
-  checkUserExists,
-  submitQuote,
-  get
+  storeUserProfile,
+  get,
+  getAllUsers,
+  submitQuote
 } from './firebase';
+import AdminLayout from './admin/AdminLayout';
+import Dashboard from './admin/pages/Dashboard';
+import Users from './admin/pages/Users';
+import Products from './admin/pages/Products';
+import Orders from './admin/pages/Orders';
 
 /* --------------------------------------------------------------------
-   Dedicated page components - NO CHANGES NEEDED
+   Dedicated page components
    -------------------------------------------------------------------- */
 const HomePage = ({ onServiceClick, onViewAllClick }) => (
   <div id="home-page">
@@ -75,7 +82,7 @@ const TermsPolicyPage = () => <TermsPolicy />;
 const TransportPageComponent = () => <TransportPage />;
 
 /* --------------------------------------------------------------------
-   Router Wrapper - UPDATED WITH SUCCESS FLOW
+   Router Wrapper - UPDATED WITH FIXED NAVIGATION
    -------------------------------------------------------------------- */
 const RouterWrapper = () => {
   const location = useLocation();
@@ -89,13 +96,14 @@ const RouterWrapper = () => {
   /* ---------- Global search state ---------- */
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
-  /* ---------- auth ---------- */
+  /* ---------- Auth State ---------- */
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showAuthForm, setShowAuthForm] = useState(null);
   const [preFilledEmail, setPreFilledEmail] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showProfileUpdateSuccess, setShowProfileUpdateSuccess] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   
   /* ---------- New Orders Count ---------- */
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -128,85 +136,158 @@ const RouterWrapper = () => {
 
   /* ---------- Firebase auth listener ---------- */
   useEffect(() => {
+    console.log('🔐 Setting up Firebase auth listener...');
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setIsLoading(true);
+      console.log('🔄 Auth state changed:', user ? 'User logged in' : 'User logged out');
+      setAuthLoading(true);
       
       if (user) {
-        setIsAuthenticated(true);
-        
         try {
-          // Get user data from Realtime Database to include phone number and location
+          console.log('👤 User authenticated:', {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName
+          });
+          
           let userData = await getUserProfile(user.uid);
           
-          // If user doesn't exist in database yet, create basic profile
+          console.log('📊 Fetched user data from Firebase:', userData);
+          
           if (!userData) {
-            console.log('User not found in database, creating basic profile...');
-            userData = {
+            console.log('⚠️ User not found in database, creating profile...');
+            
+            const newUserData = {
               uid: user.uid,
               name: user.displayName || 'User',
-              email: user.email,
+              email: user.email || '',
               phone: '',
+              countryCode: '+91',
+              country: 'India',
+              state: '',
+              city: '',
+              pincode: '',
               location: '',
-              photoURL: '',
+              photoURL: user.photoURL || '',
               createdAt: user.metadata.creationTime || new Date().toISOString(),
-              lastLogin: new Date().toISOString()
+              lastLogin: new Date().toISOString(),
+              accountStatus: 'active',
+              emailVerified: user.emailVerified || false,
+              phoneVerified: false,
+              orderCount: 0,
+              totalSpent: 0,
+              lastOrderDate: null
             };
             
-            // Store the new user profile in database
-            await update(ref(database, 'users/' + user.uid), userData);
-          } else {
-            // Ensure uid is included
-            userData.uid = user.uid;
+            console.log('💾 Storing new user profile in Firebase:', newUserData);
+            
+            const storeResult = await storeUserProfile(newUserData);
+            
+            if (storeResult.success) {
+              console.log('✅ New user profile stored successfully:', storeResult);
+              userData = await getUserProfile(user.uid);
+            } else {
+              console.error('❌ Failed to store user profile:', storeResult.error);
+              userData = newUserData;
+            }
           }
           
-          // Update last login
-          await updateLastLogin(user.uid);
-          
-          // Set current user with all data
-          setCurrentUser({
-            uid: user.uid,
-            name: userData.name || user.displayName || 'User',
-            email: user.email,
-            phone: userData.phone || '',
-            location: userData.location || '',
-            photoURL: userData.photoURL || '',
-            createdAt: userData.createdAt || user.metadata.creationTime || new Date().toISOString(),
-            lastLogin: userData.lastLogin || new Date().toISOString()
-          });
-          
-          console.log('User authenticated with phone:', {
-            uid: user.uid,
-            name: userData.name,
-            email: user.email,
-            phone: userData.phone,
-            hasPhoto: !!userData.photoURL
-          });
+          if (userData) {
+            console.log('✅ User data ready for app:', userData);
+            
+            await updateLastLogin(user.uid);
+            
+            const completeUserData = {
+              uid: user.uid,
+              name: userData.name || user.displayName || 'User',
+              email: userData.email || user.email || '',
+              phone: userData.phone || '',
+              countryCode: userData.countryCode || '+91',
+              country: userData.country || 'India',
+              state: userData.state || '',
+              city: userData.city || '',
+              pincode: userData.pincode || '',
+              location: userData.location || '',
+              photoURL: userData.photoURL || user.photoURL || '',
+              createdAt: userData.createdAt || user.metadata.creationTime || new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+              userKey: userData.userKey || '',
+              userNumber: userData.userNumber || null,
+              accountStatus: userData.accountStatus || 'active',
+              emailVerified: userData.emailVerified || false,
+              phoneVerified: userData.phoneVerified || false,
+              orderCount: userData.orderCount || 0,
+              totalSpent: userData.totalSpent || 0,
+              lastOrderDate: userData.lastOrderDate || null
+            };
+            
+            setCurrentUser(completeUserData);
+            setIsAuthenticated(true);
+            
+            console.log('🎉 User authenticated with full data:', {
+              name: completeUserData.name,
+              email: completeUserData.email,
+              phone: completeUserData.phone,
+              country: completeUserData.country,
+              state: completeUserData.state,
+              city: completeUserData.city,
+              pincode: completeUserData.pincode,
+              hasPhoto: !!completeUserData.photoURL
+            });
+          } else {
+            console.log('⚠️ Using fallback user data');
+            setCurrentUser({
+              uid: user.uid,
+              name: user.displayName || 'User',
+              email: user.email || '',
+              phone: '',
+              countryCode: '+91',
+              country: 'India',
+              state: '',
+              city: '',
+              pincode: '',
+              location: '',
+              photoURL: user.photoURL || '',
+              createdAt: user.metadata.creationTime || new Date().toISOString(),
+              lastLogin: new Date().toISOString()
+            });
+            setIsAuthenticated(true);
+          }
           
         } catch (error) {
-          console.error('Error fetching user data:', error);
-          // Fallback to basic user data
+          console.error('❌ Error in auth listener:', error);
           setCurrentUser({
             uid: user.uid,
             name: user.displayName || 'User',
-            email: user.email,
+            email: user.email || '',
             phone: '',
+            countryCode: '+91',
+            country: 'India',
+            state: '',
+            city: '',
+            pincode: '',
             location: '',
-            photoURL: '',
+            photoURL: user.photoURL || '',
             createdAt: user.metadata.creationTime || new Date().toISOString(),
             lastLogin: new Date().toISOString()
           });
+          setIsAuthenticated(true);
         }
       } else {
+        console.log('👤 User signed out');
         setIsAuthenticated(false);
         setCurrentUser(null);
         setNewOrdersCount(0);
         setViewedOrders(new Set());
       }
       
-      setIsLoading(false);
+      setAuthLoading(false);
     });
     
-    return unsubscribe;
+    return () => {
+      console.log('🔒 Cleaning up auth listener');
+      unsubscribe();
+    };
   }, []);
 
   /* ---------- Fetch user's orders count ---------- */
@@ -221,7 +302,6 @@ const RouterWrapper = () => {
         const allOrders = snapshot.val();
         let userOrders = [];
         
-        // Filter orders by user ID or email
         Object.keys(allOrders).forEach(key => {
           const order = allOrders[key];
           if (order.userId === userId || order.email === email) {
@@ -232,12 +312,13 @@ const RouterWrapper = () => {
           }
         });
         
-        // Count new orders (not viewed yet)
         const newOrders = userOrders.filter(order => !viewedOrders.has(order.id));
         setNewOrdersCount(newOrders.length);
         
-        console.log('Total user orders:', userOrders.length);
-        console.log('New orders count:', newOrders.length);
+        console.log('📦 User orders:', {
+          total: userOrders.length,
+          new: newOrders.length
+        });
       } else {
         setNewOrdersCount(0);
       }
@@ -252,7 +333,6 @@ const RouterWrapper = () => {
     if (currentUser) {
       fetchUserOrdersCount(currentUser.uid, currentUser.email);
       
-      // Set up interval to check for new orders every 30 seconds
       const intervalId = setInterval(() => {
         fetchUserOrdersCount(currentUser.uid, currentUser.email);
       }, 30000);
@@ -266,17 +346,15 @@ const RouterWrapper = () => {
     const newViewed = new Set([...viewedOrders, ...orderIds]);
     setViewedOrders(newViewed);
     
-    // Update new orders count immediately
     setNewOrdersCount(prev => Math.max(0, prev - orderIds.length));
   };
 
   /* ---------- Handle new order submitted ---------- */
   const handleNewOrderSubmitted = () => {
     if (currentUser) {
-      // Refresh orders count when new order is submitted
       setTimeout(() => {
         fetchUserOrdersCount(currentUser.uid, currentUser.email);
-      }, 2000); // Wait 2 seconds for Firebase to update
+      }, 2000);
     }
   };
 
@@ -284,44 +362,80 @@ const RouterWrapper = () => {
   const handleProfileUpdate = async (updatedUserData) => {
     if (!currentUser || !currentUser.uid) {
       console.error('No user or UID found');
+      alert('Please sign in to update your profile');
       return false;
     }
 
     try {
-      console.log('Updating profile for user:', currentUser.uid, updatedUserData);
-      
-      // Update Firebase user profile
-      const updatedData = await updateUserProfile(currentUser.uid, updatedUserData);
-      
-      // Update local state with the response from Firebase
-      setCurrentUser(prev => ({
-        ...prev,
-        ...updatedData,
-        uid: prev.uid
-      }));
-      
-      // Show success message
-      setShowProfileUpdateSuccess(true);
-      setTimeout(() => setShowProfileUpdateSuccess(false), 3000);
-      
-      console.log('Profile updated successfully:', {
-        name: updatedData.name,
-        phone: updatedData.phone,
-        hasPhoto: !!updatedData.photoURL
+      console.log('💾 Updating profile for user:', {
+        uid: currentUser.uid,
+        data: updatedUserData
       });
       
-      return true;
+      const success = await updateUserProfile(currentUser.uid, updatedUserData);
+      
+      if (!success) {
+        alert('Failed to update profile in database');
+        return false;
+      }
+      
+      const updatedData = await getUserProfile(currentUser.uid);
+      
+      if (updatedData) {
+        setCurrentUser(prev => ({
+          ...prev,
+          ...updatedData,
+          uid: prev.uid
+        }));
+        
+        setShowProfileUpdateSuccess(true);
+        setTimeout(() => setShowProfileUpdateSuccess(false), 3000);
+        
+        console.log('✅ Profile updated successfully:', {
+          name: updatedData.name,
+          phone: updatedData.phone,
+          country: updatedData.country,
+          state: updatedData.state,
+          city: updatedData.city,
+          pincode: updatedData.pincode,
+          hasPhoto: !!updatedData.photoURL
+        });
+        
+        return true;
+      } else {
+        setCurrentUser(prev => ({
+          ...prev,
+          ...updatedUserData
+        }));
+        
+        setShowProfileUpdateSuccess(true);
+        setTimeout(() => setShowProfileUpdateSuccess(false), 3000);
+        
+        return true;
+      }
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('❌ Error updating profile:', error);
       alert('Error updating profile. Please try again.');
       throw error;
     }
   };
 
-  /* ---------- navigation helpers ---------- */
-  const goTo = (path) => navigate(path);
-  const goToProduct = (type) => goTo(`/product/${type}`);
-  const goToAllProducts = () => goTo('/all-products');
+  /* ---------- Navigation helpers - FIXED ---------- */
+  const goTo = (path) => {
+    console.log('Navigating to:', path);
+    navigate(path);
+  };
+  
+  const goToProduct = (type) => {
+    console.log('Going to product:', type);
+    goTo(`/product/${type}`);
+  };
+  
+  const goToAllProducts = () => {
+    console.log('Going to all products');
+    goTo('/all-products');
+  };
+  
   const goToHome = () => goTo('/');
   const goToAbout = () => goTo('/about');
   const goToLeadership = () => goTo('/leadership');
@@ -335,8 +449,18 @@ const RouterWrapper = () => {
   const goToTermsPolicy = () => goTo('/terms-policy');
   const goToTransport = () => goTo('/transport');
 
-  const handleServiceClick = (type) => goToProduct(type);
-  const handleViewAllClick = () => goToAllProducts();
+  // Fixed: Properly handle service clicks
+  const handleServiceClick = (type, options = {}) => {
+    console.log('Service clicked:', type, options);
+    goToProduct(type);
+  };
+
+  // Fixed: Properly handle view all click
+  const handleViewAllClick = () => {
+    console.log('View All clicked');
+    goToAllProducts();
+  };
+
   const handleServiceDetailClick = (id) => goToServiceDetail(id);
 
   /* ---------- Global search handlers ---------- */
@@ -348,8 +472,9 @@ const RouterWrapper = () => {
     setGlobalSearchQuery('');
   };
 
-  /* ---------- auth handlers ---------- */
+  /* ---------- Auth handlers ---------- */
   const openAuth = (type = 'signin', email = '') => {
+    console.log('🔓 Opening auth form:', type, 'with email:', email);
     setShowAuthForm(type);
     if (email) {
       setPreFilledEmail(email);
@@ -357,52 +482,124 @@ const RouterWrapper = () => {
   };
   
   const closeAuth = () => {
+    console.log('🔒 Closing auth form');
     setShowAuthForm(null);
     setPreFilledEmail('');
   };
 
   const handleSignIn = async (userData) => {
     try {
-      // Get fresh data from Firebase including phone number
+      console.log('🔐 Handling sign in for user:', userData.email);
+      
       const freshUserData = await getUserProfile(userData.uid);
       
+      let userProfileData;
+      if (freshUserData) {
+        console.log('📊 Fresh user data from Firebase:', freshUserData);
+        userProfileData = {
+          uid: userData.uid,
+          name: freshUserData.name || userData.name || 'User',
+          email: freshUserData.email || userData.email || '',
+          phone: freshUserData.phone || userData.phone || '',
+          countryCode: freshUserData.countryCode || userData.countryCode || '+91',
+          country: freshUserData.country || userData.country || 'India',
+          state: freshUserData.state || userData.state || '',
+          city: freshUserData.city || userData.city || '',
+          pincode: freshUserData.pincode || userData.pincode || '',
+          location: freshUserData.location || userData.location || '',
+          photoURL: freshUserData.photoURL || userData.photoURL || '',
+          createdAt: freshUserData.createdAt || userData.createdAt,
+          lastLogin: new Date().toISOString(),
+          userKey: freshUserData.userKey || '',
+          userNumber: freshUserData.userNumber || null,
+          accountStatus: freshUserData.accountStatus || 'active'
+        };
+      } else {
+        console.log('⚠️ No fresh data, using provided data');
+        userProfileData = {
+          uid: userData.uid,
+          name: userData.name || 'User',
+          email: userData.email || '',
+          phone: userData.phone || '',
+          countryCode: userData.countryCode || '+91',
+          country: userData.country || 'India',
+          state: userData.state || '',
+          city: userData.city || '',
+          pincode: userData.pincode || '',
+          location: userData.location || '',
+          photoURL: userData.photoURL || '',
+          createdAt: userData.createdAt,
+          lastLogin: new Date().toISOString()
+        };
+      }
+      
+      console.log('✅ Final user data for app state:', userProfileData);
+      
       setIsAuthenticated(true);
-      setCurrentUser({
-        uid: userData.uid,
-        name: freshUserData?.name || userData.name,
-        email: userData.email,
-        phone: freshUserData?.phone || userData.phone || '',
-        location: freshUserData?.location || userData.location || '',
-        photoURL: freshUserData?.photoURL || userData.photoURL || '',
-        createdAt: freshUserData?.createdAt || userData.createdAt,
-        lastLogin: new Date().toISOString()
-      });
+      setCurrentUser(userProfileData);
+      
+      await updateLastLogin(userData.uid);
       
       closeAuth();
       
-      // Show success alert
-      alert(`🎉 Welcome back, ${userData.name}!`);
+      alert(`🎉 Welcome back, ${userProfileData.name}!`);
       goTo('/');
       
     } catch (error) {
-      console.error('Error in sign in handler:', error);
+      console.error('❌ Error in sign in handler:', error);
+      alert('Error signing in. Please try again.');
     }
   };
 
   const handleSignUp = async (userData, email) => {
     try {
-      // Don't sign in automatically after sign up
-      // Just store the data and redirect to sign in
-      setPreFilledEmail(email);
+      console.log('📝 Handling sign up for:', email);
       
-      // Show success message and redirect to sign in
-      setTimeout(() => {
-        openAuth('signin', email);
-      }, 100);
+      // Store user data in Firebase
+      if (userData.uid) {
+        const userProfile = {
+          uid: userData.uid,
+          name: userData.name || 'User',
+          email: userData.email || '',
+          phone: userData.phone || '',
+          countryCode: userData.countryCode || '+91',
+          country: userData.country || 'India',
+          state: userData.state || '',
+          city: userData.city || '',
+          pincode: userData.pincode || '',
+          location: userData.location || '',
+          photoURL: userData.photoURL || '',
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          accountStatus: 'active',
+          emailVerified: false,
+          phoneVerified: false,
+          orderCount: 0,
+          totalSpent: 0
+        };
+        
+        const storeResult = await storeUserProfile(userProfile);
+        
+        if (storeResult.success) {
+          console.log('✅ User profile stored successfully');
+          
+          // Set current user immediately
+          setIsAuthenticated(true);
+          setCurrentUser(userProfile);
+          
+          setPreFilledEmail(email);
+          
+          closeAuth();
+          
+          alert(`🎊 Welcome ${userData.name}! Your account has been created successfully.`);
+          goTo('/');
+        } else {
+          throw new Error('Failed to store user profile');
+        }
+      }
       
     } catch (error) {
-      console.error('Error in sign up handler:', error);
-      // Fallback to original behavior
+      console.error('❌ Error in sign up handler:', error);
       setPreFilledEmail(email);
       setTimeout(() => {
         alert(`🎊 Welcome ${userData.name}! Please sign in to continue.`);
@@ -414,6 +611,7 @@ const RouterWrapper = () => {
   const handleSignOut = async () => {
     if (window.confirm('Are you sure you want to sign out?')) {
       try {
+        console.log('👋 Signing out user:', currentUser?.email);
         await signOut(auth);
         setIsAuthenticated(false);
         setCurrentUser(null);
@@ -422,7 +620,7 @@ const RouterWrapper = () => {
         alert('Signed out successfully.');
         goTo('/');
       } catch (e) {
-        console.error(e);
+        console.error('❌ Sign-out error:', e);
         alert('Sign-out error. Please try again.');
       }
     }
@@ -430,6 +628,7 @@ const RouterWrapper = () => {
 
   /* ---------- Navbar navigation handler ---------- */
   const handleNavbarNavigation = (section) => {
+    console.log('📍 Navigating to:', section);
     switch(section) {
       case 'home':
         goToHome();
@@ -480,14 +679,16 @@ const RouterWrapper = () => {
     return location.pathname.startsWith('/product/') || location.pathname === '/all-products';
   };
 
-  /* ---------- auth overlay ---------- */
+  /* ---------- Auth overlay ---------- */
   const renderAuthOverlay = () => {
     if (!showAuthForm) return null;
+    console.log('🎨 Rendering auth overlay:', showAuthForm);
     return (
       <div className="auth-overlay-video">
         {showAuthForm === 'signin' ? (
           <SignIn
             onNavigate={(type, email) => {
+              console.log('🔄 Navigating auth to:', type, 'with email:', email);
               if (email) {
                 setPreFilledEmail(email);
               }
@@ -500,6 +701,7 @@ const RouterWrapper = () => {
         ) : (
           <SignUp
             onNavigate={(type, email) => {
+              console.log('🔄 Navigating auth to:', type, 'with email:', email);
               if (email) {
                 setPreFilledEmail(email);
               }
@@ -534,17 +736,34 @@ const RouterWrapper = () => {
   const showRSS = location.pathname === '/' && !showAuthForm;
 
   // Show loading spinner while checking authentication
-  if (isLoading) {
+  if (authLoading) {
+    console.log('⏳ Showing auth loading state');
     return (
       <div className="App loading">
         <div className="d-flex justify-content-center align-items-center vh-100">
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
+          <div className="ms-3">Loading user data from Firebase...</div>
         </div>
       </div>
     );
   }
+
+  console.log('🏠 Rendering App with state:', {
+    isAuthenticated,
+    currentUser: currentUser ? {
+      name: currentUser.name,
+      email: currentUser.email,
+      country: currentUser.country,
+      state: currentUser.state,
+      city: currentUser.city,
+      pincode: currentUser.pincode,
+      hasData: !!currentUser.phone || !!currentUser.country || !!currentUser.state
+    } : null,
+    showAuthForm,
+    path: location.pathname
+  });
 
   return (
     <div className={`App ${showAuthForm ? 'auth-overlay-active' : ''}`}>
@@ -615,17 +834,16 @@ const RouterWrapper = () => {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/terms-policy" element={<TermsPolicyPage />} />
 
-            {/* Product Pages */}
+            {/* Product Pages - FIXED: Removed duplicate props */}
             <Route
               path="/product/:type"
               element={
                 <ProductPage 
-                  fromAllProducts={true}
                   globalSearchQuery={globalSearchQuery}
                   onGlobalSearchClear={handleGlobalSearchClear}
                   isAuthenticated={isAuthenticated}
                   profile={currentUser}
-                  onOrderSubmitted={handleNewOrderSubmitted}
+                  onNewOrderSubmitted={handleNewOrderSubmitted}
                 />
               }
             />
@@ -638,6 +856,14 @@ const RouterWrapper = () => {
                 />
               }
             />
+            
+            {/* ADMIN PANEL ROUTES */}
+            <Route path="/admin" element={<AdminLayout/>}>
+              <Route index element={<Dashboard/>} />
+              <Route path="users" element={<Users/>} />
+              <Route path="products" element={<Products/>} />
+              <Route path="orders" element={<Orders/>} />
+            </Route>
 
             {/* 404 Fallback */}
             <Route
@@ -660,6 +886,8 @@ const RouterWrapper = () => {
    Root App
    -------------------------------------------------------------------- */
 function App() {
+  console.log('🚀 Starting ATIRATH Application...');
+  
   return (
     <BrowserRouter>
       <RouterWrapper />

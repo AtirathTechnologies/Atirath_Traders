@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { productsData, brandsData } from '../data/productsData';
 import BuyModal from './BuyModal';
 
-const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', onGlobalSearchClear, isAuthenticated = false }) => {
+const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isAuthenticated = false }) => {
   const { type: productType } = useParams();
   const navigate = useNavigate();
 
@@ -33,15 +33,22 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Load products and brands
   useEffect(() => {
     setIsLoading(true);
+    // Reset selectedBrand to 'all' when productType changes
     setSelectedBrand('all');
     setImageErrors({});
-    setLocalSearchQuery(globalSearchQuery); // Reset search when product type changes
+    setLocalSearchQuery(globalSearchQuery);
 
     if (productType && productsData[productType]) {
       const productList = productsData[productType];
       const brandList = brandsData[productType] || [];
+
+      console.log('Loading products for:', productType);
+      console.log('Products count:', productList.length);
+      console.log('Brands:', brandList);
+      console.log('Initial selected brand:', 'all'); // This should be 'all'
 
       setProducts(productList);
       setFilteredProducts(productList);
@@ -49,15 +56,18 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
 
       setTimeout(() => setIsLoading(false), 100);
     } else {
+      console.error('Product type not found:', productType);
       setIsLoading(false);
     }
-  }, [productType, fromAllProducts, globalSearchQuery]);
+  }, [productType, globalSearchQuery]);
 
+  // Apply filters
   useEffect(() => {
     let filtered = products;
 
     // Apply brand filter
     if (selectedBrand !== 'all') {
+      console.log('Filtering by brand:', selectedBrand);
       filtered = filtered.filter(p => p.brand === selectedBrand);
     }
 
@@ -71,10 +81,13 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
       );
     }
 
+    console.log('Filtered products count:', filtered.length);
+    console.log('Current selected brand:', selectedBrand); // Debug log
     setFilteredProducts(filtered);
   }, [selectedBrand, products, localSearchQuery]);
 
   const handleBrandSelect = (brand) => {
+    console.log('Brand selected:', brand);
     setSelectedBrand(brand);
     setSidebarOpen(false);
     setMobileMenuOpen(false);
@@ -117,12 +130,10 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
   const handleSearchChange = (e) => {
     const query = e.target.value;
     setLocalSearchQuery(query);
-    // Note: The global search is handled by the parent component via Navbar
   };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    // Search is handled automatically by the useEffect
   };
 
   const clearSearch = () => {
@@ -142,7 +153,7 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
       rice: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500&auto=format&fit=crop&q=60',
       spices: 'https://images.unsplash.com/photo-1557841450-9aa4b8cbf6c0?w=500&auto=format&fit=crop&q=60',
       oil: 'https://images.unsplash.com/photo-1571772996211-2f02c9727629?w=500&auto=format&fit=crop&q=60',
-      construction: 'https://images.unsplash.com-1504307651254-35680f356dfd?w=500&auto=format&fit=crop&q=60',
+      construction: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=500&auto=format&fit=crop&q=60',
       fruits: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=500&auto=format&fit=crop&q=60',
       vegetables: 'https://images.unsplash.com/photo-1594282486306-7a6f8b590dd1?w=500&auto=format&fit=crop&q=60',
       pulses: 'https://food.fnr.sndimg.com/content/dam/images/food/fullset/2016/2/15/0/HE_dried-legumes-istock-2_s4x3.jpg.rend.hgtvcom.1280.1280.85.suffix/1455572939649.webp',
@@ -185,6 +196,14 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
         <Menu className="w-5 h-5" /> Brands
       </button>
 
+      {/* Overlay - Only for mobile */}
+      <div
+        className={`overlay ${mobileMenuOpen ? 'active' : ''}`}
+        onClick={() => {
+          setMobileMenuOpen(false);
+        }}
+      />
+
       {/* Desktop Sidebar */}
       <div className={`categories-sidebar ${sidebarOpen ? 'active' : ''} d-none d-md-block`}>
         <div className="sidebar-header">
@@ -199,9 +218,13 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
           <ul className="brand-list">
             <li
               className={`brand-item ${selectedBrand === 'all' ? 'active' : ''}`}
-              onClick={() => handleBrandSelect('all')}
+              onClick={() => {
+                console.log('Clicking All Brands');
+                handleBrandSelect('all');
+              }}
             >
               <span className="brand-text">All Brands</span>
+              {selectedBrand === 'all' && <span className="active-indicator">✓</span>}
             </li>
             {brands.map(brand => (
               <li
@@ -210,6 +233,7 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
                 onClick={() => handleBrandSelect(brand)}
               >
                 <span className="brand-text">{formatBrandName(brand)}</span>
+                {selectedBrand === brand && <span className="active-indicator">✓</span>}
               </li>
             ))}
           </ul>
@@ -231,9 +255,13 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
             <div className="brand-list-mobile">
               <div
                 className={`brand-item-mobile ${selectedBrand === 'all' ? 'active' : ''}`}
-                onClick={() => handleBrandSelect('all')}
+                onClick={() => {
+                  console.log('Mobile: Clicking All Brands');
+                  handleBrandSelect('all');
+                }}
               >
                 <span className="brand-text">All Brands</span>
+                {selectedBrand === 'all' && <span className="active-indicator-mobile">✓</span>}
               </div>
               {brands.map(brand => (
                 <div
@@ -242,21 +270,13 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
                   onClick={() => handleBrandSelect(brand)}
                 >
                   <span className="brand-text">{formatBrandName(brand)}</span>
+                  {selectedBrand === brand && <span className="active-indicator-mobile">✓</span>}
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Overlay */}
-      <div
-        className={`overlay ${sidebarOpen || mobileMenuOpen ? 'active' : ''}`}
-        onClick={() => {
-          setSidebarOpen(false);
-          setMobileMenuOpen(false);
-        }}
-      />
 
       {/* Main Content */}
       <div className={`product-main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
@@ -269,9 +289,27 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
           <ArrowLeft className="w-6 h-6" />
         </button>
 
-        {/* Search Bar - Only show on mobile since desktop has it in navbar */}
+        {/* Search Bar - Mobile only */}
         <div className={`product-search-container mb-4 d-md-none`} style={{ marginTop: isMobile ? '7rem' : '10rem' }}>
-
+          <form onSubmit={handleSearchSubmit} className="d-flex gap-2">
+            <input
+              type="text"
+              className="search-bar flex-grow-1"
+              placeholder={`Search ${productType}...`}
+              value={localSearchQuery}
+              onChange={handleSearchChange}
+            />
+            {localSearchQuery && (
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={clearSearch}
+              >
+                Clear
+              </button>
+            )}
+          </form>
+          
           {localSearchQuery && (
             <div className="search-info mt-2">
               <small className="text-muted">
@@ -280,6 +318,19 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
             </div>
           )}
         </div>
+
+        {/* Selected Brand Info */}
+        {selectedBrand !== 'all' && (
+          <div className="selected-brand-info mb-4" style={{ marginTop: isMobile ? '7rem' : '6rem' }}>
+            <span className="fw-semibold">Showing: {formatBrandName(selectedBrand)}</span>
+            <button
+              className="btn btn-outline-accent btn-sm ms-3"
+              onClick={() => handleBrandSelect('all')}
+            >
+              Clear Filter
+            </button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="loading-products">
@@ -290,9 +341,10 @@ const ProductPage = ({ profile, fromAllProducts = true, globalSearchQuery = '', 
           </div>
         ) : (
           <>
-            {/* Removed the selected brand info display section */}
-            
-            <div className="products-grid" style={{ marginTop: isMobile && !localSearchQuery ? '7rem' : '6rem',marginLeft: isMobile ? '1rem' : '5rem', }}>
+            <div className="products-grid" style={{ 
+              marginTop: isMobile && !localSearchQuery ? '7rem' : '6rem',
+              marginLeft: isMobile ? '1rem' : '5rem' 
+            }}>
               {filteredProducts.length === 0 ? (
                 <div className="no-products-message">
                   <p className="h5 accent">No products found</p>

@@ -1107,28 +1107,32 @@ export const getPortOptions = (selectedState) => {
 };
 
 // Get transport price based on state, port, and unit type
-export const getTransportPrice = (selectedState, selectedPort, unitType) => {
-  if (!selectedState || !selectedPort || !transportData[selectedState]) {
-    return "0-0";
+export const getTransportPrice = (state, port, unitType) => {
+  // If port is provided as text, you might need to handle it differently
+  // For now, let's assume it returns a default price or handles text ports
+  const stateData = transportData.find(t => t.state === state);
+  if (!stateData) return "0-0";
+  
+  // If port is provided, try to find exact match
+  if (port && stateData.ports) {
+    const portData = stateData.ports.find(p => 
+      p.port.toLowerCase() === port.toLowerCase() || 
+      p.label.toLowerCase() === port.toLowerCase()
+    );
+    if (portData) {
+      return `${portData.price_min}-${portData.price_max}`;
+    }
   }
   
-  const stateData = transportData[selectedState];
-  const destination = stateData.destinations.find(
-    dest => (dest.port || dest.location) === selectedPort
-  );
-  
-  if (!destination) {
-    return "0-0";
-  }
-  
-  return destination.prices[unitType] || "0-0";
+  // Return default state price if no port match
+  return `${stateData.default_min}-${stateData.default_max}`;
 };
 
 // Transport Data - Original order maintained for TransportPage.js
 export const transportData = {
   punjab: {
     name: 'Punjab',
-    icon: 'img/Punjab.avif',
+    icon: 'img/Transport/Punjab.avif',
     destinations: [
       { 
         port: 'Kandla Port', 
@@ -1158,7 +1162,7 @@ export const transportData = {
   },
   haryana: {
     name: 'Haryana',
-    icon: 'img/haryana.jpg',
+    icon: 'img/Transport/haryana.jpg',
     destinations: [
       { 
         location: 'Cheeka - Kandla Port', 
@@ -1204,7 +1208,7 @@ export const transportData = {
   },
   rajasthan: {
     name: 'Rajasthan',
-    icon: 'img/Rajasthan.jpg',
+    icon: 'img/Transport/Rajasthan.jpg',
     destinations: [
       { 
         location: 'Bundi - Kandla Port', 
@@ -1242,7 +1246,7 @@ export const transportData = {
   },
   madhyaPradesh: {
     name: 'Madhya Pradesh',
-    icon: 'img/Madhya_Pradesh.jpg',
+    icon: 'img/Transport/Madhya_Pradesh.jpg',
     destinations: [
       { 
         location: 'Mandideep - Kandla Port', 
@@ -1296,7 +1300,7 @@ export const transportData = {
   },
   uttarPradesh: {
     name: 'Uttar Pradesh',
-    icon: 'img/Uttar_Pradesh.jpeg',
+    icon: 'img/Transport/Uttar_Pradesh.jpeg',
     destinations: [
       { 
         location: 'Agra - Kandla Port', 
@@ -1374,7 +1378,7 @@ export const transportData = {
   },
   gujarat: {
     name: 'Gujarat',
-    icon: 'img/Gujarat.jpg',
+    icon: 'img/Transport/Gujarat.jpg',
     destinations: [
       { 
         port: 'Kandla Port(Deendayal Port)', 
@@ -1396,7 +1400,7 @@ export const transportData = {
   },
   westBengal: {
     name: 'West Bengal',
-    icon: 'img/West_Bengal.jpg',
+    icon: 'img/Transport/West_Bengal.jpg',
     destinations: [
       { 
         port: 'Haldia Port', 
@@ -1418,7 +1422,7 @@ export const transportData = {
   },
   andhraPradesh: {
     name: 'Andhra Pradesh',
-    icon: 'img/Andhra_Pradesh.jpg',
+    icon: 'img/Transport/Andhra_Pradesh.jpg',
     destinations: [
       { 
         port: 'Gangavaram Port', 
@@ -1456,7 +1460,7 @@ export const transportData = {
   },
   tamilnadu: {
     name: 'Tamil Nadu',
-    icon: 'img/chennai.jpg',
+    icon: 'img/Transport/chennai.jpg',
     destinations: [
       { 
         port: 'Chennai Port', 
@@ -1486,7 +1490,7 @@ export const transportData = {
   },
   karnataka: {
     name: 'Karnataka',
-    icon: 'img/Mangalore.jpg',
+    icon: 'img/Transport/Mangalore.jpg',
     destinations: [
       { 
         port: 'New Mangalore Port', 
@@ -1500,7 +1504,7 @@ export const transportData = {
   },
   maharashtra: {
     name: 'Maharashtra',
-    icon: 'img/JNPT.jpg',
+    icon: 'img/Transport/JNPT.jpg',
     destinations: [
       { 
         port: 'Jawaharlal Nehru Port Trust (JNPT)', 
@@ -1530,7 +1534,7 @@ export const transportData = {
   },
   kerala: {
     name: 'Kerala',
-    icon: 'img/cochin.jpg',
+    icon: 'img/Transport/cochin.jpg',
     destinations: [
       { 
         port: 'Cochin Port (Kochi)', 

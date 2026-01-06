@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { getAllUsers } from "../../firebase";
-import { 
-  FiUser, 
-  FiMail, 
-  FiPhone, 
-  FiMapPin, 
+import {
+  FiUser,
+  FiMail,
+  FiPhone,
+  FiMapPin,
   FiCalendar,
   FiEye,
   FiX,
@@ -39,27 +39,10 @@ export default function Users() {
       console.log('🔍 Loading users from Firebase...');
       const allUsers = await getAllUsers();
       console.log(`✅ Loaded ${allUsers.length} users:`, allUsers);
-      
-      const formattedUsers = allUsers.map(user => ({
-        ...user,
-        name: user.name || user.fullName || user.displayName || "Unnamed User",
-        email: user.email || user.userEmail || "",
-        phone: user.phone || user.phoneNumber || user.mobile || "",
-        countryCode: user.countryCode || user.country_code || "+91",
-        country: user.country || user.countryName || "",
-        state: user.state || user.stateName || "",
-        city: user.city || user.cityName || "",
-        pincode: user.pincode || user.zipCode || user.postalCode || "",
-        photoURL: user.photoURL || user.profilePhoto || user.avatar || "",
-        userKey: user.userKey || user.uid || user.id || "",
-        userNumber: user.userNumber || user.idNumber || user.uid?.substring(0, 6),
-        createdAt: user.createdAt || user.joinDate || user.registrationDate || "",
-        lastLogin: user.lastLogin || user.lastSignIn || "",
-        updatedAt: user.updatedAt || user.lastUpdated || ""
-      }));
-      
-      setUsers(formattedUsers);
-      calculateStats(formattedUsers);
+
+      setUsers(allUsers);
+      calculateStats(allUsers);
+
     } catch (error) {
       console.error("❌ Error loading users:", error);
     } finally {
@@ -70,7 +53,7 @@ export default function Users() {
   const calculateStats = (usersData) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
+
     const todayUsers = usersData.filter(user => {
       if (!user.createdAt) return false;
       const userDate = new Date(user.createdAt);
@@ -169,7 +152,7 @@ export default function Users() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     alert(`✅ Exported ${users.length} users to CSV file!`);
   };
 
@@ -221,7 +204,7 @@ export default function Users() {
             <div className="stat-trend">All registered users</div>
           </div>
         </div>
-        
+
         <div className="stat-card today-stat">
           <div className="stat-icon">
             <FiUser />
@@ -232,7 +215,7 @@ export default function Users() {
             <div className="stat-trend">Registered today</div>
           </div>
         </div>
-        
+
         <div className="stat-card active-stat">
           <div className="stat-icon">
             <FiUser />
@@ -248,7 +231,7 @@ export default function Users() {
       {/* Toolbar with Export and Refresh */}
       <div className="users-toolbar">
         <div className="toolbar-left">
-          <button 
+          <button
             className="export-btn"
             onClick={exportUsersToCSV}
             disabled={users.length === 0}
@@ -257,7 +240,7 @@ export default function Users() {
           </button>
         </div>
         <div className="toolbar-right">
-          <button 
+          <button
             className="refresh-btn"
             onClick={loadUsers}
           >
@@ -301,7 +284,7 @@ export default function Users() {
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user.uid || user.userKey} className="user-row">
+                  <tr key={user.userKey} className="user-row">
                     <td className="user-id-cell">
                       <div className="user-key-display">
                         <div className="user-key-badge">
@@ -361,7 +344,7 @@ export default function Users() {
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <button 
+                        <button
                           className="view-btn"
                           onClick={() => setSelectedUser(user)}
                           title="View Details"
@@ -378,32 +361,27 @@ export default function Users() {
         )}
       </div>
 
-      {/* User Details Modal - Updated Layout */}
+      {/* User Details Modal */}
       {selectedUser && (
         <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
           <div className="modal-content user-details-modal" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
             <div className="modal-header">
               <h2 className="modal-title">User Details</h2>
-              <button 
-                className="modal-close"
+              <button
+                className="modal-close-blue"
                 onClick={() => setSelectedUser(null)}
               >
                 <FiX size={24} />
               </button>
             </div>
-            
-            {/* User ID Display */}
+
             <div className="user-id-section">
               <div className="user-id-label">UID:</div>
               <div className="user-id-value">{selectedUser.uid || selectedUser.userKey || "N/A"}</div>
             </div>
-            
-            {/* User Information Grid */}
+
             <div className="modal-body">
               <div className="user-details-grid">
-                
-                {/* Personal Information */}
                 <div className="details-section">
                   <div className="section-header">
                     <FiUser className="section-icon" />
@@ -425,7 +403,6 @@ export default function Users() {
                   </div>
                 </div>
 
-                {/* Location Details */}
                 <div className="details-section">
                   <div className="section-header">
                     <FiMapPin className="section-icon" />
@@ -454,7 +431,6 @@ export default function Users() {
                   </div>
                 </div>
 
-                {/* Account Information */}
                 <div className="details-section">
                   <div className="section-header">
                     <FiDatabase className="section-icon" />
@@ -476,8 +452,8 @@ export default function Users() {
                     <div className="detail-row">
                       <span className="detail-label">Profile Photo:</span>
                       <span className="detail-value">
-                        {selectedUser.photoURL ? 
-                          <span className="photo-status uploaded">✓ Uploaded</span> : 
+                        {selectedUser.photoURL ?
+                          <span className="photo-status uploaded">✓ Uploaded</span> :
                           <span className="photo-status not-uploaded">No photo</span>
                         }
                       </span>
@@ -486,11 +462,10 @@ export default function Users() {
                 </div>
               </div>
             </div>
-            
-            {/* Modal Footer */}
+
             <div className="modal-footer">
-              <button 
-                className="btn-secondary"
+              <button
+                className="btn-secondary-blue"
                 onClick={() => setSelectedUser(null)}
               >
                 Close

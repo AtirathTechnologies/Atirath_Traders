@@ -5,23 +5,42 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
   const navigate = useNavigate();
 
   const services = [
-    {
-      name: "Edible Oil Refining",
-      product: "oil",
-      image: "./img/oil.jpeg",
-      description: "High-quality refined Edible oil products for culinary and industrial use."
-    },
-    {
-      name: "Construction Materials",
-      product: "construction",
-      image: "/img/steel-cement.png",
-      description: "High-quality steel and cement for construction projects."
-    },
+    
     {
       name: "Rice",
       product: "rice",
       image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
       description: "Premium quality rice varieties for domestic and international markets."
+    },
+    {
+      name: "Chocolates",
+      product: "chocolates",
+      image: "/img/All_Products/Chocolate.webp",
+      description: "Premium chocolate coated nuts and confectionery products."
+    },
+    {
+      name: "Beverages",
+      product: "beverages",
+      image: "/img/All_Products/Beverages.jpg",
+      description: "Premium Quality Beverages including soft drinks and energy drinks."
+    },
+    {
+      name: "Dry Fruits",
+      product: "dryfruits",
+      image: "/img/All_Products/Dryfruits.jpg",
+      description: "Premium quality dry fruits including nuts, dried berries, and snacks."
+    },
+    {
+      name: "Dried Fruits",
+      product: "driedfruits",
+      image: "/img/All_Products/Dried_Logo.webp",
+      description: "High-quality dehydrated fruits and berries."
+    },
+    {
+      name: "Popcorn",
+      product: "Popcorn",
+      image: "/img/All_Products/Popcorn.jpg",
+      description: "Wonder Puff premium popcorn varieties."
     },
     {
       name: "Pulses",
@@ -48,18 +67,6 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
       description: "Latest electronic gadgets and accessories."
     },
     {
-      name: "Chocolate",
-      product: "chocolate",
-      image: "https://images.unsplash.com/photo-1575377427642-087cf684f29d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Premium quality chocolates and confectionery products."
-    },
-    {
-      name: "Beverages",
-      product: "beverages",
-      image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Refreshing beverages for all occasions."
-    },
-    {
       name: "Perfume",
       product: "perfume",
       image: "https://images.unsplash.com/photo-1541643600914-78b084683601?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
@@ -84,10 +91,16 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
       description: "Fashionable clothing for all ages and occasions."
     },
     {
-      name: "Dry Fruits",
-      product: "dryfruits",
-      image: "https://www.nutraj.com/cdn/shop/files/9-healthy-and-delicious-dry-fruits-featured-image-450300-mobile-view.jpg?v=1688041386",
-      description: "Premium quality dry fruits and nuts for healthy snacking."
+      name: "Edible Oil Refining",
+      product: "oil",
+      image: "./img/oil.jpeg",
+      description: "High-quality refined Edible oil products for culinary and industrial use."
+    },
+    {
+      name: "Construction Materials",
+      product: "construction",
+      image: "/img/steel-cement.png",
+      description: "High-quality steel and cement for construction projects."
     },
     {
       name: "Tea",

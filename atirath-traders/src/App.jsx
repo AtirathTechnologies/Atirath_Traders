@@ -59,27 +59,116 @@ const HomePage = ({ onServiceClick, onViewAllClick }) => (
   </div>
 );
 
-const AboutPage = () => <About id="about" />;
-const LeadershipPage = () => <Leadership id="leadership" />;
-const ProductsPage = ({ onServiceClick, onViewAllClick }) => (
-  <Services 
-    id="services" 
-    onServiceClick={onServiceClick}
-    onViewAllClick={onViewAllClick}
-  />
+const AboutPage = () => (
+  <div>
+    <About id="about" />
+    <Footer id="contact" />
+  </div>
 );
-const ServicesPageComponent = () => <ServicesPage />;
-const BlogPage = () => <Blog id="blog" />;
-const JoinUsPage = () => <JoinUs />;
-const FeedbackPage = () => <Feedback id="feedback" />;
+
+const LeadershipPage = () => (
+  <div>
+    <Leadership id="leadership" />
+    <Footer id="contact" />
+  </div>
+);
+
+const ProductsPage = ({ onServiceClick, onViewAllClick }) => (
+  <div>
+    <Services 
+      id="services" 
+      onServiceClick={onServiceClick}
+      onViewAllClick={onViewAllClick}
+    />
+    <Footer id="contact" />
+  </div>
+);
+
+const ServicesPageComponent = () => (
+  <div>
+    <ServicesPage />
+    <Footer id="contact" />
+  </div>
+);
+
+const ServiceDetailPageComponent = () => (
+  <div>
+    <ServiceDetailPage />
+    <Footer id="contact" />
+  </div>
+);
+
+const BlogPage = () => (
+  <div>
+    <Blog id="blog" />
+    <Footer id="contact" />
+  </div>
+);
+
+const BlogPostComponent = () => (
+  <div>
+    <BlogPost />
+    <Footer id="contact" />
+  </div>
+);
+
+const JoinUsPage = () => (
+  <div>
+    <JoinUs />
+    <Footer id="contact" />
+  </div>
+);
+
+const FeedbackPage = () => (
+  <div>
+    <Feedback id="feedback" />
+    <Footer id="contact" />
+  </div>
+);
+
 const ContactPage = () => (
   <div>
     <Feedback id="feedback" />
     <Footer id="contact" />
   </div>
 );
-const TermsPolicyPage = () => <TermsPolicy />;
-const TransportPageComponent = () => <TransportPage />;
+
+const TermsPolicyPage = () => (
+  <div>
+    <TermsPolicy />
+    <Footer id="contact" />
+  </div>
+);
+
+const TransportPageComponent = () => (
+  <div>
+    <TransportPage />
+    <Footer id="contact" />
+  </div>
+);
+
+const ProductPageComponent = ({ globalSearchQuery, onGlobalSearchClear, isAuthenticated, profile, onNewOrderSubmitted }) => (
+  <div>
+    <ProductPage 
+      globalSearchQuery={globalSearchQuery}
+      onGlobalSearchClear={onGlobalSearchClear}
+      isAuthenticated={isAuthenticated}
+      profile={profile}
+      onNewOrderSubmitted={onNewOrderSubmitted}
+    />
+    <Footer id="contact" />
+  </div>
+);
+
+const AllProductsComponent = ({ onProductClick, onNavigate }) => (
+  <div>
+    <AllProducts
+      onProductClick={onProductClick}
+      onNavigate={onNavigate}
+    />
+    <Footer id="contact" />
+  </div>
+);
 
 /* --------------------------------------------------------------------
    Router Wrapper - UPDATED WITH FIXED NAVIGATION
@@ -101,9 +190,7 @@ const RouterWrapper = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [showAuthForm, setShowAuthForm] = useState(null);
   const [preFilledEmail, setPreFilledEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [showProfileUpdateSuccess, setShowProfileUpdateSuccess] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   
   /* ---------- New Orders Count ---------- */
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -134,13 +221,12 @@ const RouterWrapper = () => {
     }
   }, [viewedOrders]);
 
-  /* ---------- Firebase auth listener ---------- */
+  /* ---------- Firebase auth listener - OPTIMIZED ---------- */
   useEffect(() => {
     console.log('🔐 Setting up Firebase auth listener...');
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('🔄 Auth state changed:', user ? 'User logged in' : 'User logged out');
-      setAuthLoading(true);
       
       if (user) {
         try {
@@ -150,112 +236,100 @@ const RouterWrapper = () => {
             displayName: user.displayName
           });
           
-          let userData = await getUserProfile(user.uid);
+          // Set basic user data immediately for instant UI update
+          const basicUserData = {
+            uid: user.uid,
+            name: user.displayName || 'User',
+            email: user.email || '',
+            phone: '',
+            countryCode: '+91',
+            country: 'India',
+            state: '',
+            city: '',
+            pincode: '',
+            location: '',
+            photoURL: user.photoURL || '',
+            createdAt: user.metadata.creationTime || new Date().toISOString(),
+            lastLogin: new Date().toISOString()
+          };
           
-          console.log('📊 Fetched user data from Firebase:', userData);
+          setCurrentUser(basicUserData);
+          setIsAuthenticated(true);
           
-          if (!userData) {
-            console.log('⚠️ User not found in database, creating profile...');
-            
-            const newUserData = {
-              uid: user.uid,
-              name: user.displayName || 'User',
-              email: user.email || '',
-              phone: '',
-              countryCode: '+91',
-              country: 'India',
-              state: '',
-              city: '',
-              pincode: '',
-              location: '',
-              photoURL: user.photoURL || '',
-              createdAt: user.metadata.creationTime || new Date().toISOString(),
-              lastLogin: new Date().toISOString(),
-              accountStatus: 'active',
-              emailVerified: user.emailVerified || false,
-              phoneVerified: false,
-              orderCount: 0,
-              totalSpent: 0,
-              lastOrderDate: null
-            };
-            
-            console.log('💾 Storing new user profile in Firebase:', newUserData);
-            
-            const storeResult = await storeUserProfile(newUserData);
-            
-            if (storeResult.success) {
-              console.log('✅ New user profile stored successfully:', storeResult);
-              userData = await getUserProfile(user.uid);
-            } else {
-              console.error('❌ Failed to store user profile:', storeResult.error);
-              userData = newUserData;
+          // Fetch full profile data in background (non-blocking)
+          setTimeout(async () => {
+            try {
+              let userData = await getUserProfile(user.uid);
+              
+              if (userData) {
+                const completeUserData = {
+                  uid: user.uid,
+                  name: userData.name || user.displayName || 'User',
+                  email: userData.email || user.email || '',
+                  phone: userData.phone || '',
+                  countryCode: userData.countryCode || '+91',
+                  country: userData.country || 'India',
+                  state: userData.state || '',
+                  city: userData.city || '',
+                  pincode: userData.pincode || '',
+                  location: userData.location || '',
+                  photoURL: userData.photoURL || user.photoURL || '',
+                  createdAt: userData.createdAt || user.metadata.creationTime || new Date().toISOString(),
+                  lastLogin: new Date().toISOString(),
+                  userKey: userData.userKey || '',
+                  userNumber: userData.userNumber || null,
+                  accountStatus: userData.accountStatus || 'active',
+                  emailVerified: userData.emailVerified || false,
+                  phoneVerified: userData.phoneVerified || false,
+                  orderCount: userData.orderCount || 0,
+                  totalSpent: userData.totalSpent || 0,
+                  lastOrderDate: userData.lastOrderDate || null
+                };
+                
+                setCurrentUser(completeUserData);
+                await updateLastLogin(user.uid);
+                
+                console.log('✅ Background user data updated:', {
+                  name: completeUserData.name,
+                  email: completeUserData.email,
+                  phone: completeUserData.phone
+                });
+              } else {
+                // User not found in database, create profile in background
+                const newUserData = {
+                  uid: user.uid,
+                  name: user.displayName || 'User',
+                  email: user.email || '',
+                  phone: '',
+                  countryCode: '+91',
+                  country: 'India',
+                  state: '',
+                  city: '',
+                  pincode: '',
+                  location: '',
+                  photoURL: user.photoURL || '',
+                  createdAt: user.metadata.creationTime || new Date().toISOString(),
+                  lastLogin: new Date().toISOString(),
+                  accountStatus: 'active',
+                  emailVerified: user.emailVerified || false,
+                  phoneVerified: false,
+                  orderCount: 0,
+                  totalSpent: 0,
+                  lastOrderDate: null
+                };
+                
+                await storeUserProfile(newUserData);
+                console.log('✅ New user profile created in background');
+              }
+            } catch (error) {
+              console.error('❌ Error in background profile fetch:', error);
+              // Silently fail - user already has basic data
             }
-          }
-          
-          if (userData) {
-            console.log('✅ User data ready for app:', userData);
-            
-            await updateLastLogin(user.uid);
-            
-            const completeUserData = {
-              uid: user.uid,
-              name: userData.name || user.displayName || 'User',
-              email: userData.email || user.email || '',
-              phone: userData.phone || '',
-              countryCode: userData.countryCode || '+91',
-              country: userData.country || 'India',
-              state: userData.state || '',
-              city: userData.city || '',
-              pincode: userData.pincode || '',
-              location: userData.location || '',
-              photoURL: userData.photoURL || user.photoURL || '',
-              createdAt: userData.createdAt || user.metadata.creationTime || new Date().toISOString(),
-              lastLogin: new Date().toISOString(),
-              userKey: userData.userKey || '',
-              userNumber: userData.userNumber || null,
-              accountStatus: userData.accountStatus || 'active',
-              emailVerified: userData.emailVerified || false,
-              phoneVerified: userData.phoneVerified || false,
-              orderCount: userData.orderCount || 0,
-              totalSpent: userData.totalSpent || 0,
-              lastOrderDate: userData.lastOrderDate || null
-            };
-            
-            setCurrentUser(completeUserData);
-            setIsAuthenticated(true);
-            
-            console.log('🎉 User authenticated with full data:', {
-              name: completeUserData.name,
-              email: completeUserData.email,
-              phone: completeUserData.phone,
-              country: completeUserData.country,
-              state: completeUserData.state,
-              city: completeUserData.city,
-              pincode: completeUserData.pincode,
-              hasPhoto: !!completeUserData.photoURL
-            });
-          } else {
-            console.log('⚠️ Using fallback user data');
-            setCurrentUser({
-              uid: user.uid,
-              name: user.displayName || 'User',
-              email: user.email || '',
-              phone: '',
-              countryCode: '+91',
-              country: 'India',
-              state: '',
-              city: '',
-              pincode: '',
-              location: '',
-              photoURL: user.photoURL || '',
-              createdAt: user.metadata.creationTime || new Date().toISOString(),
-              lastLogin: new Date().toISOString()
-            });
-            setIsAuthenticated(true);
-          }
+          }, 100);
           
         } catch (error) {
           console.error('❌ Error in auth listener:', error);
+          // Set basic data even if Firebase fails
           setCurrentUser({
             uid: user.uid,
             name: user.displayName || 'User',
@@ -280,8 +354,6 @@ const RouterWrapper = () => {
         setNewOrdersCount(0);
         setViewedOrders(new Set());
       }
-      
-      setAuthLoading(false);
     });
     
     return () => {
@@ -491,59 +563,61 @@ const RouterWrapper = () => {
     try {
       console.log('🔐 Handling sign in for user:', userData.email);
       
-      const freshUserData = await getUserProfile(userData.uid);
-      
-      let userProfileData;
-      if (freshUserData) {
-        console.log('📊 Fresh user data from Firebase:', freshUserData);
-        userProfileData = {
-          uid: userData.uid,
-          name: freshUserData.name || userData.name || 'User',
-          email: freshUserData.email || userData.email || '',
-          phone: freshUserData.phone || userData.phone || '',
-          countryCode: freshUserData.countryCode || userData.countryCode || '+91',
-          country: freshUserData.country || userData.country || 'India',
-          state: freshUserData.state || userData.state || '',
-          city: freshUserData.city || userData.city || '',
-          pincode: freshUserData.pincode || userData.pincode || '',
-          location: freshUserData.location || userData.location || '',
-          photoURL: freshUserData.photoURL || userData.photoURL || '',
-          createdAt: freshUserData.createdAt || userData.createdAt,
-          lastLogin: new Date().toISOString(),
-          userKey: freshUserData.userKey || '',
-          userNumber: freshUserData.userNumber || null,
-          accountStatus: freshUserData.accountStatus || 'active'
-        };
-      } else {
-        console.log('⚠️ No fresh data, using provided data');
-        userProfileData = {
-          uid: userData.uid,
-          name: userData.name || 'User',
-          email: userData.email || '',
-          phone: userData.phone || '',
-          countryCode: userData.countryCode || '+91',
-          country: userData.country || 'India',
-          state: userData.state || '',
-          city: userData.city || '',
-          pincode: userData.pincode || '',
-          location: userData.location || '',
-          photoURL: userData.photoURL || '',
-          createdAt: userData.createdAt,
-          lastLogin: new Date().toISOString()
-        };
-      }
-      
-      console.log('✅ Final user data for app state:', userProfileData);
+      // Set user data immediately
+      const immediateUserData = {
+        uid: userData.uid,
+        name: userData.name || 'User',
+        email: userData.email || '',
+        phone: '',
+        countryCode: '+91',
+        country: 'India',
+        state: '',
+        city: '',
+        pincode: '',
+        location: '',
+        photoURL: userData.photoURL || '',
+        createdAt: userData.createdAt || new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      };
       
       setIsAuthenticated(true);
-      setCurrentUser(userProfileData);
-      
-      await updateLastLogin(userData.uid);
+      setCurrentUser(immediateUserData);
       
       closeAuth();
       
-      alert(`🎉 Welcome back, ${userProfileData.name}!`);
+      alert(`🎉 Welcome back, ${immediateUserData.name}!`);
       goTo('/');
+      
+      // Fetch full profile in background
+      setTimeout(async () => {
+        try {
+          const freshUserData = await getUserProfile(userData.uid);
+          
+          if (freshUserData) {
+            const completeUserData = {
+              ...immediateUserData,
+              name: freshUserData.name || userData.name || 'User',
+              email: freshUserData.email || userData.email || '',
+              phone: freshUserData.phone || userData.phone || '',
+              countryCode: freshUserData.countryCode || userData.countryCode || '+91',
+              country: freshUserData.country || userData.country || 'India',
+              state: freshUserData.state || userData.state || '',
+              city: freshUserData.city || userData.city || '',
+              pincode: freshUserData.pincode || userData.pincode || '',
+              location: freshUserData.location || userData.location || '',
+              photoURL: freshUserData.photoURL || userData.photoURL || '',
+              userKey: freshUserData.userKey || '',
+              userNumber: freshUserData.userNumber || null,
+              accountStatus: freshUserData.accountStatus || 'active'
+            };
+            
+            setCurrentUser(completeUserData);
+            await updateLastLogin(userData.uid);
+          }
+        } catch (error) {
+          console.error('Background profile fetch error:', error);
+        }
+      }, 100);
       
     } catch (error) {
       console.error('❌ Error in sign in handler:', error);
@@ -555,48 +629,61 @@ const RouterWrapper = () => {
     try {
       console.log('📝 Handling sign up for:', email);
       
-      // Store user data in Firebase
-      if (userData.uid) {
-        const userProfile = {
-          uid: userData.uid,
-          name: userData.name || 'User',
-          email: userData.email || '',
-          phone: userData.phone || '',
-          countryCode: userData.countryCode || '+91',
-          country: userData.country || 'India',
-          state: userData.state || '',
-          city: userData.city || '',
-          pincode: userData.pincode || '',
-          location: userData.location || '',
-          photoURL: userData.photoURL || '',
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          accountStatus: 'active',
-          emailVerified: false,
-          phoneVerified: false,
-          orderCount: 0,
-          totalSpent: 0
-        };
-        
-        const storeResult = await storeUserProfile(userProfile);
-        
-        if (storeResult.success) {
-          console.log('✅ User profile stored successfully');
+      // Set immediate user data
+      const immediateUserData = {
+        uid: userData.uid,
+        name: userData.name || 'User',
+        email: userData.email || '',
+        phone: '',
+        countryCode: '+91',
+        country: 'India',
+        state: '',
+        city: '',
+        pincode: '',
+        location: '',
+        photoURL: userData.photoURL || '',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      };
+      
+      setIsAuthenticated(true);
+      setCurrentUser(immediateUserData);
+      
+      setPreFilledEmail(email);
+      closeAuth();
+      
+      alert(`🎊 Welcome ${userData.name}! Your account has been created successfully.`);
+      goTo('/');
+      
+      // Store full profile in background
+      setTimeout(async () => {
+        if (userData.uid) {
+          const userProfile = {
+            ...immediateUserData,
+            name: userData.name || 'User',
+            email: userData.email || '',
+            phone: userData.phone || '',
+            countryCode: userData.countryCode || '+91',
+            country: userData.country || 'India',
+            state: userData.state || '',
+            city: userData.city || '',
+            pincode: userData.pincode || '',
+            location: userData.location || '',
+            accountStatus: 'active',
+            emailVerified: false,
+            phoneVerified: false,
+            orderCount: 0,
+            totalSpent: 0
+          };
           
-          // Set current user immediately
-          setIsAuthenticated(true);
-          setCurrentUser(userProfile);
-          
-          setPreFilledEmail(email);
-          
-          closeAuth();
-          
-          alert(`🎊 Welcome ${userData.name}! Your account has been created successfully.`);
-          goTo('/');
-        } else {
-          throw new Error('Failed to store user profile');
+          try {
+            await storeUserProfile(userProfile);
+            console.log('✅ User profile stored in background');
+          } catch (error) {
+            console.error('Background profile storage error:', error);
+          }
         }
-      }
+      }, 100);
       
     } catch (error) {
       console.error('❌ Error in sign up handler:', error);
@@ -676,7 +763,7 @@ const RouterWrapper = () => {
 
   /* ---------- Check if current page is product page ---------- */
   const isProductPage = () => {
-    return location.pathname.startsWith('/product/') || location.pathname === '/all-products';
+    return location.pathname.startsWith('/product/');
   };
 
   /* ---------- Auth overlay ---------- */
@@ -735,31 +822,11 @@ const RouterWrapper = () => {
 
   const showRSS = location.pathname === '/' && !showAuthForm;
 
-  // Show loading spinner while checking authentication
-  if (authLoading) {
-    console.log('⏳ Showing auth loading state');
-    return (
-      <div className="App loading">
-        <div className="d-flex justify-content-center align-items-center vh-100">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <div className="ms-3">Loading user data from Firebase...</div>
-        </div>
-      </div>
-    );
-  }
-
   console.log('🏠 Rendering App with state:', {
     isAuthenticated,
     currentUser: currentUser ? {
       name: currentUser.name,
-      email: currentUser.email,
-      country: currentUser.country,
-      state: currentUser.state,
-      city: currentUser.city,
-      pincode: currentUser.pincode,
-      hasData: !!currentUser.phone || !!currentUser.country || !!currentUser.state
+      email: currentUser.email
     } : null,
     showAuthForm,
     path: location.pathname
@@ -819,11 +886,11 @@ const RouterWrapper = () => {
             
             {/* Services Pages */}
             <Route path="/services" element={<ServicesPageComponent />} />
-            <Route path="/service-detail/:id" element={<ServiceDetailPage />} />
+            <Route path="/service-detail/:id" element={<ServiceDetailPageComponent />} />
             
             {/* Blog Pages */}
             <Route path="/blog" element={<BlogPage />} />
-            <Route path="/blog/:id" element={<BlogPost />} />
+            <Route path="/blog/:id" element={<BlogPostComponent />} />
             
             {/* Transport Page */}
             <Route path="/transport" element={<TransportPageComponent />} />
@@ -834,11 +901,11 @@ const RouterWrapper = () => {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/terms-policy" element={<TermsPolicyPage />} />
 
-            {/* Product Pages - FIXED: Removed duplicate props */}
+            {/* Product Pages */}
             <Route
               path="/product/:type"
               element={
-                <ProductPage 
+                <ProductPageComponent 
                   globalSearchQuery={globalSearchQuery}
                   onGlobalSearchClear={handleGlobalSearchClear}
                   isAuthenticated={isAuthenticated}
@@ -850,7 +917,7 @@ const RouterWrapper = () => {
             <Route
               path="/all-products"
               element={
-                <AllProducts
+                <AllProductsComponent
                   onProductClick={handleServiceClick}
                   onNavigate={handleNavbarNavigation}
                 />

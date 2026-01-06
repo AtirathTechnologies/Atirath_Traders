@@ -10,7 +10,7 @@ const Blog = ({ id }) => {
       title: "The Future of Agriculture in India",
       excerpt: "Exploring the latest trends and technologies shaping Indian agriculture and how Atirath Traders is leading the way in modern farming solutions.",
       category: "Agriculture",
-      image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "https://media.beehiiv.com/cdn-cgi/image/fit=scale-down,format=auto,onerror=redirect,quality=80/uploads/asset/file/f16c4b5c-d439-4b1f-b81c-8ab426673378/f3b719e9-e3c6-4851-8d64-8f7e7dfaac88_1792x1024.jpg?t=1716722272",
       fullContent: `
         <h2>The Future of Agriculture in India: A Technological Revolution</h2>
         <p>Indian agriculture is undergoing a significant transformation, driven by technological advancements and changing market dynamics. At Atirath Traders, we are at the forefront of this revolution, bringing innovative solutions to farmers across the nation.</p>
@@ -62,7 +62,7 @@ const Blog = ({ id }) => {
       title: "Market Trends in Agri-Commodities",
       excerpt: "Analysis of current market trends and future predictions for agricultural commodities in the Indian and global markets.",
       category: "Market",
-      image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "https://media.istockphoto.com/id/952101188/photo/eco-friendly-sustainable-growth-concept.jpg?s=612x612&w=0&k=20&c=6yUoOGmbxWA3OxCPOUeU8qJIfCsbJaq76nv4Ru8zRJA=",
       fullContent: `
         <h2>Market Trends in Agri-Commodities: 2024 Outlook</h2>
         <p>The agricultural commodities market is experiencing dynamic changes driven by global demand, climate factors, and technological advancements.</p>

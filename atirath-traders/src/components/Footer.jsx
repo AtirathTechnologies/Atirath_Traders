@@ -11,8 +11,9 @@ const Footer = () => {
               <div className="footer-logo-icon">
                 <img src="/img/icon2.png" alt="ATIRATH GROUP Logo" className="logo-img" />
               </div>
-              <div>
-                <div className="footer-company-name fw-bold ms-3">ATIRATH TRADERS INDIA PVT.LTD</div>
+              <div className="ms-3">
+                <div className="footer-company-name fw-bold">ATIRATH TRADERS INDIA PVT.LTD</div>
+                <div className="footer-caption text-white small mt-1">Diverse Businesses, One Vision</div>
               </div>
             </div>
           </div>
@@ -45,7 +46,7 @@ const Footer = () => {
                 <Facebook className="w-5 h-5" />
               </a>
               <a 
-                href="https://www.linkedin.com/company/atirath-traders-india-private-ltd/" 
+                href="https://www.linkedin.com/company/atirath-traders-india-private/" 
                 className="text-white hover-accent"
                 aria-label="LinkedIn"
               >

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Menu, X, User, LogOut, Search, Users,
   Briefcase, Edit, Save, X as CloseIcon, Camera, Truck,
   Home, Info, Users as UsersIcon, Package, Wrench, FileText,
-  MessageCircle, Shield, Phone, ShoppingBag, PhoneCall, PhoneIncoming,
-  MapPin, Globe, Flag, Building, Clock, RefreshCw, Pause, CheckCircle, XCircle
+  MessageCircle, Shield, Phone, ShoppingBag, PhoneCall,
+  MapPin, Globe, Flag, Building, Clock, RefreshCw, Pause, CheckCircle, XCircle,
+  ChevronDown
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -27,8 +28,8 @@ const Navbar = ({
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
   const [ordersPopupOpen, setOrdersPopupOpen] = useState(false);
+  const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [localSearchQuery, setLocalSearchQuery] = useState('');
@@ -53,12 +54,108 @@ const Navbar = ({
     return new Set();
   });
   
+  const userDropdownRef = useRef(null);
+  const profileButtonRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const ordersPopupRef = useRef(null);
+  const moreDropdownRef = useRef(null);
+  const moreButtonRef = useRef(null);
+  
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [isSmallMobile, setIsSmallMobile] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setWindowWidth(width);
+      
+      // Adjust breakpoints for better mobile support
+      setIsSmallMobile(width < 480); // Fold phones and small mobiles
+      setIsMobile(width >= 480 && width < 768); // Regular mobiles
+      setIsTablet(width >= 768 && width < 1024); // Tablets and iPads
+      setIsDesktop(width >= 1024); // Desktops
+      
+      if (width >= 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (location.pathname.startsWith("/admin")) return null;
+  
+  // Show search bar ONLY on /product/* pages (individual product category pages)
+  const isProductCategoryPage = location.pathname.startsWith('/product/') && 
+                               location.pathname !== '/products' && 
+                               location.pathname !== '/product';
+  
+  // Show search bar
+  const showSearch = isProductCategoryPage;
+  
+  useEffect(() => {
+    setLocalSearchQuery(globalSearchQuery || '');
+  }, [globalSearchQuery, location.pathname]);
 
-  const showSearch = location.pathname.startsWith('/product/');
-  const isIndividualProductPage = location.pathname.startsWith('/product/');
+  useEffect(() => {
+    if (currentUser) {
+      let countryCode = currentUser.countryCode || '+91';
+      if (currentUser.phone) {
+        const phoneStr = currentUser.phone.toString();
+        if (phoneStr.startsWith('+968')) {
+          countryCode = '+968';
+        } else if (phoneStr.startsWith('+44')) {
+          countryCode = '+44';
+        } else if (phoneStr.startsWith('+1')) {
+          countryCode = '+1';
+        } else if (phoneStr.startsWith('+971')) {
+          countryCode = '+971';
+        } else if (phoneStr.startsWith('+61')) {
+          countryCode = '+61';
+        } else if (phoneStr.startsWith('+91')) {
+          countryCode = '+91';
+        }
+      }
+     
+      let phoneNumber = currentUser.phone || '';
+      if (phoneNumber && countryCode) {
+        phoneNumber = phoneNumber.replace(countryCode, '');
+      }
+     
+      setEditedUser({
+        name: currentUser.name || '',
+        email: currentUser.email || '',
+        phone: phoneNumber,
+        countryCode: countryCode,
+        country: currentUser.country || 'India',
+        state: currentUser.state || '',
+        city: currentUser.city || '',
+        pincode: currentUser.pincode || '',
+        location: currentUser.location || '',
+        photoURL: currentUser.photoURL || '',
+        uid: currentUser.uid || '',
+      });
+     
+      if (typeof window !== 'undefined') {
+        const storedRemoved = localStorage.getItem(`removedOrders_${currentUser.uid}`);
+        const storedViewed = localStorage.getItem(`viewedOrders_${currentUser.uid}`);
+        if (storedRemoved) {
+          setRemovedOrders(new Set(JSON.parse(storedRemoved)));
+        }
+        if (storedViewed) {
+          setViewedOrders(new Set(JSON.parse(storedViewed)));
+        }
+      }
+    } else {
+      setEditedUser(null);
+    }
+  }, [currentUser]);
 
-  // Country data for dropdowns
   const countries = [
     { name: 'India', code: '+91', flag: '🇮🇳', pattern: /^[6-9]\d{9}$/, placeholder: '9876543210' },
     { name: 'Oman', code: '+968', flag: '🇴🇲', pattern: /^[9]\d{7}$/, placeholder: '9XXXXXXX' },
@@ -73,15 +170,13 @@ const Navbar = ({
     { name: 'Japan', code: '+81', flag: '🇯🇵', pattern: /^\d{9,10}$/, placeholder: 'XXXXXXXXX' },
     { name: 'China', code: '+86', flag: '🇨🇳', pattern: /^\d{11}$/, placeholder: 'XXXXXXXXXXX' }
   ];
-
-  // Country names for profile
+  
   const countryNames = [
-    'India', 'Oman', 'United Kingdom', 'United States', 'UAE', 
-    'Australia', 'Canada', 'Germany', 'France', 'Singapore', 
+    'India', 'Oman', 'United Kingdom', 'United States', 'UAE',
+    'Australia', 'Canada', 'Germany', 'France', 'Singapore',
     'Japan', 'China', 'Other'
   ];
-
-  // Status options matching Orders component
+  
   const statusOptions = [
     { value: "pending", label: "Pending", icon: <Clock size={12} />, color: "#ff9800", bgColor: "#fff3e0" },
     { value: "processing", label: "Processing", icon: <RefreshCw size={12} />, color: "#2196f3", bgColor: "#e3f2fd" },
@@ -89,15 +184,14 @@ const Navbar = ({
     { value: "completed", label: "Completed", icon: <CheckCircle size={12} />, color: "#4caf50", bgColor: "#e8f5e9" },
     { value: "cancelled", label: "Cancelled", icon: <XCircle size={12} />, color: "#f44336", bgColor: "#ffebee" }
   ];
-
-  // Get status badge component
+  
   const getStatusBadge = (status) => {
     const statusLower = (status || "pending").toLowerCase();
     const statusOption = statusOptions.find(opt => opt.value === statusLower) || statusOptions[0];
-    
+   
     return (
-      <span 
-        className="status-badge-small" 
+      <span
+        className="status-badge-small"
         style={{
           backgroundColor: statusOption.bgColor,
           color: statusOption.color,
@@ -117,77 +211,262 @@ const Navbar = ({
     );
   };
 
-  /* ---------- Save removed orders to localStorage ---------- */
-  const saveRemovedOrdersToStorage = (orderIds) => {
-    if (typeof window !== 'undefined' && currentUser?.uid) {
-      const updatedRemovedOrders = new Set([...removedOrders, ...orderIds]);
-      localStorage.setItem(
-        `removedOrders_${currentUser.uid}`,
-        JSON.stringify([...updatedRemovedOrders])
-      );
-      setRemovedOrders(updatedRemovedOrders);
-    }
+  const handleSearchChange = (e) => {
+    const query = e.target.value;
+    setLocalSearchQuery(query);
+    onGlobalSearchChange(query);
   };
 
-  /* ---------- Save viewed orders to localStorage ---------- */
-  const saveViewedOrdersToStorage = (orderIds) => {
-    if (typeof window !== 'undefined' && currentUser?.uid) {
-      const updatedViewedOrders = new Set([...viewedOrders, ...orderIds]);
-      localStorage.setItem(
-        `viewedOrders_${currentUser.uid}`,
-        JSON.stringify([...updatedViewedOrders])
-      );
-      setViewedOrders(updatedViewedOrders);
-    }
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
   };
 
-  /* ---------- Track new orders for blinking ---------- */
-  useEffect(() => {
-    if (newOrdersCount > 0) {
-      const hasUnviewedOrders = orders.some(order => !viewedOrders.has(order.id));
-      if (hasUnviewedOrders) {
-        setHasNewOrders(true);
-      }
-    } else {
-      setHasNewOrders(false);
+  const handleSearchClear = () => {
+    setLocalSearchQuery('');
+    onGlobalSearchClear();
+  };
+
+  const fetchOrders = async () => {
+    if (!currentUser || (!currentUser.email && !currentUser.uid)) {
+      console.log('No user info found for fetching orders');
+      return;
     }
-  }, [newOrdersCount, orders, viewedOrders]);
-
-  /* ---------- Sync local search with global search ---------- */
-  useEffect(() => {
-    setLocalSearchQuery(globalSearchQuery || '');
-  }, [globalSearchQuery, location.pathname]);
-
-  /* ---------- Initialize edited user when currentUser changes ---------- */
-  useEffect(() => {
-    if (currentUser) {
-      console.log('🔄 Current user data in Navbar:', currentUser);
+  
+    setLoadingOrders(true);
+    try {
+      const { database, ref, get } = await import('../firebase');
       
-      // Determine country code from phone number if available
-      let countryCode = currentUser.countryCode || '+91';
-      if (currentUser.phone) {
-        const phoneStr = currentUser.phone.toString();
-        if (phoneStr.startsWith('+968')) {
-          countryCode = '+968';
-        } else if (phoneStr.startsWith('+44')) {
-          countryCode = '+44';
-        } else if (phoneStr.startsWith('+1')) {
-          countryCode = '+1';
-        } else if (phoneStr.startsWith('+971')) {
-          countryCode = '+971';
-        } else if (phoneStr.startsWith('+61')) {
-          countryCode = '+61';
-        } else if (phoneStr.startsWith('+91')) {
-          countryCode = '+91';
+      if (!database) {
+        console.error('Database not available');
+        throw new Error('Database not available');
+      }
+      
+      const ordersRef = ref(database, 'quotes');
+      const snapshot = await get(ordersRef);
+      
+      if (snapshot.exists()) {
+        const ordersData = snapshot.val();
+        let ordersArray = [];
+        
+        if (ordersData && typeof ordersData === 'object') {
+          ordersArray = Object.keys(ordersData)
+            .filter(key => {
+              const order = ordersData[key];
+              const matchesUserId = order.userId === currentUser.uid;
+              const matchesEmail = order.email === currentUser.email;
+              return (matchesUserId || matchesEmail) && !removedOrders.has(key);
+            })
+            .map(key => ({
+              id: key,
+              ...ordersData[key],
+              status: (ordersData[key].status || "pending").toLowerCase(),
+              createdAt: ordersData[key].createdAt || ordersData[key].date || ordersData[key].timestamp || "",
+            }))
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         }
+        
+        setOrders(ordersArray);
+      } else {
+        setOrders([]);
+      }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const handleOrdersClick = async (e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    
+    if (!isAuthenticated) {
+      alert('Please sign in to view your orders');
+      onAuthNavigate('signin');
+      return;
+    }
+  
+    console.log('Opening orders popup...');
+    setOrdersPopupOpen(true);
+    await fetchOrders();
+  
+    if (orders.length > 0) {
+      const orderIds = orders.map(order => order.id);
+      const updatedViewedOrders = new Set([...viewedOrders, ...orderIds]);
+      setViewedOrders(updatedViewedOrders);
+      
+      if (typeof window !== 'undefined' && currentUser?.uid) {
+        localStorage.setItem(
+          `viewedOrders_${currentUser.uid}`,
+          JSON.stringify([...updatedViewedOrders])
+        );
       }
       
-      // Remove country code from phone number for display
+      if (onOrderViewed) {
+        onOrderViewed(orderIds);
+      }
+    }
+    setHasNewOrders(false);
+  };
+
+  const closeOrdersPopup = () => {
+    console.log('Closing orders popup...');
+    setOrdersPopupOpen(false);
+  };
+
+  const handleRemoveOrder = (orderId, e) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to remove this order from view?')) {
+      const updatedRemovedOrders = new Set([...removedOrders, orderId]);
+      setRemovedOrders(updatedRemovedOrders);
+      
+      if (typeof window !== 'undefined' && currentUser?.uid) {
+        localStorage.setItem(
+          `removedOrders_${currentUser.uid}`,
+          JSON.stringify([...updatedRemovedOrders])
+        );
+      }
+      
+      setOrders(prev => prev.filter(order => order.id !== orderId));
+      const updatedViewedOrders = new Set(viewedOrders);
+      updatedViewedOrders.delete(orderId);
+      setViewedOrders(updatedViewedOrders);
+      
+      if (typeof window !== 'undefined' && currentUser?.uid) {
+        localStorage.setItem(
+          `viewedOrders_${currentUser.uid}`,
+          JSON.stringify([...updatedViewedOrders])
+        );
+      }
+      alert('Order removed successfully!');
+    }
+  };
+
+  const handlePhoneCall = () => {
+    window.open('tel:+917396007479', '_self');
+  };
+
+  const handleWhatsAppCall = () => {
+    window.open('https://wa.me/+917396007479', '_blank');
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userDropdownOpen && 
+          userDropdownRef.current && 
+          !userDropdownRef.current.contains(event.target) &&
+          profileButtonRef.current && 
+          !profileButtonRef.current.contains(event.target)) {
+        setUserDropdownOpen(false);
+      }
+      
+      if (mobileMenuOpen && 
+          mobileMenuRef.current && 
+          !mobileMenuRef.current.contains(event.target) && 
+          !event.target.closest('#menu-btn')) {
+        setMobileMenuOpen(false);
+      }
+      
+      if (ordersPopupOpen && 
+          ordersPopupRef.current && 
+          !ordersPopupRef.current.contains(event.target)) {
+        closeOrdersPopup();
+      }
+      
+      if (moreDropdownOpen && 
+          moreDropdownRef.current && 
+          !moreDropdownRef.current.contains(event.target) &&
+          moreButtonRef.current && 
+          !moreButtonRef.current.contains(event.target)) {
+        setMoreDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [userDropdownOpen, mobileMenuOpen, ordersPopupOpen, moreDropdownOpen]);
+
+  const handleNavigation = (section) => {
+    onNavigate(section);
+    setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
+    setMoreDropdownOpen(false);
+    closeOrdersPopup();
+    setIsEditing(false);
+    setPhoneError('');
+  };
+
+  const auth = (type) => {
+    onAuthNavigate(type);
+    setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
+    setMoreDropdownOpen(false);
+    closeOrdersPopup();
+    setIsEditing(false);
+    setPhoneError('');
+  };
+
+  const signOut = () => {
+    onSignOut();
+    setUserDropdownOpen(false);
+    setMobileMenuOpen(false);
+    setMoreDropdownOpen(false);
+    closeOrdersPopup();
+    setIsEditing(false);
+    setPhoneError('');
+  };
+
+  const toggleUser = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Toggle user clicked, current state:', userDropdownOpen);
+    setUserDropdownOpen((prev) => !prev);
+    setIsEditing(false);
+    setPhoneError('');
+    setMoreDropdownOpen(false);
+  };
+
+  const toggleMoreDropdown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMoreDropdownOpen((prev) => !prev);
+    setUserDropdownOpen(false);
+  };
+
+  const handleTermsPolicy = () => {
+    navigate('/terms-policy');
+    setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
+    setMoreDropdownOpen(false);
+    closeOrdersPopup();
+    setIsEditing(false);
+    setPhoneError('');
+  };
+
+  const handleEditProfile = () => {
+    setIsEditing(true);
+    setPhoneError('');
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setPhoneError('');
+    if (currentUser) {
+      let countryCode = currentUser.countryCode || '+91';
       let phoneNumber = currentUser.phone || '';
+     
       if (phoneNumber && countryCode) {
         phoneNumber = phoneNumber.replace(countryCode, '');
       }
-      
+     
       setEditedUser({
         name: currentUser.name || '',
         email: currentUser.email || '',
@@ -199,77 +478,37 @@ const Navbar = ({
         pincode: currentUser.pincode || '',
         location: currentUser.location || '',
         photoURL: currentUser.photoURL || '',
-        uid: currentUser.uid || '',
       });
-      
-      // Load removed and viewed orders for this user
-      if (typeof window !== 'undefined') {
-        const storedRemoved = localStorage.getItem(`removedOrders_${currentUser.uid}`);
-        const storedViewed = localStorage.getItem(`viewedOrders_${currentUser.uid}`);
-        if (storedRemoved) {
-          setRemovedOrders(new Set(JSON.parse(storedRemoved)));
-        }
-        if (storedViewed) {
-          setViewedOrders(new Set(JSON.parse(storedViewed)));
-        }
-      }
-    } else {
-      setEditedUser(null);
     }
-  }, [currentUser]);
+  };
 
-  /* ---------- Reset editing state when user signs out ---------- */
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setIsEditing(false);
-      setUserDropdownOpen(false);
-      setMobileProfileOpen(false);
-      setEditedUser(null);
-      setPhoneError('');
-      setHasNewOrders(false);
-    }
-  }, [isAuthenticated]);
-
-  /* ---------- Clear removed orders on sign out ---------- */
-  useEffect(() => {
-    if (!isAuthenticated && typeof window !== 'undefined') {
-      localStorage.removeItem(`removedOrders_${currentUser?.uid}`);
-      localStorage.removeItem(`viewedOrders_${currentUser?.uid}`);
-      setRemovedOrders(new Set());
-      setViewedOrders(new Set());
-    }
-  }, [isAuthenticated, currentUser?.uid]);
-
-  /* ---------- Phone number validation ---------- */
   const validatePhoneNumber = (phone, countryCode = '+91') => {
     if (!phone) {
       setPhoneError('Phone number is required');
       return false;
     }
-    
+   
     const cleanPhone = phone.replace(/\D/g, '');
     const selectedCountry = countries.find(c => c.code === countryCode);
-    
+   
     if (!selectedCountry) {
       setPhoneError('Please select a valid country');
       return false;
     }
-    
+   
     if (!selectedCountry.pattern.test(cleanPhone)) {
       setPhoneError(`Invalid ${selectedCountry.name} phone number format`);
       return false;
     }
-    
+   
     setPhoneError('');
     return true;
   };
 
-  /* ---------- Handle phone number input ---------- */
   const handlePhoneChange = (value, countryCode) => {
     const selectedCountry = countries.find(c => c.code === countryCode);
     let formattedValue = value.replace(/\D/g, '');
-    
-    // Apply max length based on country
+   
     if (selectedCountry) {
       if (selectedCountry.code === '+91') formattedValue = formattedValue.slice(0, 10);
       else if (selectedCountry.code === '+968') formattedValue = formattedValue.slice(0, 8);
@@ -279,16 +518,79 @@ const Navbar = ({
       else if (selectedCountry.code === '+61') formattedValue = formattedValue.slice(0, 9);
       else formattedValue = formattedValue.slice(0, 15);
     }
-    
+   
     setEditedUser(prev => ({
       ...prev,
       phone: formattedValue
     }));
-    
+   
     validatePhoneNumber(formattedValue, countryCode);
   };
 
-  /* ---------- Photo Upload Handler ---------- */
+  const handleSaveProfile = async () => {
+    if (!editedUser?.name.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+   
+    const fullPhoneNumber = editedUser.countryCode + editedUser.phone;
+   
+    if (!validatePhoneNumber(editedUser.phone, editedUser.countryCode)) {
+      alert('Please fix the phone number error before saving');
+      return;
+    }
+   
+    if (editedUser.pincode && !/^\d{4,10}$/.test(editedUser.pincode)) {
+      alert('Please enter a valid pincode (4-10 digits)');
+      return;
+    }
+   
+    setSaving(true);
+    try {
+      const userDataForFirebase = {
+        ...editedUser,
+        phone: fullPhoneNumber,
+        uid: currentUser.uid
+      };
+     
+      if (onProfileUpdate) {
+        await onProfileUpdate(userDataForFirebase);
+      }
+     
+      setEditedUser(prev => ({
+        ...prev,
+        phone: editedUser.phone
+      }));
+     
+      setIsEditing(false);
+      setPhoneError('');
+      alert('Profile updated successfully!');
+    } catch (error) {
+      alert('Error updating profile. Please try again.');
+      console.error('Profile update error:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    if (field === 'phone') {
+      handlePhoneChange(value, editedUser?.countryCode || '+91');
+    } else if (field === 'countryCode') {
+      const selectedCountry = countries.find(c => c.code === value);
+      setEditedUser(prev => ({
+        ...prev,
+        [field]: value,
+        country: selectedCountry ? selectedCountry.name : prev.country
+      }));
+    } else {
+      setEditedUser(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
+  };
+
   const handlePhotoUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -303,11 +605,9 @@ const Navbar = ({
     setUploadingPhoto(true);
     try {
       const reader = new FileReader();
-     
       reader.onload = async (e) => {
         try {
           const photoURL = e.target.result;
-         
           const updatedUserData = {
             ...editedUser,
             photoURL: photoURL
@@ -320,7 +620,6 @@ const Navbar = ({
             await onProfileUpdate(updatedUserData);
             alert('Profile photo updated successfully!');
           }
-         
           setUploadingPhoto(false);
         } catch (error) {
           console.error('Photo processing error:', error);
@@ -328,12 +627,10 @@ const Navbar = ({
           setUploadingPhoto(false);
         }
       };
-     
       reader.onerror = () => {
         alert('Error reading image file');
         setUploadingPhoto(false);
       };
-     
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Photo upload error:', error);
@@ -342,7 +639,6 @@ const Navbar = ({
     }
   };
 
-  /* ---------- Remove Photo Handler ---------- */
   const handleRemovePhoto = async () => {
     if (!currentUser) return;
     try {
@@ -361,390 +657,56 @@ const Navbar = ({
     }
   };
 
-  /* ---------- Search functionality ---------- */
-  const handleSearchChange = (e) => {
-    const query = e.target.value;
-    setLocalSearchQuery(query);
-    onGlobalSearchChange(query);
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-  };
-
-  const handleSearchClear = () => {
-    setLocalSearchQuery('');
-    onGlobalSearchClear();
-  };
-
-  /* ---------- Fetch orders from Firebase ---------- */
-  const fetchOrders = async () => {
-    if (!currentUser || (!currentUser.email && !currentUser.uid)) {
-      console.log('No user info found for fetching orders');
-      return;
-    }
-   
-    setLoadingOrders(true);
-    try {
-      const { database, ref, get, query, orderByChild, equalTo } = await import('../firebase');
-     
-      const ordersRef = ref(database, 'quotes');
-     
-      // Try to query by userId first
-      let userOrdersQuery;
-      if (currentUser.uid) {
-        userOrdersQuery = query(
-          ordersRef,
-          orderByChild('userId'),
-          equalTo(currentUser.uid)
-        );
-      } else {
-        // Fallback to email
-        userOrdersQuery = query(
-          ordersRef,
-          orderByChild('email'),
-          equalTo(currentUser.email)
-        );
-      }
-     
-      const snapshot = await get(userOrdersQuery);
-      if (snapshot.exists()) {
-        const ordersData = snapshot.val();
-        const ordersArray = Object.keys(ordersData).map(key => ({
-          id: key,
-          ...ordersData[key],
-          status: (ordersData[key].status || "pending").toLowerCase(),
-          createdAt: ordersData[key].createdAt || ordersData[key].date || ordersData[key].timestamp || "",
-        })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-       
-        // Filter out removed orders
-        const filteredOrders = ordersArray.filter(order => !removedOrders.has(order.id));
-        setOrders(filteredOrders);
-      } else {
-        setOrders([]);
-      }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      try {
-        const { database, ref, get } = await import('../firebase');
-        const ordersRef = ref(database, 'quotes');
-        const snapshot = await get(ordersRef);
-        if (snapshot.exists()) {
-          const allOrders = snapshot.val();
-          const filteredOrders = Object.keys(allOrders)
-            .filter(key => {
-              const order = allOrders[key];
-              return (order.userId === currentUser.uid ||
-                     order.email === currentUser.email) &&
-                     !removedOrders.has(key);
-            })
-            .map(key => ({
-              id: key,
-              ...allOrders[key],
-              status: (allOrders[key].status || "pending").toLowerCase(),
-              createdAt: allOrders[key].createdAt || allOrders[key].date || allOrders[key].timestamp || "",
-            }))
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-         
-          setOrders(filteredOrders);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback query failed:', fallbackError);
-        setOrders([]);
-      }
-    } finally {
-      setLoadingOrders(false);
-    }
-  };
-
-  /* ---------- Open orders popup ---------- */
-  const handleOrdersClick = async () => {
-    if (!isAuthenticated) {
-      alert('Please sign in to view your orders');
-      onAuthNavigate('signin');
-      return;
-    }
-   
-    setOrdersPopupOpen(true);
-    await fetchOrders();
-   
-    // Mark ALL current orders as viewed when popup opens
-    if (orders.length > 0) {
-      const orderIds = orders.map(order => order.id);
-      saveViewedOrdersToStorage(orderIds);
-      if (onOrderViewed) {
-        onOrderViewed(orderIds);
-      }
-    }
-    // Reset local new orders flag
-    setHasNewOrders(false);
-  };
-
-  /* ---------- Close orders popup ---------- */
-  const closeOrdersPopup = () => {
-    setOrdersPopupOpen(false);
-  };
-
-  /* ---------- Remove Order Handler ---------- */
-  const handleRemoveOrder = (orderId, e) => {
-    e.stopPropagation();
-    if (window.confirm('Are you sure you want to remove this order from view?')) {
-      // Save to localStorage
-      saveRemovedOrdersToStorage([orderId]);
-      // Also remove from current orders array
-      setOrders(prev => prev.filter(order => order.id !== orderId));
-      // Remove from viewed orders as well
-      const updatedViewedOrders = new Set(viewedOrders);
-      updatedViewedOrders.delete(orderId);
-      setViewedOrders(updatedViewedOrders);
-      if (typeof window !== 'undefined' && currentUser?.uid) {
-        localStorage.setItem(
-          `viewedOrders_${currentUser.uid}`,
-          JSON.stringify([...updatedViewedOrders])
-        );
-      }
-      alert('Order removed successfully!');
-    }
-  };
-
-  /* ---------- Phone Call Handler ---------- */
-  const handlePhoneCall = () => {
-    window.open('tel:+917396007479', '_self');
-  };
-
-  /* ---------- WhatsApp Call Handler ---------- */
-  const handleWhatsAppCall = () => {
-    window.open('https://wa.me/+917396007479', '_blank');
-  };
-
-  /* ---------- Close dropdown / mobile menu on outside click ---------- */
-  useEffect(() => {
-    const handler = (e) => {
-      if (userDropdownOpen && !e.target.closest('.user-dropdown')) {
-        setUserDropdownOpen(false);
-        setIsEditing(false);
-        setPhoneError('');
-      }
-      if (mobileProfileOpen && !e.target.closest('.mobile-profile-popup') && !e.target.closest('.navbar-profile-btn')) {
-        setMobileProfileOpen(false);
-        setIsEditing(false);
-        setPhoneError('');
-      }
-      if (ordersPopupOpen && !e.target.closest('.orders-popup-content')) {
-        closeOrdersPopup();
-      }
-      if (
-        mobileMenuOpen &&
-        !e.target.closest('.mobile-menu') &&
-        !e.target.closest('#menu-btn')
-      ) {
-        setMobileMenuOpen(false);
-        setIsEditing(false);
-        setPhoneError('');
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
-    };
-  }, [userDropdownOpen, mobileMenuOpen, mobileProfileOpen, ordersPopupOpen]);
-
-  /* ---------- Navigation handlers ---------- */
-  const handleNavigation = (section) => {
-    onNavigate(section);
-    setMobileMenuOpen(false);
-    setUserDropdownOpen(false);
-    setMobileProfileOpen(false);
-    closeOrdersPopup();
-    setIsEditing(false);
-    setPhoneError('');
-  };
-
-  const auth = (type) => {
-    onAuthNavigate(type);
-    setMobileMenuOpen(false);
-    setUserDropdownOpen(false);
-    setMobileProfileOpen(false);
-    closeOrdersPopup();
-    setIsEditing(false);
-    setPhoneError('');
-  };
-
-  const signOut = () => {
-    onSignOut();
-    setUserDropdownOpen(false);
-    setMobileMenuOpen(false);
-    setMobileProfileOpen(false);
-    closeOrdersPopup();
-    setIsEditing(false);
-    setPhoneError('');
-  };
-
-  const toggleUser = (e) => {
-    e.stopPropagation();
-    setUserDropdownOpen((v) => !v);
-    setIsEditing(false);
-    setPhoneError('');
-  };
-
-  /* ---------- Toggle Mobile Profile Popup ---------- */
-  const toggleMobileProfile = (e) => {
-    e.stopPropagation();
-    setMobileProfileOpen((v) => !v);
-    setIsEditing(false);
-    setPhoneError('');
-  };
-
-  /* ---------- Terms & Policy Handler ---------- */
-  const handleTermsPolicy = () => {
-    navigate('/terms-policy');
-    setMobileMenuOpen(false);
-    setUserDropdownOpen(false);
-    setMobileProfileOpen(false);
-    closeOrdersPopup();
-    setIsEditing(false);
-    setPhoneError('');
-  };
-
-  /* ---------- Edit Profile Handlers ---------- */
-  const handleEditProfile = () => {
-    setIsEditing(true);
-    setPhoneError('');
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setPhoneError('');
-    if (currentUser) {
-      // Determine country code from phone number
-      let countryCode = currentUser.countryCode || '+91';
-      let phoneNumber = currentUser.phone || '';
-      
-      if (phoneNumber && countryCode) {
-        phoneNumber = phoneNumber.replace(countryCode, '');
-      }
-      
-      setEditedUser({
-        name: currentUser.name || '',
-        email: currentUser.email || '',
-        phone: phoneNumber,
-        countryCode: countryCode,
-        country: currentUser.country || 'India',
-        state: currentUser.state || '',
-        city: currentUser.city || '',
-        pincode: currentUser.pincode || '',
-        location: currentUser.location || '',
-        photoURL: currentUser.photoURL || '',
-      });
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    if (!editedUser?.name.trim()) {
-      alert('Please enter your name');
-      return;
-    }
-    
-    // Combine country code with phone number
-    const fullPhoneNumber = editedUser.countryCode + editedUser.phone;
-    
-    // Validate phone number
-    if (!validatePhoneNumber(editedUser.phone, editedUser.countryCode)) {
-      alert('Please fix the phone number error before saving');
-      return;
-    }
-    
-    // Validate pincode if provided
-    if (editedUser.pincode && !/^\d{4,10}$/.test(editedUser.pincode)) {
-      alert('Please enter a valid pincode (4-10 digits)');
-      return;
-    }
-    
-    setSaving(true);
-    try {
-      // Prepare data for Firebase with full phone number
-      const userDataForFirebase = {
-        ...editedUser,
-        phone: fullPhoneNumber,
-        uid: currentUser.uid
-      };
-      
-      if (onProfileUpdate) {
-        await onProfileUpdate(userDataForFirebase);
-      }
-      
-      // Update local state with full phone number
-      setEditedUser(prev => ({
-        ...prev,
-        phone: editedUser.phone // Keep without country code for display
-      }));
-      
-      setIsEditing(false);
-      setPhoneError('');
-      alert('Profile updated successfully!');
-    } catch (error) {
-      alert('Error updating profile. Please try again.');
-      console.error('Profile update error:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleInputChange = (field, value) => {
-    if (field === 'phone') {
-      handlePhoneChange(value, editedUser?.countryCode || '+91');
-    } else if (field === 'countryCode') {
-      // When country code changes, update country as well
-      const selectedCountry = countries.find(c => c.code === value);
-      setEditedUser(prev => ({
-        ...prev,
-        [field]: value,
-        country: selectedCountry ? selectedCountry.name : prev.country
-      }));
-    } else {
-      setEditedUser(prev => ({
-        ...prev,
-        [field]: value
-      }));
-    }
-  };
-
-  /* ---------- Join Us handler ---------- */
   const handleJoinUs = () => {
     navigate('/join-us');
     setMobileMenuOpen(false);
     setUserDropdownOpen(false);
-    setMobileProfileOpen(false);
+    setMoreDropdownOpen(false);
     closeOrdersPopup();
     setIsEditing(false);
     setPhoneError('');
   };
 
-  /* ---------- Services handler ---------- */
   const handleServices = () => {
     navigate('/services');
     setMobileMenuOpen(false);
     setUserDropdownOpen(false);
-    setMobileProfileOpen(false);
+    setMoreDropdownOpen(false);
     closeOrdersPopup();
     setIsEditing(false);
     setPhoneError('');
   };
 
-  /* ---------- Transport handler ---------- */
   const handleTransport = () => {
     navigate('/transport');
     setMobileMenuOpen(false);
     setUserDropdownOpen(false);
-    setMobileProfileOpen(false);
+    setMoreDropdownOpen(false);
     closeOrdersPopup();
     setIsEditing(false);
     setPhoneError('');
   };
 
-  // Get initials for avatar
+  const handleLeadership = () => {
+    navigate('/leadership');
+    setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
+    setMoreDropdownOpen(false);
+    closeOrdersPopup();
+    setIsEditing(false);
+    setPhoneError('');
+  };
+
+  const handleBlog = () => {
+    navigate('/blog');
+    setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
+    setMoreDropdownOpen(false);
+    closeOrdersPopup();
+    setIsEditing(false);
+    setPhoneError('');
+  };
+
   const getInitials = (name) => {
     if (!name || typeof name !== 'string') return 'U';
     const names = name.trim().split(' ');
@@ -755,7 +717,6 @@ const Navbar = ({
       .slice(0, 2);
   };
 
-  // Format member since date
   const getMemberSince = () => {
     if (!currentUser?.createdAt) return 'N/A';
     try {
@@ -769,13 +730,29 @@ const Navbar = ({
     }
   };
 
-  // Get user's initials for display in navbar button
   const getUserNameInitials = () => {
     if (!currentUser?.name) return 'U';
     return getInitials(currentUser.name);
   };
 
-  // Format date for display
+  const getCountryFlag = (country) => {
+    const flags = {
+      'India': '🇮🇳',
+      'Oman': '🇴🇲',
+      'United Kingdom': '🇬🇧',
+      'United States': '🇺🇸',
+      'UAE': '🇦🇪',
+      'Australia': '🇦🇺',
+      'Canada': '🇨🇦',
+      'Germany': '🇩🇪',
+      'France': '🇫🇷',
+      'Singapore': '🇸🇬',
+      'Japan': '🇯🇵',
+      'China': '🇨🇳'
+    };
+    return flags[country] || '🌍';
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     try {
@@ -793,35 +770,37 @@ const Navbar = ({
     }
   };
 
-  // Get final total value from order (matching Orders component logic)
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
   const getFinalTotalValue = (order) => {
-    // 1. First try to get from displayValues.finalTotal
     if (order.displayValues && order.displayValues.finalTotal) {
       const finalTotalStr = order.displayValues.finalTotal;
-      // Extract number from string like "₹12,500.00"
       const match = finalTotalStr.match(/[\d,]+\.?\d*/);
       if (match) {
         const numberStr = match[0].replace(/,/g, '');
         return parseFloat(numberStr) || 0;
       }
     }
-    
-    // 2. Try direct finalTotal field
+   
     if (order.finalTotal > 0) {
       return order.finalTotal;
     }
-    
-    // 3. Try totalAmount field
+   
     if (order.totalAmount > 0) {
       return order.totalAmount;
     }
-    
-    // 4. Try estimatedBill field
+   
     if (order.estimatedBill > 0) {
       return order.estimatedBill;
     }
-    
-    // 5. Calculate from individual fields
+   
     const baseProductPrice = order.baseProductPrice || 0;
     const gradePrice = order.gradePrice || 0;
     const packingPrice = order.packingPrice || 0;
@@ -833,43 +812,29 @@ const Navbar = ({
     const deliveryCharges = order.deliveryCharges || 0;
     const gst = order.gst || 0;
     const discount = order.discount || 0;
-    
-    let subtotal = baseProductPrice + gradePrice + packingPrice + brandingCost + 
+   
+    let subtotal = baseProductPrice + gradePrice + packingPrice + brandingCost +
                    shippingCost + insuranceCost + taxes + additionalCharges + deliveryCharges;
-    
-    // Add GST if applicable
+   
     if (gst > 0) {
       subtotal += (subtotal * gst) / 100;
     }
-    
-    // Apply discount
+   
     if (discount > 0) {
       subtotal -= discount;
     }
-    
+   
     return Math.max(0, subtotal);
   };
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    // Use Indian currency format with ₹ symbol
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
-
-  // Render user avatar with photo or initials
   const renderUserAvatar = (user, size = 'small', isInEditMode = false) => {
     const avatarClass = size === 'small' ? 'avatar-circle-small' :
                        size === 'large' ? 'avatar-circle-large' : 'avatar-circle';
     const initialsClass = size === 'small' ? 'avatar-initials-small' :
                          size === 'large' ? 'avatar-initials-large' : 'avatar-initials';
-   
+  
     const hasValidPhoto = user?.photoURL && user.photoURL.startsWith('data:image');
-   
+  
     if (hasValidPhoto) {
       return (
         <div className={`${avatarClass} avatar-with-photo`}>
@@ -898,7 +863,7 @@ const Navbar = ({
         </div>
       );
     }
-   
+  
     return (
       <div className={avatarClass}>
         <span className={initialsClass}>{getInitials(user?.name)}</span>
@@ -915,28 +880,29 @@ const Navbar = ({
     );
   };
 
-  // Render navbar button
   const renderNavbarButton = () => {
     if (!isAuthenticated || !currentUser) return null;
     const hasValidPhoto = currentUser?.photoURL && currentUser.photoURL.startsWith('data:image');
-   
+  
     return (
       <button
-        className="btn btn-primary auth-btn d-flex align-items-center justify-content-center p-0 navbar-profile-btn"
+        ref={profileButtonRef}
+        className="navbar-profile-btn"
         onClick={toggleUser}
         style={{
           background: 'transparent',
           border: 'none',
-          width: '48px',
-          height: '48px',
-          minWidth: '48px',
-          minHeight: '48px',
+          width: '44px',
+          height: '44px',
+          minWidth: '44px',
+          minHeight: '44px',
           overflow: 'hidden',
           borderRadius: '6px',
           position: 'relative',
           cursor: 'pointer',
           border: '2px solid rgba(255, 255, 255, 0.3)',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+          zIndex: 1002
         }}
       >
         {hasValidPhoto ? (
@@ -996,28 +962,31 @@ const Navbar = ({
     );
   };
 
-  // Render mobile navbar button
   const renderMobileNavbarButton = () => {
     if (!isAuthenticated || !currentUser) return null;
     const hasValidPhoto = currentUser?.photoURL && currentUser.photoURL.startsWith('data:image');
-   
+  
+    const buttonSize = isSmallMobile ? '32px' : (isMobile ? '36px' : '40px');
+    const fontSize = isSmallMobile ? '0.8rem' : (isMobile ? '0.9rem' : '1rem');
+  
     return (
       <button
-        className="btn btn-primary auth-btn d-flex align-items-center justify-content-center p-0 navbar-profile-btn"
-        onClick={toggleMobileProfile}
+        className="navbar-profile-btn"
+        onClick={toggleUser}
         style={{
           background: 'transparent',
           border: 'none',
-          width: '42px',
-          height: '42px',
-          minWidth: '42px',
-          minHeight: '42px',
+          width: buttonSize,
+          height: buttonSize,
+          minWidth: buttonSize,
+          minHeight: buttonSize,
           overflow: 'hidden',
           borderRadius: '6px',
           position: 'relative',
           cursor: 'pointer',
           border: '2px solid rgba(255, 255, 255, 0.3)',
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+          zIndex: 1002
         }}
       >
         {hasValidPhoto ? (
@@ -1045,11 +1014,11 @@ const Navbar = ({
                 border-radius: 4px;
                 background: linear-gradient(135deg, #8FB3E2, #31487A);
                 color: white;
-                font-size: 1rem;
+                font-size: ${fontSize};
                 font-weight: bold;
                 display: flex;
                 align-items: center;
-                justify-content: center;
+                justifyContent: 'center';
               `;
               fallback.textContent = getUserNameInitials();
               parent.appendChild(fallback);
@@ -1063,7 +1032,7 @@ const Navbar = ({
               borderRadius: '4px',
               background: 'linear-gradient(135deg, #8FB3E2, #31487A)',
               color: 'white',
-              fontSize: '1rem',
+              fontSize: fontSize,
               fontWeight: 'bold',
               display: 'flex',
               alignItems: 'center',
@@ -1077,232 +1046,21 @@ const Navbar = ({
     );
   };
 
-  // Render orders button with notification badge
-  const renderOrdersButton = (isMobile = false) => {
-    const buttonClass = isMobile ?
-      "btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 d-flex align-items-center justify-content-center" :
-      "btn btn-outline-light orders-btn-compact d-flex align-items-center justify-content-center p-1 me-1";
-   
-    const buttonStyle = isMobile ? {
-      width: '100%',
-      padding: '0.5rem 0'
-    } : {
-      borderColor: 'rgba(143, 179, 226, 0.5)',
-      color: '#8FB3E2',
-      fontWeight: '600',
-      width: '44px',
-      height: '44px',
-      minWidth: '44px',
-      minHeight: '44px',
-      padding: '0',
-      borderRadius: '6px'
-    };
-    
-    const hasUnviewedOrders = orders.some(order => 
-      !removedOrders.has(order.id) && !viewedOrders.has(order.id)
-    );
-    const showDot = hasUnviewedOrders && orders.length > 0;
-    
-    return (
-      <button
-        className={buttonClass}
-        onClick={handleOrdersClick}
-        style={buttonStyle}
-        title="My Orders"
-      >
-        <div className="position-relative d-flex align-items-center justify-content-center">
-          <ShoppingBag className="w-5 h-5" />
-          {showDot && (
-            <span className="orders-badge orders-dot-badge">
-              •
-            </span>
-          )}
-        </div>
-      </button>
-    );
-  };
-
-  // Render orders popup
-  const renderOrdersPopup = () => (
-    <div className={`orders-popup-overlay ${ordersPopupOpen ? 'active' : ''}`} onClick={closeOrdersPopup}>
-      <div className="orders-popup-content" onClick={(e) => e.stopPropagation()}>
-        <div className="orders-popup-header">
-          <h3 className="orders-popup-title">
-            <ShoppingBag className="w-5 h-5 me-2" />
-            My Orders
-          </h3>
-          <button className="orders-popup-close" onClick={closeOrdersPopup}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-       
-        <div className="orders-popup-body">
-          {loadingOrders ? (
-            <div className="loading-orders">
-              <div className="spinner-border spinner-border-sm text-accent" role="status"></div>
-              <span>Loading your orders...</span>
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="no-orders">
-              <ShoppingBag className="w-16 h-16 text-muted mb-3" />
-              <h5>No Orders Yet</h5>
-              <p className="text-muted">You haven't placed any orders yet.</p>
-              <button
-                className="btn btn-primary mt-2"
-                onClick={() => {
-                  closeOrdersPopup();
-                  onNavigate('products');
-                }}
-              >
-                Browse Products
-              </button>
-            </div>
-          ) : (
-            <div className="orders-list">
-              {orders
-                .filter(order => !removedOrders.has(order.id))
-                .map((order) => {
-                  // Calculate final total value
-                  const finalValue = getFinalTotalValue(order);
-                  
-                  return (
-                    <div key={order.id} className="order-card">
-                      <div className="order-header">
-                        <div className="order-id">
-                          <strong>Order ID:</strong> {order.id.substring(0, 8)}...
-                        </div>
-                        <div className="order-status">
-                          {getStatusBadge(order.status || 'pending')}
-                        </div>
-                        <div className="order-date">
-                          {formatDate(order.createdAt)}
-                        </div>
-                      </div>
-                     
-                      <div className="order-info">
-                        <div className="order-product">
-                          <strong>Product:</strong> {order.product || order.productName || order.item || 'N/A'}
-                        </div>
-                        {order.variety && (
-                          <div className="order-variety">
-                            <strong>Variety:</strong> {order.variety}
-                          </div>
-                        )}
-                        <div className="order-quantity">
-                          <strong>Quantity:</strong> {order.quantity || 'N/A'} {order.unit || ''}
-                        </div>
-                        {order.grade && (
-                          <div className="order-grade">
-                            <strong>Grade:</strong> {order.grade}
-                          </div>
-                        )}
-                        {order.packing && (
-                          <div className="order-packing">
-                            <strong>Packing:</strong> {order.packing}
-                          </div>
-                        )}
-                        {order.state && (
-                          <div className="order-state">
-                            <strong>State/Destination:</strong> {order.state}
-                          </div>
-                        )}
-                        <div className="order-price">
-                          <strong>Total:</strong> {formatCurrency(finalValue)}
-                        </div>
-                      </div>
-                     
-                      <div className="order-actions">
-                        <div className="d-flex justify-content-between align-items-center w-100">
-                          <div className="d-flex gap-2">
-                            <button
-                              className="btn btn-sm btn-outline-danger d-flex align-items-center"
-                              onClick={(e) => handleRemoveOrder(order.id, e)}
-                              title="Remove Order"
-                            >
-                              <X className="w-4 h-4 me-1" />
-                              Remove
-                            </button>
-                          </div>
-                          <div className="d-flex gap-2">
-                            <button
-                              className="btn btn-sm btn-outline-primary d-flex align-items-center"
-                              onClick={handlePhoneCall}
-                              title="Call +91 7396007479"
-                            >
-                              <PhoneCall className="w-4 h-4 me-1" />
-                              Call
-                            </button>
-                            <button
-                              className="btn btn-sm btn-success d-flex align-items-center"
-                              onClick={handleWhatsAppCall}
-                              title="WhatsApp Call +91 7396007479"
-                            >
-                              <PhoneIncoming className="w-4 h-4 me-1" />
-                              WhatsApp
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Get country flag emoji
-  const getCountryFlag = (country) => {
-    const flags = {
-      'India': '🇮🇳',
-      'Oman': '🇴🇲',
-      'United Kingdom': '🇬🇧',
-      'United States': '🇺🇸',
-      'UAE': '🇦🇪',
-      'Australia': '🇦🇺',
-      'Canada': '🇨🇦',
-      'Germany': '🇩🇪',
-      'France': '🇫🇷',
-      'Singapore': '🇸🇬',
-      'Japan': '🇯🇵',
-      'China': '🇨🇳'
-    };
-    return flags[country] || '🌍';
-  };
-
-  // Profile update handler
-  const handleProfileUpdate = async (updatedData) => {
-    if (!currentUser?.uid) return;
-    
-    try {
-      const { updateUserProfile } = await import('../firebase');
-      const success = await updateUserProfile(currentUser.uid, updatedData);
-      
-      if (success) {
-        // Update local state
-        if (window.setCurrentUser) {
-          window.setCurrentUser(prev => ({
-            ...prev,
-            ...updatedData
-          }));
-        }
-        return true;
-      }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      return false;
-    }
-  };
-
-  // Render profile dropdown edit section
   const renderProfileEditSection = () => (
-    <div className="p-2 border-bottom">
-      <h6 className="text-accent mb-1 fw-bold text-xs-compact">EDIT PROFILE</h6>
-     
-      {/* Photo Upload Section */}
-      <div className="photo-upload-section">
+    <div className="p-3 border-bottom">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h6 className="text-accent mb-0 fw-bold" style={{ fontSize: '0.9rem' }}>EDIT PROFILE</h6>
+        <button
+          className="btn btn-sm btn-outline-light"
+          onClick={handleCancelEdit}
+          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+        >
+          <CloseIcon className="w-3 h-3 me-1" />
+          Cancel
+        </button>
+      </div>
+    
+      <div className="photo-upload-section mb-3">
         <div className="d-flex align-items-center gap-3 mb-2">
           <div className="position-relative">
             {renderUserAvatar(editedUser, 'medium', true)}
@@ -1316,72 +1074,93 @@ const Navbar = ({
             />
           </div>
           <div className="flex-grow-1">
-            <div className="text-sm text-muted mb-2">Profile Photo</div>
+            <div className="text-sm text-muted mb-2" style={{ fontSize: '0.75rem' }}>Profile Photo</div>
             <div className="d-flex gap-2 flex-wrap">
               <label
                 htmlFor="photo-upload"
-                className="btn btn-outline-accent btn-sm d-flex align-items-center gap-1"
+                className="btn btn-outline-accent btn-sm"
                 style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
                 disabled={uploadingPhoto}
               >
-                <Camera className="w-3 h-3" />
+                <Camera className="w-3 h-3 me-1" />
                 {uploadingPhoto ? 'Uploading...' : (editedUser?.photoURL ? 'Change Photo' : 'Upload Photo')}
               </label>
               {editedUser?.photoURL && (
                 <button
-                  className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1"
+                  className="btn btn-outline-danger btn-sm"
                   onClick={handleRemovePhoto}
                   style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
                   disabled={uploadingPhoto}
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3 h-3 me-1" />
                   Remove
                 </button>
               )}
             </div>
-            <div className="text-muted text-xxs mt-2">
+            <div className="text-muted mt-2" style={{ fontSize: '0.7rem' }}>
               Recommended: Square image, max 2MB
             </div>
           </div>
         </div>
       </div>
-      
-      {/* Edit Form Grid */}
-      <div className="profile-edit-grid">
-        {/* Name */}
+     
+      <div className="profile-edit-grid" style={{
+        display: 'grid',
+        gridTemplateColumns: windowWidth < 480 ? '1fr' : '1fr 1fr',
+        gap: '10px'
+      }}>
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">Full Name:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>Full Name:</label>
           <input
             type="text"
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.name || ''}
             onChange={(e) => handleInputChange('name', e.target.value)}
             placeholder="Enter your full name"
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           />
         </div>
-        
-        {/* Email */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">Email:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>Email:</label>
           <input
             type="email"
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.email || ''}
             onChange={(e) => handleInputChange('email', e.target.value)}
             placeholder="Enter your email"
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           />
         </div>
-        
-        {/* Country Code */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">Country Code:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>Country Code:</label>
           <select
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.countryCode || '+91'}
             onChange={(e) => handleInputChange('countryCode', e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           >
             {countries.map((country) => (
               <option key={country.code} value={country.code}>
@@ -1390,1108 +1169,1565 @@ const Navbar = ({
             ))}
           </select>
         </div>
-        
-        {/* Phone Number */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">Phone Number:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>Phone Number:</label>
           <input
             type="tel"
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.phone || ''}
             onChange={(e) => handleInputChange('phone', e.target.value)}
             placeholder="Enter phone number"
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           />
           {phoneError && (
-            <div className="text-danger text-xxs mt-1">{phoneError}</div>
+            <div className="text-danger mt-1" style={{ fontSize: '0.7rem' }}>{phoneError}</div>
           )}
         </div>
-        
-        {/* Country */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">Country:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>Country:</label>
           <select
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.country || 'India'}
             onChange={(e) => handleInputChange('country', e.target.value)}
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           >
             {countryNames.map((countryName) => (
               <option key={countryName} value={countryName}>{countryName}</option>
             ))}
           </select>
         </div>
-        
-        {/* State */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">State/Province:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>State/Province:</label>
           <input
             type="text"
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.state || ''}
             onChange={(e) => handleInputChange('state', e.target.value)}
             placeholder="Enter state"
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           />
         </div>
-        
-        {/* City */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">City/Town:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>City/Town:</label>
           <input
             type="text"
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.city || ''}
             onChange={(e) => handleInputChange('city', e.target.value)}
             placeholder="Enter city"
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           />
         </div>
-        
-        {/* Pincode */}
+       
         <div className="form-group-sm">
-          <label className="profile-info-label text-xxs">Pincode/ZIP:</label>
+          <label className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '3px' }}>Pincode/ZIP:</label>
           <input
             type="text"
-            className="form-control search-bar-transparent"
+            className="form-control"
             value={editedUser?.pincode || ''}
             onChange={(e) => handleInputChange('pincode', e.target.value)}
             placeholder="Enter pincode"
-            style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
+            style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.3rem 0.5rem',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(143, 179, 226, 0.3)',
+              color: 'white',
+              borderRadius: '4px'
+            }}
           />
         </div>
+      </div>
+     
+      <div className="mt-4">
+        <button
+          className="btn btn-primary w-100 d-flex align-items-center justify-content-center"
+          onClick={handleSaveProfile}
+          disabled={saving || phoneError || uploadingPhoto}
+          style={{ 
+            fontSize: '0.8rem', 
+            padding: '0.5rem',
+            background: '#8FB3E2',
+            border: 'none',
+            borderRadius: '6px',
+            color: 'white',
+            cursor: 'pointer'
+          }}
+        >
+          {saving ? (
+            <>
+              <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 me-2" />
+              Save Profile
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
 
-  // Render profile display section
   const renderProfileDisplaySection = () => {
-    console.log('📊 Rendering profile display with data:', currentUser);
-    
     return (
-      <div className="p-2 border-bottom">
-        <h6 className="text-accent mb-1 fw-bold text-xs-compact">ACCOUNT INFORMATION</h6>
-        <div className="profile-info-grid">
+      <div className="p-3 border-bottom">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="text-accent mb-0 fw-bold" style={{ fontSize: '0.9rem' }}>ACCOUNT INFORMATION</h6>
+          <button
+            className="btn btn-sm btn-outline-accent"
+            onClick={handleEditProfile}
+            style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+          >
+            <Edit className="w-3 h-3 me-1" />
+            Edit
+          </button>
+        </div>
+        <div className="profile-info-grid" style={{
+          display: 'grid',
+          gridTemplateColumns: windowWidth < 480 ? '1fr' : '1fr 1fr',
+          gap: '10px'
+        }}>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">Full Name:</span>
-            <span className="profile-info-value text-xs-compact">{currentUser?.name || 'Not set'}</span>
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>Full Name:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>{currentUser?.name || 'Not set'}</span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">Email:</span>
-            <span className="profile-info-value text-xs-compact">{currentUser?.email || 'Not set'}</span>
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>Email:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>{currentUser?.email || 'Not set'}</span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">Phone:</span>
-            <span className="profile-info-value text-xs-compact">
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>Phone:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>
               {currentUser?.phone || 'Not set'}
             </span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">Country:</span>
-            <span className="profile-info-value text-xs-compact">
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>Country:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>
               {getCountryFlag(currentUser?.country)} {currentUser?.country || 'Not set'}
             </span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">State:</span>
-            <span className="profile-info-value text-xs-compact">{currentUser?.state || 'Not set'}</span>
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>State:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>{currentUser?.state || 'Not set'}</span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">City:</span>
-            <span className="profile-info-value text-xs-compact">{currentUser?.city || 'Not set'}</span>
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>City:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>{currentUser?.city || 'Not set'}</span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">Pincode:</span>
-            <span className="profile-info-value text-xs-compact">{currentUser?.pincode || 'Not set'}</span>
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>Pincode:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>{currentUser?.pincode || 'Not set'}</span>
           </div>
           <div className="profile-info-item">
-            <span className="profile-info-label text-xxs">Member Since:</span>
-            <span className="profile-info-value text-xs-compact">{getMemberSince()}</span>
-          </div>
-        </div>
-        
-        {/* Firebase Data Status */}
-        <div className="mt-2 p-2 bg-dark bg-opacity-10 rounded">
-          <div className="d-flex align-items-center gap-2">
-            <span className="database-sync-status">
-              <span className="database-icon">📊</span>
-              <span className="text-xs">Data synced with Firebase</span>
-            </span>
-            <span className="stored-data-badge">
-              Live
-            </span>
+            <span className="profile-info-label" style={{ fontSize: '0.7rem', display: 'block', marginBottom: '2px', color: '#8FB3E2' }}>Member Since:</span>
+            <span className="profile-info-value" style={{ fontSize: '0.8rem', fontWeight: '500', color: 'white' }}>{getMemberSince()}</span>
           </div>
         </div>
       </div>
     );
   };
 
-  // Render product page navbar
-  const renderProductPageNavbar = () => (
-    <>
-      {/* DESKTOP NAVBAR FOR PRODUCT PAGES */}
-      <nav className="glass d-flex align-items-center px-2 py-1 fixed-top w-100 z-3 navbar" style={{ minHeight: '50px' }}>
-        {/* LEFT: LOGO + COMPANY */}
-        <div className="d-flex align-items-center flex-shrink-0 me-2">
-          <div className="nav-logo nav-logo-compact">
-            <img src="/img/icon2.png" alt="Logo" className="logo-img" style={{ height: '32px' }} />
-          </div>
-          <div className="ms-1">
-            <div className="fw-bold accent mb-0 company-name-compact no-wrap">
-              ATIRATH TRADERS INDIA PVT.LTD
-            </div>
-            <div className="opacity-75 company-tagline-compact no-wrap">
-              Diverse Businesses, One Vision
-            </div>
-          </div>
-        </div>
-        {/* CENTER: NAV LINKS */}
-        <div className="d-none d-md-flex align-items-center nav-links-compact flex-grow-1 justify-content-center">
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('home')}
-          >
-            <Home className="w-3 h-3 me-1" />
-            Home
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('products')}
-          >
-            <Package className="w-3 h-3 me-1" />
-            Products
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={handleTransport}
-          >
-            <Truck className="w-3 h-3 me-1" />
-            Transport
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('contact')}
-          >
-            <Phone className="w-3 h-3 me-1" />
-            Contact
-          </button>
-        </div>
-        {/* RIGHT: SEARCH + AUTH */}
-        <div className="d-none d-md-flex align-items-center gap-1 flex-shrink-0 ms-auto">
-          {/* Search */}
-          {showSearch && (
-            <div className="search-compact me-1">
-              <form onSubmit={handleSearchSubmit} className="position-relative">
-                <input
-                  type="text"
-                  className="form-control search-bar"
-                  placeholder="Search products..."
-                  value={localSearchQuery}
-                  onChange={handleSearchChange}
-                />
-                {localSearchQuery ? (
-                  <button
-                    type="button"
-                    className="btn btn-link position-absolute end-0 top-50 translate-middle-y text-muted p-0"
-                    onClick={handleSearchClear}
-                    style={{ right: '6px' }}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <Search className="w-3 h-3 position-absolute end-0 top-50 translate-middle-y text-muted" style={{ right: '8px' }} />
-                )}
-              </form>
-            </div>
-          )}
-          {/* Join Us Button */}
-          <button
-            className="btn btn-success join-btn-compact d-flex align-items-center gap-1 me-1 no-wrap"
-            style={{
-              background: 'linear-gradient(135deg, #28a745, #20c997)',
-              border: 'none',
-              fontWeight: '600'
-            }}
-            onClick={handleJoinUs}
-          >
-            <Users className="w-3 h-3" />
-            Join Us
-          </button>
-          {/* Orders Button */}
-          {isAuthenticated && renderOrdersButton()}
-          {/* Auth Buttons */}
-          {isAuthenticated ? (
-            <div className="user-dropdown position-relative">
-              {renderNavbarButton()}
-              {userDropdownOpen && (
-                <div className="dropdown-menu show position-absolute end-0 mt-1 profile-dropdown-card" style={{ minWidth: '320px', maxWidth: '350px', fontSize: '0.8rem' }}>
-                  {/* Profile Header */}
-                  <div className="profile-dropdown-header p-2 border-bottom">
-                    <div className="d-flex align-items-center gap-2">
-                      {renderUserAvatar(currentUser, 'small', isEditing)}
-                      <div className="flex-grow-1">
-                        <div className="fw-bold text-white text-xs-compact">{currentUser?.name || 'User'}</div>
-                        <div className="text-muted text-xxs">{currentUser?.email || ''}</div>
-                      </div>
-                      {!isEditing && (
-                        <button
-                          className="btn btn-outline-accent btn-sm d-flex align-items-center gap-1"
-                          onClick={handleEditProfile}
-                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}
-                        >
-                          <Edit className="w-3 h-3" />
-                          Edit
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Profile Content */}
-                  {isEditing ? renderProfileEditSection() : renderProfileDisplaySection()}
-                  
-                  {/* Account Status */}
-                  <div className="p-2 border-bottom">
-                    <h6 className="text-accent mb-1 fw-bold text-xs-compact">ACCOUNT STATUS</h6>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-xxs">Status:</span>
-                      <span className="status-badge-small" style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem' }}>Certified</span>
-                    </div>
-                  </div>
-                  
-                  {/* Global Reach Info */}
-                  <div className="p-2 border-bottom">
-                    <div className="text-center">
-                      <div className="text-accent fw-bold mb-1 text-xs-compact">Global Reach, Local Impact</div>
-                      <div className="text-muted text-xxs">Serving customers across 42 countries</div>
-                    </div>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="p-2">
-                    {isEditing ? (
-                      <div className="d-flex gap-1">
-                        <button
-                          className="btn btn-outline-light btn-sm flex-fill d-flex align-items-center justify-content-center gap-1"
-                          onClick={handleCancelEdit}
-                          disabled={saving || uploadingPhoto}
-                          style={{ fontSize: '0.7rem', padding: '0.3rem 0.4rem' }}
-                        >
-                          <CloseIcon className="w-3 h-3" />
-                          Cancel
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm flex-fill d-flex align-items-center justify-content-center gap-1"
-                          onClick={handleSaveProfile}
-                          disabled={saving || phoneError || uploadingPhoto}
-                          style={{ fontSize: '0.7rem', padding: '0.3rem 0.4rem' }}
-                        >
-                          {saving ? (
-                            <>
-                              <div className="spinner-border spinner-border-sm me-1" role="status"></div>
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-3 h-3" />
-                              Save
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="d-flex gap-1">
-                        <button
-                          className="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1"
-                          onClick={signOut}
-                          style={{ fontSize: '0.7rem', padding: '0.3rem 0.4rem' }}
-                        >
-                          <LogOut className="w-3 h-3" />
-                          Sign Out
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="d-flex align-items-center auth-buttons-compact">
-              <button
-                className="btn btn-outline-light auth-btn no-wrap"
-                onClick={() => auth('signin')}
-              >
-                Sign In
-              </button>
-              <button
-                className="btn btn-primary auth-btn no-wrap"
-                onClick={() => auth('signup')}
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
-        </div>
-        {/* MOBILE TOGGLE */}
-        <div className="d-md-none d-flex align-items-center gap-1 ms-auto">
-          <button
-            id="menu-btn"
-            className="btn p-1 accent border-0"
-            onClick={() => setMobileMenuOpen(true)}
-            style={{ marginRight: '10px' }}
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-          {isAuthenticated && renderMobileNavbarButton()}
-        </div>
-      </nav>
-      
-      {/* MOBILE MENU */}
-      <div className={`mobile-menu glass ${mobileMenuOpen ? 'visible' : ''}`}>
-        <button
-          className="btn position-absolute top-0 end-0 m-3 p-2 text-white"
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <div className="d-flex flex-column align-items-center gap-3 w-100 pt-5 px-3">
-          {/* Mobile Search */}
-          {showSearch && (
-            <div className="w-100 mb-3">
-              <form onSubmit={handleSearchSubmit} className="position-relative">
-                <input
-                  type="text"
-                  className="form-control search-bar w-100"
-                  placeholder="Search products..."
-                  value={localSearchQuery}
-                  onChange={handleSearchChange}
-                  style={{ fontSize: '0.9rem', height: '42px', paddingRight: '35px' }}
-                />
-                {localSearchQuery ? (
-                  <button
-                    type="button"
-                    className="btn btn-link position-absolute end-0 top-50 translate-middle-y text-muted p-0"
-                    onClick={handleSearchClear}
-                    style={{ right: '10px' }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <Search className="w-4 h-4 position-absolute end-0 top-50 translate-middle-y text-muted" style={{ right: '12px' }} />
-                )}
-              </form>
-            </div>
-          )}
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('home')}
-          >
-            <Home className="w-4 h-4 me-2" />
-            Home
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('products')}
-          >
-            <Package className="w-4 h-4 me-2" />
-            Products
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={handleTransport}
-          >
-            <Truck className="w-4 h-4 me-2" />
-            Transport
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('contact')}
-          >
-            <Phone className="w-4 h-4 me-2" />
-            Contact
-          </button>
-          {/* Join Us Button - Mobile */}
-          <button
-            className="btn btn-success w-100 py-2 mt-2 d-flex align-items-center justify-content-center gap-2 text-sm border-0"
-            style={{
-              background: 'linear-gradient(135deg, #28a745, #20c997)',
-              border: 'none',
-              fontWeight: '600'
-            }}
-            onClick={handleJoinUs}
-          >
-            <Users className="w-4 h-4" />
-            Join Us
-          </button>
-          {/* Orders Button */}
-          {isAuthenticated && renderOrdersButton(true)}
-          {/* Auth Buttons */}
-          {!isAuthenticated && (
-            <>
-              <button className="btn btn-outline-light w-100 py-2 text-sm border-0" onClick={() => auth('signin')}>
-                Sign In
-              </button>
-              <button className="btn btn-primary w-100 py-2 mt-2 text-sm border-0" onClick={() => auth('signup')}>
-                Sign Up
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-      
-      {/* Orders Popup */}
-      {renderOrdersPopup()}
-    </>
-  );
-
-  // Render full navbar
-  const renderFullNavbar = () => (
-    <>
-      {/* DESKTOP NAVBAR */}
-      <nav className="glass d-flex align-items-center px-2 py-1 fixed-top w-100 z-3 navbar" style={{ minHeight: '50px' }}>
-        {/* LEFT: LOGO + COMPANY */}
-        <div className="d-flex align-items-center flex-shrink-0 me-2">
-          <div className="nav-logo nav-logo-compact">
-            <img src="/img/icon2.png" alt="Logo" className="logo-img" style={{ height: '32px' }} />
-          </div>
-          <div className="ms-1">
-            <div className="fw-bold accent mb-0 company-name-compact no-wrap">
-              ATIRATH TRADERS INDIA PVT.LTD
-            </div>
-            <div className="opacity-75 company-tagline-compact no-wrap">
-              Diverse Businesses, One Vision
-            </div>
-          </div>
-        </div>
-        {/* CENTER: NAV LINKS */}
-        <div className="d-none d-md-flex align-items-center nav-links-compact flex-grow-1 justify-content-center">
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('home')}
-          >
-            <Home className="w-3 h-3 me-1" />
-            Home
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('about')}
-          >
-            <Info className="w-3 h-3 me-1" />
-            About Us
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('leadership')}
-          >
-            <UsersIcon className="w-3 h-3 me-1" />
-            Leadership
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('products')}
-          >
-            <Package className="w-3 h-3 me-1" />
-            Products
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={handleServices}
-          >
-            <Wrench className="w-3 h-3 me-1" />
-            Services
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('blog')}
-          >
-            <FileText className="w-3 h-3 me-1" />
-            Blog
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={handleTermsPolicy}
-          >
-            <Shield className="w-3 h-3 me-1" />
-            Terms & Policy
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent nav-link-btn border-0 no-wrap"
-            onClick={() => handleNavigation('contact')}
-          >
-            <Phone className="w-3 h-3 me-1" />
-            Contact
-          </button>
-        </div>
-        {/* RIGHT: SEARCH + AUTH */}
-        <div className="d-none d-md-flex align-items-center gap-1 flex-shrink-0 ms-auto">
-          {/* Search */}
-          {showSearch && (
-            <div className="search-compact me-1">
-              <form onSubmit={handleSearchSubmit} className="position-relative">
-                <input
-                  type="text"
-                  className="form-control search-bar"
-                  placeholder="Search..."
-                  value={localSearchQuery}
-                  onChange={handleSearchChange}
-                />
-                {localSearchQuery ? (
-                  <button
-                    type="button"
-                    className="btn btn-link position-absolute end-0 top-50 translate-middle-y text-muted p-0"
-                    onClick={handleSearchClear}
-                    style={{ right: '6px' }}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <Search className="w-3 h-3 position-absolute end-0 top-50 translate-middle-y text-muted" style={{ right: '8px' }} />
-                )}
-              </form>
-            </div>
-          )}
-          {/* Join Us Button */}
-          <button
-            className="btn btn-success join-btn-compact d-flex align-items-center gap-1 me-1 no-wrap"
-            style={{
-              background: 'linear-gradient(135deg, #28a745, #20c997)',
-              border: 'none',
-              fontWeight: '600'
-            }}
-            onClick={handleJoinUs}
-          >
-            <Users className="w-3 h-3" />
-            Join Us
-          </button>
-          {/* Orders Button */}
-          {isAuthenticated && renderOrdersButton()}
-          {/* Auth Buttons */}
-          {isAuthenticated ? (
-            <div className="user-dropdown position-relative">
-              {renderNavbarButton()}
-              {userDropdownOpen && (
-                <div className="dropdown-menu show position-absolute end-0 mt-1 profile-dropdown-card" style={{ minWidth: '320px', maxWidth: '350px', fontSize: '0.8rem' }}>
-                  {/* Profile Header */}
-                  <div className="profile-dropdown-header p-2 border-bottom">
-                    <div className="d-flex align-items-center gap-2">
-                      {renderUserAvatar(currentUser, 'small', isEditing)}
-                      <div className="flex-grow-1">
-                        <div className="fw-bold text-white text-xs-compact">{currentUser?.name || 'User'}</div>
-                        <div className="text-muted text-xxs">{currentUser?.email || ''}</div>
-                      </div>
-                      {!isEditing && (
-                        <button
-                          className="btn btn-outline-accent btn-sm d-flex align-items-center gap-1"
-                          onClick={handleEditProfile}
-                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}
-                        >
-                          <Edit className="w-3 h-3" />
-                          Edit
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Profile Content */}
-                  {isEditing ? renderProfileEditSection() : renderProfileDisplaySection()}
-                  
-                  {/* Account Status */}
-                  <div className="p-2 border-bottom">
-                    <h6 className="text-accent mb-1 fw-bold text-xs-compact">ACCOUNT STATUS</h6>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-xxs">Status:</span>
-                      <span className="status-badge-small" style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem' }}>Certified</span>
-                    </div>
-                  </div>
-                  
-                  {/* Global Reach Info */}
-                  <div className="p-2 border-bottom">
-                    <div className="text-center">
-                      <div className="text-accent fw-bold mb-1 text-xs-compact">Global Reach, Local Impact</div>
-                      <div className="text-muted text-xxs">Serving customers across 42 countries</div>
-                    </div>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="p-2">
-                    {isEditing ? (
-                      <div className="d-flex gap-1">
-                        <button
-                          className="btn btn-outline-light btn-sm flex-fill d-flex align-items-center justify-content-center gap-1"
-                          onClick={handleCancelEdit}
-                          disabled={saving || uploadingPhoto}
-                          style={{ fontSize: '0.7rem', padding: '0.3rem 0.4rem' }}
-                        >
-                          <CloseIcon className="w-3 h-3" />
-                          Cancel
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm flex-fill d-flex align-items-center justify-content-center gap-1"
-                          onClick={handleSaveProfile}
-                          disabled={saving || phoneError || uploadingPhoto}
-                          style={{ fontSize: '0.7rem', padding: '0.3rem 0.4rem' }}
-                        >
-                          {saving ? (
-                            <>
-                              <div className="spinner-border spinner-border-sm me-1" role="status"></div>
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-3 h-3" />
-                              Save
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="d-flex gap-1">
-                        <button
-                          className="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1"
-                          onClick={signOut}
-                          style={{ fontSize: '0.7rem', padding: '0.3rem 0.4rem' }}
-                        >
-                          <LogOut className="w-3 h-3" />
-                          Sign Out
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="d-flex align-items-center auth-buttons-compact">
-              <button
-                className="btn btn-outline-light auth-btn no-wrap"
-                onClick={() => auth('signin')}
-              >
-                Sign In
-              </button>
-              <button
-                className="btn btn-primary auth-btn no-wrap"
-                onClick={() => auth('signup')}
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
-        </div>
-        {/* MOBILE TOGGLE */}
-        <div className="d-md-none d-flex align-items-center gap-1 ms-auto">
-          <button
-            id="menu-btn"
-            className="btn p-1 accent border-0"
-            onClick={() => setMobileMenuOpen(true)}
-            style={{ marginRight: '10px' }}
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-          {isAuthenticated && renderMobileNavbarButton()}
-        </div>
-      </nav>
-      
-      {/* MOBILE MENU */}
-      <div className={`mobile-menu glass ${mobileMenuOpen ? 'visible' : ''}`}>
-        <button
-          className="btn position-absolute top-0 end-0 m-3 p-2 text-white"
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <div className="d-flex flex-column align-items-center gap-3 w-100 pt-5 px-3">
-          {/* Mobile Search */}
-          {showSearch && (
-            <div className="w-100 mb-3">
-              <form onSubmit={handleSearchSubmit} className="position-relative">
-                <input
-                  type="text"
-                  className="form-control search-bar w-100"
-                  placeholder="Search products..."
-                  value={localSearchQuery}
-                  onChange={handleSearchChange}
-                  style={{ fontSize: '0.9rem', height: '42px', paddingRight: '35px' }}
-                />
-                {localSearchQuery ? (
-                  <button
-                    type="button"
-                    className="btn btn-link position-absolute end-0 top-50 translate-middle-y text-muted p-0"
-                    onClick={handleSearchClear}
-                    style={{ right: '10px' }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <Search className="w-4 h-4 position-absolute end-0 top-50 translate-middle-y text-muted" style={{ right: '12px' }} />
-                )}
-              </form>
-            </div>
-          )}
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('home')}
-          >
-            <Home className="w-4 h-4 me-2" />
-            Home
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('about')}
-          >
-            <Info className="w-4 h-4 me-2" />
-            About Us
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('leadership')}
-          >
-            <UsersIcon className="w-4 h-4 me-2" />
-            Leadership
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('products')}
-          >
-            <Package className="w-4 h-4 me-2" />
-            Products
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={handleServices}
-          >
-            <Wrench className="w-4 h-4 me-2" />
-            Services
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('blog')}
-          >
-            <FileText className="w-4 h-4 me-2" />
-            Blog
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={handleTermsPolicy}
-          >
-            <Shield className="w-4 h-4 me-2" />
-            Terms & Policy
-          </button>
-          <button
-            className="btn btn-link text-white text-decoration-none hover-accent fs-5 border-0 w-100 text-center"
-            onClick={() => handleNavigation('contact')}
-          >
-            <Phone className="w-4 h-4 me-2" />
-            Contact
-          </button>
-          {/* Join Us Button - Mobile */}
-          <button
-            className="btn btn-success w-100 py-2 mt-2 d-flex align-items-center justify-content-center gap-2 text-sm border-0"
-            style={{
-              background: 'linear-gradient(135deg, #28a745, #20c997)',
-              border: 'none',
-              fontWeight: '600'
-            }}
-            onClick={handleJoinUs}
-          >
-            <Users className="w-4 h-4" />
-            Join Us
-          </button>
-          {/* Orders Button */}
-          {isAuthenticated && renderOrdersButton(true)}
-          {/* Auth Buttons */}
-          {!isAuthenticated && (
-            <>
-              <button className="btn btn-outline-light w-100 py-2 text-sm border-0" onClick={() => auth('signin')}>
-                Sign In
-              </button>
-              <button className="btn btn-primary w-100 py-2 mt-2 text-sm border-0" onClick={() => auth('signup')}>
-                Sign Up
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-      
-      {/* Orders Popup */}
-      {renderOrdersPopup()}
-    </>
-  );
-
-  return (
-    <>
-      {/* Use full navbar for all-products page and home page, use minimal navbar only for individual product pages */}
-      {isIndividualProductPage ? renderProductPageNavbar() : renderFullNavbar()}
-      
-      {/* Mobile Profile Popup */}
-      {mobileProfileOpen && (
-        <div className={`mobile-profile-popup ${mobileProfileOpen ? 'visible' : ''}`}>
-          <div className="mobile-profile-popup-content">
+  const renderMoreDropdown = () => {
+    if (!moreDropdownOpen) return null;
+    
+    const dropdownItems = [
+      { icon: UsersIcon, label: 'Leadership', onClick: handleLeadership },
+      { icon: Wrench, label: 'Services', onClick: handleServices },
+      { icon: FileText, label: 'Blog', onClick: handleBlog },
+      { icon: Shield, label: 'Terms & Policy', onClick: handleTermsPolicy },
+      { icon: Truck, label: 'Transport', onClick: handleTransport }
+    ];
+    
+    return (
+      <div 
+        ref={moreDropdownRef}
+        className="more-dropdown-card"
+        style={{
+          position: 'absolute',
+          top: '100%',
+          right: '0',
+          minWidth: '180px',
+          zIndex: 1100,
+          background: 'rgba(30, 30, 40, 0.95)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(143, 179, 226, 0.2)',
+          borderRadius: '8px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          animation: 'fadeIn 0.2s ease-out',
+          marginTop: '8px'
+        }}
+      >
+        <div className="py-2">
+          {dropdownItems.map(({ icon: Icon, label, onClick }) => (
             <button
-              className="btn position-absolute top-0 end-0 m-2 p-1 text-white"
-              onClick={() => setMobileProfileOpen(false)}
-              style={{ zIndex: 10 }}
+              key={label}
+              className="more-dropdown-item"
+              onClick={onClick}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                background: 'transparent',
+                border: 'none',
+                color: 'white',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.backgroundColor = 'rgba(143, 179, 226, 0.1)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.backgroundColor = 'transparent';
+              }}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderProfileDropdown = () => {
+    if (!userDropdownOpen) return null;
+    
+    const dropdownWidth = windowWidth < 480 ? '95%' : (windowWidth < 768 ? '90%' : '350px');
+    const dropdownMaxWidth = windowWidth < 480 ? '350px' : '400px';
+    
+    return (
+      <div 
+        ref={userDropdownRef}
+        className="profile-dropdown-card"
+        style={{
+          position: 'fixed',
+          top: windowWidth < 480 ? '50px' : (windowWidth < 768 ? '52px' : '60px'),
+          right: windowWidth < 480 ? '2.5%' : '10px',
+          width: dropdownWidth,
+          maxWidth: dropdownMaxWidth,
+          fontSize: '0.8rem',
+          zIndex: 1100,
+          background: 'rgba(30, 30, 40, 0.95)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(143, 179, 226, 0.2)',
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          animation: 'fadeIn 0.2s ease-out',
+          marginTop: '8px'
+        }}
+      >
+        <div className="profile-dropdown-header p-3 border-bottom">
+          <div className="d-flex align-items-center gap-3">
+            {renderUserAvatar(currentUser, 'small', isEditing)}
+            <div className="flex-grow-1">
+              <div className="fw-bold text-white" style={{ fontSize: '1rem' }}>{currentUser?.name || 'User'}</div>
+              <div className="text-muted" style={{ fontSize: '0.75rem' }}>{currentUser?.email || ''}</div>
+            </div>
+          </div>
+        </div>
+       
+        {isEditing ? renderProfileEditSection() : renderProfileDisplaySection()}
+       
+        {!isEditing && (
+          <div className="p-3">
+            <button
+              className="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center"
+              onClick={signOut}
+              style={{ 
+                fontSize: '0.8rem', 
+                padding: '0.5rem',
+                borderColor: '#f44336',
+                color: '#f44336',
+                background: 'transparent',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut className="w-4 h-4 me-2" />
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderOrdersPopup = () => {
+    if (!ordersPopupOpen) return null;
+    
+    const popupWidth = isSmallMobile ? '98%' : (isMobile ? '95%' : (isTablet ? '80%' : '60%'));
+    const popupMaxWidth = isSmallMobile ? '350px' : (isMobile ? '400px' : (isTablet ? '600px' : '800px'));
+    
+    return (
+      <div 
+        className="orders-popup-overlay"
+        onClick={(e) => {
+          if (e.target.className === 'orders-popup-overlay' || e.target.closest('.orders-popup-overlay')) {
+            closeOrdersPopup();
+          }
+        }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          animation: 'fadeIn 0.3s ease'
+        }}
+      >
+        <div 
+          ref={ordersPopupRef}
+          className="orders-popup-content"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: 'rgba(30, 30, 40, 0.95)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(143, 179, 226, 0.2)',
+            borderRadius: '12px',
+            width: popupWidth,
+            maxWidth: popupMaxWidth,
+            maxHeight: '80vh',
+            overflow: 'hidden',
+            animation: 'slideInUp 0.3s ease'
+          }}
+        >
+          <div className="orders-popup-header p-3" style={{
+            borderBottom: '1px solid rgba(143, 179, 226, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(0, 0, 0, 0.2)'
+          }}>
+            <div className="d-flex align-items-center">
+              <ShoppingBag className="w-5 h-5 me-2 text-accent" />
+              <div>
+                <div className="fw-bold text-white" style={{ fontSize: '1rem' }}>My Orders</div>
+                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                  {orders.length} order{orders.length !== 1 ? 's' : ''} found
+                </div>
+              </div>
+            </div>
+            <button
+              className="btn p-1"
+              onClick={closeOrdersPopup}
+              style={{
+                color: '#8FB3E2',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer'
+              }}
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="d-flex flex-column align-items-center w-100 pt-4 px-3">
-              {/* Profile Avatar */}
-              <div className="position-relative mb-3">
-                {renderUserAvatar(currentUser, 'large', isEditing)}
-                <input
-                  id="photo-upload-mobile-popup"
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="d-none"
-                  disabled={uploadingPhoto}
-                />
+          </div>
+          
+          <div className="orders-popup-body p-3" style={{ overflowY: 'auto', maxHeight: 'calc(80vh - 70px)' }}>
+            {loadingOrders ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-accent" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                <div className="text-muted mt-2" style={{ fontSize: '0.9rem' }}>Loading your orders...</div>
               </div>
-              {/* User Info */}
-              <div className="text-center mb-3">
-                <div className="fw-bold text-white fs-5">{currentUser?.name || 'User'}</div>
-                <div className="text-white small">{currentUser?.email || ''}</div>
+            ) : orders.length === 0 ? (
+              <div className="text-center py-5">
+                <ShoppingBag className="w-12 h-12 text-muted mb-3" />
+                <div className="text-white mb-2" style={{ fontSize: '1rem' }}>No orders found</div>
+                <div className="text-muted" style={{ fontSize: '0.9rem' }}>You haven't placed any orders yet</div>
               </div>
-              {/* Edit/Save Buttons */}
-              <div className="d-flex gap-2 mb-3">
-                {!isEditing ? (
-                  <button
-                    className="btn btn-outline-accent btn-sm d-flex align-items-center gap-1"
-                    onClick={handleEditProfile}
+            ) : (
+              <div className="orders-list">
+                {orders.map((order) => (
+                  <div 
+                    key={order.id} 
+                    className="order-item p-3 mb-3 rounded"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(143, 179, 226, 0.1)',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      navigate(`/order/${order.id}`);
+                      closeOrdersPopup();
+                    }}
                   >
-                    <Edit className="w-4 h-4" />
-                    Edit Profile
-                  </button>
-                ) : (
-                  <div className="d-flex gap-2">
-                    <button
-                      className="btn btn-outline-light btn-sm d-flex align-items-center gap-1"
-                      onClick={handleCancelEdit}
-                      disabled={saving || uploadingPhoto}
-                    >
-                      <CloseIcon className="w-4 h-4" />
-                      Cancel
-                    </button>
-                    <button
-                      className="btn btn-primary btn-sm d-flex align-items-center gap-1"
-                      onClick={handleSaveProfile}
-                      disabled={saving || phoneError || uploadingPhoto}
-                    >
-                      {saving ? (
-                        <>
-                          <div className="spinner-border spinner-border-sm me-1" role="status"></div>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4" />
-                          Save
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-              {/* Profile Information */}
-              <div className="w-100">
-                {isEditing ? (
-                  <div className="mb-3">
-                    <h6 className="text-accent mb-2 fw-bold">EDIT PROFILE</h6>
-                    
-                    {/* Photo Upload Section */}
-                    <div className="photo-upload-section mb-3">
-                      <div className="d-flex align-items-center gap-3">
-                        <div className="flex-grow-1">
-                          <div className="text-sm text-white mb-2">Profile Photo</div>
-                          <div className="d-flex gap-2 flex-wrap">
-                            <label
-                              htmlFor="photo-upload-mobile-popup"
-                              className="btn btn-outline-accent btn-sm d-flex align-items-center gap-1"
-                              disabled={uploadingPhoto}
-                            >
-                              <Camera className="w-4 h-4" />
-                              {uploadingPhoto ? 'Uploading...' : (editedUser?.photoURL ? 'Change Photo' : 'Upload Photo')}
-                            </label>
-                            {editedUser?.photoURL && (
-                              <button
-                                className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1"
-                                onClick={handleRemovePhoto}
-                                disabled={uploadingPhoto}
-                              >
-                                <X className="w-4 h-4" />
-                                Remove
-                              </button>
-                            )}
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <div className="fw-bold text-white mb-1" style={{ fontSize: '0.9rem' }}>
+                          Order #{order.id.slice(-8)}
+                        </div>
+                        <div className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>
+                          {formatDate(order.createdAt)}
+                        </div>
+                        {order.productName && (
+                          <div className="text-white mb-1" style={{ fontSize: '0.9rem' }}>
+                            {order.productName}
                           </div>
-                          <div className="text-white small mt-2">
-                            Recommended: Square image, max 2MB
-                          </div>
+                        )}
+                      </div>
+                      <div className="d-flex flex-column align-items-end gap-2">
+                        {getStatusBadge(order.status)}
+                        <div className="text-accent fw-bold" style={{ fontSize: '0.9rem' }}>
+                          {formatCurrency(getFinalTotalValue(order))}
                         </div>
                       </div>
                     </div>
                     
-                    {/* Edit Form Grid */}
-                    <div className="profile-edit-grid-mobile">
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">Full Name:</label>
-                        <input
-                          type="text"
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.name || ''}
-                          onChange={(e) => handleInputChange('name', e.target.value)}
-                          placeholder="Enter your full name"
-                        />
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                        Click to view details
                       </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">Email:</label>
-                        <input
-                          type="email"
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.email || ''}
-                          onChange={(e) => handleInputChange('email', e.target.value)}
-                          placeholder="Enter your email"
-                        />
-                      </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">Country Code:</label>
-                        <select
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.countryCode || '+91'}
-                          onChange={(e) => handleInputChange('countryCode', e.target.value)}
-                        >
-                          {countries.map((country) => (
-                            <option key={country.code} value={country.code}>
-                              {country.flag} {country.name} ({country.code})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">Phone:</label>
-                        <input
-                          type="tel"
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.phone || ''}
-                          onChange={(e) => handleInputChange('phone', e.target.value)}
-                          placeholder="Enter phone number"
-                        />
-                        {phoneError && (
-                          <div className="text-danger small mt-1">{phoneError}</div>
-                        )}
-                      </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">Country:</label>
-                        <select
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.country || 'India'}
-                          onChange={(e) => handleInputChange('country', e.target.value)}
-                        >
-                          {countryNames.map((countryName) => (
-                            <option key={countryName} value={countryName}>{countryName}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">State:</label>
-                        <input
-                          type="text"
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.state || ''}
-                          onChange={(e) => handleInputChange('state', e.target.value)}
-                          placeholder="Enter state"
-                        />
-                      </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">City:</label>
-                        <input
-                          type="text"
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.city || ''}
-                          onChange={(e) => handleInputChange('city', e.target.value)}
-                          placeholder="Enter city"
-                        />
-                      </div>
-                      <div className="form-group-sm">
-                        <label className="profile-info-label text-white">Pincode:</label>
-                        <input
-                          type="text"
-                          className="form-control search-bar-transparent"
-                          value={editedUser?.pincode || ''}
-                          onChange={(e) => handleInputChange('pincode', e.target.value)}
-                          placeholder="Enter pincode"
-                        />
-                      </div>
+                      <button
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={(e) => handleRemoveOrder(order.id, e)}
+                        style={{ 
+                          fontSize: '0.7rem', 
+                          padding: '0.2rem 0.5rem',
+                          background: 'transparent',
+                          border: '1px solid #f44336',
+                          color: '#f44336',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="profile-info-grid-mobile mb-3">
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Full Name:</span>
-                      <span className="profile-info-value text-white">{currentUser?.name || 'Not set'}</span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Email:</span>
-                      <span className="profile-info-value text-white">{currentUser?.email || 'Not set'}</span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Phone:</span>
-                      <span className="profile-info-value text-white">
-                        {currentUser?.phone || 'Not set'}
-                      </span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Country:</span>
-                      <span className="profile-info-value text-white">
-                        {getCountryFlag(currentUser?.country)} {currentUser?.country || 'Not set'}
-                      </span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">State:</span>
-                      <span className="profile-info-value text-white">{currentUser?.state || 'Not set'}</span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">City:</span>
-                      <span className="profile-info-value text-white">{currentUser?.city || 'Not set'}</span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Pincode:</span>
-                      <span className="profile-info-value text-white">{currentUser?.pincode || 'Not set'}</span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Member Since:</span>
-                      <span className="profile-info-value text-white">{getMemberSince()}</span>
-                    </div>
-                    <div className="profile-info-item">
-                      <span className="profile-info-label text-white">Status:</span>
-                      <span className="status-badge-small">Certified</span>
-                    </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMobileMenu = () => {
+    if (!mobileMenuOpen) return null;
+    
+    const mobileLinks = [
+      { icon: Home, label: 'Home', onClick: () => handleNavigation('home') },
+      { icon: Info, label: 'About Us', onClick: () => handleNavigation('about') },
+      { icon: Package, label: 'Products', onClick: () => handleNavigation('products') },
+      { icon: Phone, label: 'Contact', onClick: () => handleNavigation('contact') },
+      { icon: UsersIcon, label: 'Leadership', onClick: handleLeadership },
+      { icon: Wrench, label: 'Services', onClick: handleServices },
+      { icon: FileText, label: 'Blog', onClick: handleBlog },
+      { icon: Shield, label: 'Terms & Policy', onClick: handleTermsPolicy },
+      { icon: Truck, label: 'Transport', onClick: handleTransport }
+    ];
+    
+    const menuWidth = isSmallMobile ? '90%' : (isMobile ? '85%' : '350px');
+    
+    return (
+      <div 
+        ref={mobileMenuRef}
+        className="mobile-menu-overlay"
+        onClick={(e) => {
+          if (e.target.className === 'mobile-menu-overlay' || e.target.closest('.mobile-menu-overlay')) {
+            setMobileMenuOpen(false);
+          }
+        }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1300,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'flex-end',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          animation: 'fadeIn 0.3s ease'
+        }}
+      >
+        <div 
+          className="mobile-menu-content"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: 'rgba(30, 30, 40, 0.95)',
+            backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(143, 179, 226, 0.2)',
+            width: menuWidth,
+            height: '100%',
+            overflowY: 'auto',
+            animation: 'slideInRight 0.3s ease'
+          }}
+        >
+          <div className="mobile-menu-header p-3" style={{
+            borderBottom: '1px solid rgba(143, 179, 226, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div className="d-flex align-items-center">
+              <img src="/img/icon2.png" alt="Logo" style={{ height: '32px', marginRight: '10px' }} />
+              <div>
+                <div className="fw-bold accent" style={{ fontSize: '0.9rem' }}>ATIRATH TRADERS</div>
+                <div className="text-muted" style={{ fontSize: '0.7rem' }}>INDIA PVT.LTD</div>
+              </div>
+            </div>
+            <button
+              className="btn p-1"
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                color: '#8FB3E2',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          
+          <div className="mobile-menu-body p-3">
+            {isAuthenticated && currentUser && (
+              <div className="mb-4 p-3 rounded" style={{
+                background: 'rgba(143, 179, 226, 0.1)',
+                border: '1px solid rgba(143, 179, 226, 0.2)'
+              }}>
+                <div className="d-flex align-items-center gap-3 mb-2">
+                  {renderUserAvatar(currentUser, 'small')}
+                  <div>
+                    <div className="fw-bold text-white" style={{ fontSize: '0.9rem' }}>{currentUser.name}</div>
+                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>{currentUser.email}</div>
                   </div>
-                )}
-                {/* Global Reach Info */}
-                <div className="text-center text-white small mb-3">
-                  <div className="text-accent fw-bold">Global Reach, Local Impact</div>
-                  <div>Serving customers across 42 countries</div>
                 </div>
-                {/* Sign Out Button */}
+              </div>
+            )}
+            
+            {/* Search bar in mobile menu - only show on /product/* pages */}
+            {showSearch && (
+              <div className="mb-4">
+                <form onSubmit={handleSearchSubmit} className="position-relative">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search products..."
+                    value={localSearchQuery}
+                    onChange={handleSearchChange}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(143, 179, 226, 0.3)',
+                      color: 'white',
+                      fontSize: '0.9rem',
+                      padding: '0.5rem 2.5rem 0.5rem 0.75rem',
+                      borderRadius: '6px',
+                      width: '100%'
+                    }}
+                  />
+                  {localSearchQuery ? (
+                    <button
+                      type="button"
+                      className="btn btn-link position-absolute end-0 top-50 translate-middle-y text-muted p-0"
+                      onClick={handleSearchClear}
+                      style={{ 
+                        right: '10px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#8FB3E2',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <Search className="w-4 h-4 position-absolute end-0 top-50 translate-middle-y text-muted" style={{ right: '12px', color: '#8FB3E2' }} />
+                  )}
+                </form>
+              </div>
+            )}
+            
+            <div className="mb-4">
+              <h6 className="text-accent mb-3" style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>NAVIGATION</h6>
+              <div className="d-flex flex-column gap-2">
+                {mobileLinks.map(({ icon: Icon, label, onClick }) => (
+                  <button
+                    key={label}
+                    className="mobile-menu-link"
+                    onClick={onClick}
+                    style={{
+                      fontSize: '0.9rem',
+                      padding: '0.75rem 0',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'white',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <button
+                className="btn btn-success w-100"
+                onClick={handleJoinUs}
+                style={{
+                  background: 'linear-gradient(135deg, #28a745, #20c997)',
+                  border: 'none',
+                  fontWeight: '600',
+                  fontSize: '0.9rem',
+                  padding: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                <Users className="w-5 h-5" />
+                Join Us
+              </button>
+            </div>
+            
+            {!isAuthenticated && (
+              <div className="mb-4">
+                <h6 className="text-accent mb-3" style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>ACCOUNT</h6>
+                <div className="d-flex flex-column gap-2">
+                  <button
+                    className="btn btn-outline-light w-100"
+                    onClick={() => auth('signin')}
+                    style={{ 
+                      fontSize: '0.9rem', 
+                      padding: '0.75rem',
+                      background: 'transparent',
+                      border: '1px solid rgba(255, 255, 255, 0.5)',
+                      borderRadius: '6px',
+                      color: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <User className="w-5 h-5 me-2" />
+                    Sign In
+                  </button>
+                  <button
+                    className="btn btn-primary w-100"
+                    onClick={() => auth('signup')}
+                    style={{ 
+                      fontSize: '0.9rem', 
+                      padding: '0.75rem',
+                      background: '#8FB3E2',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <User className="w-5 h-5 me-2" />
+                    Sign Up
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {isAuthenticated && (
+              <div className="mb-4">
                 <button
-                  className="btn btn-primary w-100 py-2 d-flex align-items-center justify-content-center gap-2"
+                  className="btn btn-outline-danger w-100"
                   onClick={signOut}
+                  style={{ 
+                    fontSize: '0.9rem', 
+                    padding: '0.75rem',
+                    background: 'transparent',
+                    border: '1px solid #f44336',
+                    borderRadius: '6px',
+                    color: '#f44336',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px'
+                  }}
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-5 h-5" />
                   Sign Out
+                </button>
+              </div>
+            )}
+            
+            <div className="mt-4 pt-4 border-top" style={{ borderColor: 'rgba(143, 179, 226, 0.2)' }}>
+              <h6 className="text-accent mb-3" style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>CONTACT US</h6>
+              <div className="d-flex flex-column gap-2">
+                <button
+                  className="btn btn-outline-accent w-100"
+                  onClick={handlePhoneCall}
+                  style={{ 
+                    fontSize: '0.9rem', 
+                    padding: '0.75rem',
+                    background: 'transparent',
+                    border: '1px solid #8FB3E2',
+                    borderRadius: '6px',
+                    color: '#8FB3E2',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <PhoneCall className="w-5 h-5 me-2" />
+                  Call Now
+                </button>
+                <button
+                  className="btn btn-outline-success w-100"
+                  onClick={handleWhatsAppCall}
+                  style={{ 
+                    fontSize: '0.9rem', 
+                    padding: '0.75rem',
+                    background: 'transparent',
+                    border: '1px solid #28a745',
+                    borderRadius: '6px',
+                    color: '#28a745',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <MessageCircle className="w-5 h-5 me-2" />
+                  WhatsApp
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Overlay */}
-      {(mobileMenuOpen || mobileProfileOpen || ordersPopupOpen) && (
-        <div className="overlay active d-md-none" onClick={() => {
-          setMobileMenuOpen(false);
-          setMobileProfileOpen(false);
-          closeOrdersPopup();
-        }}></div>
-      )}
+      </div>
+    );
+  };
+
+  const renderDesktopView = () => {
+    if (!isDesktop) return null;
+    
+    const desktopLinks = [
+      { icon: Home, label: 'Home', onClick: () => handleNavigation('home') },
+      { icon: Info, label: 'About Us', onClick: () => handleNavigation('about') },
+      { icon: Package, label: 'Products', onClick: () => handleNavigation('products') },
+      { icon: Phone, label: 'Contact', onClick: () => handleNavigation('contact') }
+    ];
+   
+    return (
+      <nav className="navbar glass" style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 1rem',
+        height: '60px',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        background: 'rgba(30, 30, 40, 0.8)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: '1rem' }}>
+          <div style={{ marginRight: '0.5rem' }}>
+            <img src="/img/icon2.png" alt="Logo" style={{ height: '40px' }} />
+          </div>
+          <div>
+            <div className="fw-bold accent mb-0" style={{ fontSize: '1.1rem', lineHeight: '1.1' }}>
+              ATIRATH TRADERS
+            </div>
+            <div className="fw-bold accent mb-0" style={{ fontSize: '0.9rem', lineHeight: '1.1' }}>
+              INDIA PVT.LTD
+            </div>
+            <div className="opacity-75" style={{ fontSize: '0.75rem', lineHeight: '1.1' }}>
+              Diverse Businesses, One Vision
+            </div>
+          </div>
+        </div>
+        
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          flexGrow: 1, 
+          justifyContent: 'center',
+          flexWrap: 'wrap'
+        }}>
+          {desktopLinks.map(({ icon: Icon, label, onClick }) => (
+            <button
+              key={label}
+              className="nav-link-btn"
+              onClick={onClick}
+              style={{
+                fontSize: '0.95rem',
+                padding: '0.6rem 0.8rem',
+                background: 'transparent',
+                border: 'none',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.color = '#8FB3E2';
+                e.target.style.transform = 'translateY(-1px)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.color = 'white';
+                e.target.style.transform = 'translateY(0)';
+              }}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+          
+          <div style={{ position: 'relative' }}>
+            <button
+              ref={moreButtonRef}
+              className="nav-link-btn"
+              onClick={toggleMoreDropdown}
+              style={{
+                fontSize: '0.95rem',
+                padding: '0.6rem 0.8rem',
+                background: 'transparent',
+                border: 'none',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.color = '#8FB3E2';
+                e.target.style.transform = 'translateY(-1px)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.color = 'white';
+                e.target.style.transform = 'translateY(0)';
+              }}
+            >
+              More
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {renderMoreDropdown()}
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: 'auto' }}>
+          {showSearch && (
+            <div style={{ minWidth: '180px', flexShrink: 1, marginRight: '0.5rem' }}>
+              <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
+                <input
+                  type="text"
+                  className="search-bar"
+                  placeholder="Search products..."
+                  value={localSearchQuery}
+                  onChange={handleSearchChange}
+                  style={{ 
+                    fontSize: '0.9rem', 
+                    height: '38px', 
+                    width: '100%',
+                    padding: '0.5rem 2rem 0.5rem 0.75rem',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(143, 179, 226, 0.3)',
+                    borderRadius: '6px',
+                    color: 'white'
+                  }}
+                />
+                {localSearchQuery ? (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={handleSearchClear}
+                    style={{ 
+                      position: 'absolute', 
+                      right: '8px', 
+                      top: '50%', 
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8FB3E2',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <Search className="w-4 h-4" style={{ 
+                    position: 'absolute', 
+                    right: '10px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)',
+                    color: '#8FB3E2'
+                  }} />
+                )}
+              </form>
+            </div>
+          )}
+          
+          <button
+            className="join-btn"
+            onClick={handleJoinUs}
+            style={{
+              background: 'linear-gradient(135deg, #28a745, #20c997)',
+              border: 'none',
+              fontWeight: '600',
+              fontSize: '0.9rem',
+              padding: '0.5rem 0.8rem',
+              height: '38px',
+              minWidth: '80px',
+              borderRadius: '6px',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              marginRight: '0.5rem',
+              transition: 'transform 0.2s'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.transform = 'scale(1.05)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.transform = 'scale(1)';
+            }}
+          >
+            <Users className="w-4 h-4" />
+            Join Us
+          </button>
+          
+          {isAuthenticated ? (
+            <div className="user-dropdown" style={{ position: 'relative' }}>
+              {renderNavbarButton()}
+              {renderProfileDropdown()}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                className="auth-btn"
+                onClick={() => auth('signin')}
+                style={{ 
+                  fontSize: '0.9rem', 
+                  padding: '0.5rem 0.8rem', 
+                  height: '38px',
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                  e.target.style.transform = 'translateY(-1px)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = 'transparent';
+                  e.target.style.transform = 'translateY(0)';
+                }}
+              >
+                Sign In
+              </button>
+              <button
+                className="auth-btn"
+                onClick={() => auth('signup')}
+                style={{ 
+                  fontSize: '0.9rem', 
+                  padding: '0.5rem 0.8rem', 
+                  height: '38px',
+                  background: '#8FB3E2',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = '#7a9fd1';
+                  e.target.style.transform = 'translateY(-1px)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = '#8FB3E2';
+                  e.target.style.transform = 'translateY(0)';
+                }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+    );
+  };
+
+  const renderTabletView = () => {
+    if (!isTablet) return null;
+    
+    return (
+      <nav className="navbar glass" style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 0.5rem',
+        height: '56px',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        background: 'rgba(30, 30, 40, 0.8)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: '0.5rem' }}>
+          <div style={{ marginRight: '0.5rem' }}>
+            <img src="/img/icon2.png" alt="Logo" style={{ height: '38px' }} />
+          </div>
+          <div>
+            <div className="fw-bold accent mb-0" style={{ fontSize: '0.85rem', lineHeight: '1.1' }}>
+              ATIRATH TRADERS
+            </div>
+            <div className="fw-bold accent mb-0" style={{ fontSize: '0.7rem', lineHeight: '1.1' }}>
+              INDIA PVT.LTD
+            </div>
+            <div className="opacity-75" style={{ fontSize: '0.6rem', lineHeight: '1.1' }}>
+              Diverse Businesses, One Vision
+            </div>
+          </div>
+        </div>
+       
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+          {showSearch && (
+            <div style={{ 
+              flex: 1, 
+              minWidth: '150px', 
+              maxWidth: windowWidth < 900 ? '180px' : '200px',
+              marginRight: '0.5rem' 
+            }}>
+              <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
+                <input
+                  type="text"
+                  className="search-bar"
+                  placeholder="Search products..."
+                  value={localSearchQuery}
+                  onChange={handleSearchChange}
+                  style={{ 
+                    fontSize: '0.8rem', 
+                    height: '34px', 
+                    width: '100%',
+                    padding: '0.4rem 1.8rem 0.4rem 0.6rem',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(143, 179, 226, 0.3)',
+                    borderRadius: '6px',
+                    color: 'white'
+                  }}
+                />
+                {localSearchQuery ? (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={handleSearchClear}
+                    style={{ 
+                      position: 'absolute', 
+                      right: '6px', 
+                      top: '50%', 
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8FB3E2',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <Search className="w-3 h-3" style={{ 
+                    position: 'absolute', 
+                    right: '8px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)',
+                    color: '#8FB3E2'
+                  }} />
+                )}
+              </form>
+            </div>
+          )}
+          
+          <button
+            className="join-btn"
+            onClick={handleJoinUs}
+            style={{
+              background: 'linear-gradient(135deg, #28a745, #20c997)',
+              border: 'none',
+              fontWeight: '600',
+              fontSize: '0.75rem',
+              padding: '0.35rem 0.6rem',
+              height: '34px',
+              borderRadius: '6px',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              marginRight: '0.5rem'
+            }}
+          >
+            <Users className="w-3 h-3" />
+            Join Us
+          </button>
+         
+          {!isAuthenticated && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '0.5rem' }}>
+              <button
+                className="auth-btn"
+                onClick={() => auth('signin')}
+                style={{ 
+                  fontSize: '0.75rem', 
+                  padding: '0.35rem 0.6rem', 
+                  height: '34px',
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Sign In
+              </button>
+              <button
+                className="auth-btn"
+                onClick={() => auth('signup')}
+                style={{ 
+                  fontSize: '0.75rem', 
+                  padding: '0.35rem 0.6rem', 
+                  height: '34px',
+                  background: '#8FB3E2',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
+         
+          {isAuthenticated && (
+            <div style={{ marginRight: '0.5rem' }}>
+              {renderMobileNavbarButton()}
+            </div>
+          )}
+         
+          <button
+            id="menu-btn"
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              minWidth: '38px',
+              minHeight: '38px',
+              width: '38px',
+              height: '38px',
+              background: 'transparent',
+              border: 'none',
+              color: '#8FB3E2',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+      </nav>
+    );
+  };
+
+  const renderMobileView = () => {
+    if (!isMobile && !isSmallMobile) return null;
+    
+    const isVerySmall = windowWidth < 400;
+    const isFoldPhone = windowWidth < 360;
+    
+    // Calculate responsive values
+    const navbarHeight = isFoldPhone ? '48px' : (isVerySmall ? '50px' : '54px');
+    const logoHeight = isFoldPhone ? '28px' : (isVerySmall ? '30px' : '34px');
+    const fontSizeTitle = isFoldPhone ? '0.6rem' : (isVerySmall ? '0.65rem' : '0.7rem');
+    const fontSizeSubtitle = isFoldPhone ? '0.45rem' : (isVerySmall ? '0.5rem' : '0.55rem');
+    const fontSizeTagline = isFoldPhone ? '0.35rem' : (isVerySmall ? '0.4rem' : '0.45rem');
+    
+    return (
+      <nav className="navbar glass" style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: isFoldPhone ? '0 0.3rem' : '0 0.5rem',
+        height: navbarHeight,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        background: 'rgba(30, 30, 40, 0.8)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          flexShrink: 0, 
+          marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
+          maxWidth: '40%'
+        }}>
+          <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
+            <img src="/img/icon2.png" alt="Logo" style={{ height: logoHeight }} />
+          </div>
+          <div style={{ overflow: 'hidden' }}>
+            <div className="fw-bold accent mb-0" style={{ 
+              fontSize: fontSizeTitle, 
+              lineHeight: '1.1',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              ATIRATH TRADERS
+            </div>
+            <div className="fw-bold accent mb-0" style={{ 
+              fontSize: fontSizeSubtitle, 
+              lineHeight: '1.1',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              INDIA PVT.LTD
+            </div>
+            <div className="opacity-75" style={{ 
+              fontSize: fontSizeTagline, 
+              lineHeight: '1.1',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              Diverse Businesses, One Vision
+            </div>
+          </div>
+        </div>
+       
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: isFoldPhone ? '3px' : '5px', 
+          marginLeft: 'auto',
+          flexShrink: 0
+        }}>
+          {/* SEARCH BAR FOR MOBILE - Always shown when on product pages */}
+          {showSearch && (
+            <div style={{ 
+              flex: 1, 
+              minWidth: isFoldPhone ? '80px' : (isVerySmall ? '100px' : '120px'),
+              maxWidth: isFoldPhone ? '100px' : (isVerySmall ? '130px' : '160px'),
+              marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
+                <input
+                  type="text"
+                  className="search-bar"
+                  placeholder="Search..."
+                  value={localSearchQuery}
+                  onChange={handleSearchChange}
+                  style={{ 
+                    fontSize: isFoldPhone ? '0.6rem' : (isVerySmall ? '0.65rem' : '0.7rem'), 
+                    height: isFoldPhone ? '28px' : (isVerySmall ? '30px' : '32px'), 
+                    width: '100%',
+                    padding: isFoldPhone ? '0.2rem 1.4rem 0.2rem 0.4rem' : (isVerySmall ? '0.25rem 1.5rem 0.25rem 0.45rem' : '0.3rem 1.6rem 0.3rem 0.5rem'),
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(143, 179, 226, 0.3)',
+                    borderRadius: '6px',
+                    color: 'white'
+                  }}
+                />
+                {localSearchQuery ? (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={handleSearchClear}
+                    style={{ 
+                      position: 'absolute', 
+                      right: '4px', 
+                      top: '50%', 
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8FB3E2',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <X className={isFoldPhone ? "w-2.5 h-2.5" : "w-3 h-3"} />
+                  </button>
+                ) : (
+                  <Search className={isFoldPhone ? "w-2.5 h-2.5" : "w-3 h-3"} style={{ 
+                    position: 'absolute', 
+                    right: '5px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)',
+                    color: '#8FB3E2'
+                  }} />
+                )}
+              </form>
+            </div>
+          )}
+         
+          {isAuthenticated && (
+            <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
+              {renderMobileNavbarButton()}
+            </div>
+          )}
+         
+          <button
+            id="menu-btn"
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              minWidth: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              minHeight: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              width: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              height: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              background: 'transparent',
+              border: 'none',
+              color: '#8FB3E2',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Menu className={isFoldPhone ? "w-4 h-4" : (isVerySmall ? "w-4.5 h-4.5" : "w-5 h-5")} />
+          </button>
+        </div>
+      </nav>
+    );
+  };
+
+  const renderSmallMobileView = () => {
+    if (!isSmallMobile) return null;
+    
+    const isVerySmall = windowWidth < 400;
+    const isFoldPhone = windowWidth < 360;
+    
+    return (
+      <nav className="navbar glass" style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: isFoldPhone ? '0 0.3rem' : '0 0.5rem',
+        height: isFoldPhone ? '48px' : (isVerySmall ? '50px' : '54px'),
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        background: 'rgba(30, 30, 40, 0.8)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          flexShrink: 0, 
+          marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
+          maxWidth: '40%'
+        }}>
+          <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
+            <img src="/img/icon2.png" alt="Logo" style={{ 
+              height: isFoldPhone ? '28px' : (isVerySmall ? '30px' : '34px') 
+            }} />
+          </div>
+          <div style={{ overflow: 'hidden' }}>
+            <div className="fw-bold accent mb-0" style={{ 
+              fontSize: isFoldPhone ? '0.6rem' : (isVerySmall ? '0.65rem' : '0.7rem'), 
+              lineHeight: '1.1',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              ATIRATH TRADERS
+            </div>
+            <div className="fw-bold accent mb-0" style={{ 
+              fontSize: isFoldPhone ? '0.45rem' : (isVerySmall ? '0.5rem' : '0.55rem'), 
+              lineHeight: '1.1',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              INDIA PVT.LTD
+            </div>
+          </div>
+        </div>
+       
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: isFoldPhone ? '3px' : '5px', 
+          marginLeft: 'auto',
+          flexShrink: 0
+        }}>
+          {/* SEARCH BAR FOR SMALL MOBILE - Only show icon on very small screens */}
+          {showSearch && (
+            <div style={{ 
+              flex: 1, 
+              minWidth: isFoldPhone ? '60px' : (isVerySmall ? '80px' : '100px'),
+              maxWidth: isFoldPhone ? '80px' : (isVerySmall ? '100px' : '120px'),
+              marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
+                {isFoldPhone ? (
+                  <button
+                    type="button"
+                    onClick={() => {/* Focus on search when clicked */}}
+                    style={{
+                      width: '100%',
+                      height: isFoldPhone ? '28px' : (isVerySmall ? '30px' : '32px'),
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(143, 179, 226, 0.3)',
+                      borderRadius: '6px',
+                      color: '#8FB3E2',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Search className={isFoldPhone ? "w-3 h-3" : "w-3.5 h-3.5"} />
+                  </button>
+                ) : (
+                  <input
+                    type="text"
+                    className="search-bar"
+                    placeholder="Search..."
+                    value={localSearchQuery}
+                    onChange={handleSearchChange}
+                    style={{ 
+                      fontSize: isVerySmall ? '0.65rem' : '0.7rem', 
+                      height: isVerySmall ? '30px' : '32px', 
+                      width: '100%',
+                      padding: isVerySmall ? '0.25rem 1.5rem 0.25rem 0.45rem' : '0.3rem 1.6rem 0.3rem 0.5rem',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(143, 179, 226, 0.3)',
+                      borderRadius: '6px',
+                      color: 'white'
+                    }}
+                  />
+                )}
+                {!isFoldPhone && localSearchQuery && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={handleSearchClear}
+                    style={{ 
+                      position: 'absolute', 
+                      right: '4px', 
+                      top: '50%', 
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8FB3E2',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </form>
+            </div>
+          )}
+         
+          {isAuthenticated && (
+            <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
+              {renderMobileNavbarButton()}
+            </div>
+          )}
+         
+          <button
+            id="menu-btn"
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              minWidth: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              minHeight: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              width: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              height: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              background: 'transparent',
+              border: 'none',
+              color: '#8FB3E2',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Menu className={isFoldPhone ? "w-4 h-4" : (isVerySmall ? "w-4.5 h-4.5" : "w-5 h-5")} />
+          </button>
+        </div>
+      </nav>
+    );
+  };
+
+  return (
+    <>
+      {renderDesktopView()}
+      {renderTabletView()}
+      {renderMobileView()}
+      {renderSmallMobileView()}
+      {renderOrdersPopup()}
+      {renderMobileMenu()}
+      {isAuthenticated && userDropdownOpen && renderProfileDropdown()}
     </>
   );
 };

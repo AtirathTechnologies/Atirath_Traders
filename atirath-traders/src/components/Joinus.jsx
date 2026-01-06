@@ -55,6 +55,24 @@ const JoinUs = () => {
     }
   ];
 
+  const handleApplyClick = (positionTitle) => {
+    const whatsappNumber = '+919247485871';
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    const message = `*Job Application Inquiry* 📝%0A%0A*Date:* ${currentDate}%0A*Position Interested In:* ${positionTitle}%0A%0AHello Atirath Traders Team,%0A%0AI am interested in applying for the ${positionTitle} position.%0A%0APlease provide me with the application process details.%0A%0A_Contact me for further discussion._`;
+    
+    const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
+    
+    window.open(whatsappURL, '_blank');
+  };
+
   return (
     <section className="py-5" style={{ marginTop: '100px', minHeight: '100vh' }}>
       <div className="container">
@@ -63,6 +81,11 @@ const JoinUs = () => {
           <button 
             onClick={() => navigate(-1)}
             className="btn btn-outline-primary d-flex align-items-center gap-2"
+            style={{
+              background: 'rgba(143, 179, 226, 0.1)',
+              borderColor: '#8FB3E2',
+              color: '#8FB3E2'
+            }}
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -124,8 +147,13 @@ const JoinUs = () => {
                     <div className="text-light opacity-80 mb-3">
                       <strong>Location:</strong> {position.location}
                     </div>
-                    <button className="btn btn-primary w-100">
-                      Apply Now
+                    {/* Apply Now Button - Direct WhatsApp Link */}
+                    <button 
+                      className="apply-now-button-fixed"
+                      onClick={() => handleApplyClick(position.title)}
+                    >
+                      <i className="fab fa-whatsapp me-2"></i>
+                      Apply via WhatsApp
                     </button>
                   </div>
                 </div>
@@ -182,6 +210,62 @@ const JoinUs = () => {
           </div>
         </div>
       </div>
+
+      {/* Inline Styles */}
+      <style jsx>{`
+        /* Apply Now Button */
+        .apply-now-button-fixed {
+          background: linear-gradient(135deg, #25D366, #128C7E) !important;
+          border: none !important;
+          color: white !important;
+          font-weight: 600 !important;
+          padding: 0.75rem 1.5rem !important;
+          border-radius: 0.75rem !important;
+          cursor: pointer !important;
+          width: 100% !important;
+          transition: all 0.3s ease !important;
+          display: block !important;
+          margin-top: 1rem !important;
+          position: relative !important;
+          z-index: 10 !important;
+          text-decoration: none !important;
+          text-align: center !important;
+          box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3) !important;
+          min-height: auto !important;
+          min-width: auto !important;
+        }
+        
+        .apply-now-button-fixed:hover {
+          background: linear-gradient(135deg, #20bd5a, #0e7a5f) !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4) !important;
+        }
+        
+        .apply-now-button-fixed:active {
+          transform: translateY(0) !important;
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 768px) {
+          .apply-now-button-fixed {
+            padding: 0.65rem 1.25rem !important;
+            font-size: 0.95rem !important;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .apply-now-button-fixed {
+            padding: 0.6rem 1rem !important;
+            font-size: 0.9rem !important;
+          }
+        }
+      `}</style>
+      
+      {/* Add Font Awesome for icons */}
+      <link 
+        rel="stylesheet" 
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+      />
     </section>
   );
 };

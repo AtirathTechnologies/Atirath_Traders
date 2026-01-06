@@ -7,6 +7,7 @@ const Feedback = () => {
     message: ''
   });
   const [showPopup, setShowPopup] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -17,12 +18,37 @@ const Feedback = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log('Feedback submitted:', formData);
+    setIsSubmitting(true);
     
-    setShowPopup(true);
-    setFormData({ name: '', email: '', message: '' });
+    // Prepare WhatsApp message
+    const whatsappNumber = '+919247485871'; // Your WhatsApp number
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
     
-    setTimeout(() => setShowPopup(false), 3000);
+    const message = `*New Feedback Submission* 📝%0A%0A*Date:* ${currentDate}%0A*Name:* ${formData.name}%0A*Email:* ${formData.email}%0A*Message:*%0A${formData.message}%0A%0A_Submitted via Atirath Traders Website_`;
+    
+    // Create WhatsApp URL
+    const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
+    
+    // Open WhatsApp in new tab
+    window.open(whatsappURL, '_blank');
+    
+    // Simulate processing time
+    setTimeout(() => {
+      console.log('Feedback sent to WhatsApp:', formData);
+      
+      setIsSubmitting(false);
+      setShowPopup(true);
+      setFormData({ name: '', email: '', message: '' });
+      
+      setTimeout(() => setShowPopup(false), 3000);
+    }, 1000);
   };
 
   return (
@@ -32,7 +58,11 @@ const Feedback = () => {
         <h2
           className="display-4 fw-bold accent text-center mb-5"
           data-aos="zoom-in"
-          style={{ marginTop: '80px' }}   // Clears fixed navbar
+          style={{ 
+            marginTop: '80px',
+            color: '#8FB3E2',
+            textShadow: '0 2px 10px rgba(0, 0, 0, 0.3)'
+          }}
         >
           Get in Touch
         </h2>
@@ -40,7 +70,7 @@ const Feedback = () => {
         <div className="row g-5">
           {/* LEFT: Contact Us */}
           <div className="col-lg-6" data-aos="fade-up">
-            <div className="glass p-4 h-100">
+            <div className="contact-card p-4 h-100">
               <h3
                 className="h4 fw-bold accent mb-4 text-center"
                 data-aos="fade-up"
@@ -59,81 +89,143 @@ const Feedback = () => {
                 </div>
               </div>
 
-              <div>
-                <p className="small mb-2">
-                  <span className="fw-semibold">Website:</span> www.atirathtraders.com
-                </p>
-                <p className="small mb-2">
-                  <span className="fw-semibold">Email:</span> info@atirathtradersltd.com
-                </p>
-                <p className="small mb-2">
-                  <span className="fw-semibold">Phone:</span> +91 7396007479
+              <div className="contact-details">
+                <div className="contact-item mb-3">
+                  <div className="contact-label fw-semibold mb-1">Website:</div>
+                  <a href="https://www.atirathtraders.com" 
+                     className="contact-value text-decoration-none" 
+                     target="_blank" 
+                     rel="noopener noreferrer">
+                    www.atirathtraders.com
+                  </a>
+                </div>
+                
+                <div className="contact-item mb-3">
+                  <div className="contact-label fw-semibold mb-1">Email:</div>
+                  <a href="mailto:info@atirathtradersltd.com" 
+                     className="contact-value text-decoration-none">
+                    info@atirathtradersltd.com
+                  </a>
+                </div>
+                
+                <div className="contact-item mb-3">
+                  <div className="contact-label fw-semibold mb-1">Phone:</div>
+                  <a href="tel:+917396007479" 
+                     className="contact-value text-decoration-none">
+                    +91 7396007479
+                  </a>
+                </div>
 
-                </p>
-                <p className="small mb-2">
-                  <span className="fw-semibold">Social Media:</span> @AtirathTraders (LinkedIn, Instagram, Facebook, Twitter)
-                </p>
-                <p className="small mb-0">
-                  <span className="fw-semibold">Address:</span> Flat No:45, Jai Hind Silicon valley, Madhapur Hyderabad, Telangana, 500081
-                </p>
+                <div className="contact-item mb-3">
+                  <div className="contact-label fw-semibold mb-1">WhatsApp:</div>
+                  <a href="https://wa.me/919247485871" 
+                     className="contact-value text-decoration-none"
+                     target="_blank" 
+                     rel="noopener noreferrer">
+                    +91 9247485871
+                  </a>
+                </div>
+                
+                <div className="contact-item mb-3">
+                  <div className="contact-label fw-semibold mb-1">Social Media:</div>
+                  <div className="contact-value">
+                    @AtirathTraders (LinkedIn, Instagram, Facebook, Twitter)
+                  </div>
+                </div>
+                
+                <div className="contact-item">
+                  <div className="contact-label fw-semibold mb-1">Address:</div>
+                  <div className="contact-value">
+                    Flat No:45, Jai Hind Silicon valley,<br />
+                    Madhapur Hyderabad,<br />
+                    Telangana, 500081
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* RIGHT: Feedback Form */}
           <div className="col-lg-6" data-aos="fade-up" data-aos-delay="200">
-            <div className="glass p-4">
+            <div className="feedback-form-card p-4 h-100">
               <h3
                 className="h4 fw-bold accent mb-4 text-center"
                 data-aos="fade-up"
                 data-aos-delay="300"
               >
-                Feedback
+                Feedback Form
               </h3>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="form-label fw-semibold">Name</label>
+              <form onSubmit={handleSubmit} id="feedbackForm">
+                <div className="mb-4">
+                  <label className="form-label fw-semibold mb-2">
+                    Name
+                  </label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className="form-control search-bar"
-                    placeholder="Enter your name"
+                    className="form-control feedback-input"
+                    placeholder="Enter your full name"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
-                <div>
-                  <label className="form-label fw-semibold">Email</label>
+                
+                <div className="mb-4">
+                  <label className="form-label fw-semibold mb-2">
+                    Email
+                  </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="form-control search-bar"
-                    placeholder="Enter your email"
+                    className="form-control feedback-input"
+                    placeholder="Enter your email address"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
-                <div>
-                  <label className="form-label fw-semibold">Message</label>
+                
+                <div className="mb-4">
+                  <label className="form-label fw-semibold mb-2">
+                    Message
+                  </label>
                   <textarea
-                    rows="4"
+                    rows="5"
                     name="message"
                     value={formData.message}
                     onChange={handleChange}
-                    className="form-control search-bar"
-                    placeholder="Write your feedback..."
+                    className="form-control feedback-input"
+                    placeholder="Share your thoughts, suggestions, or feedback..."
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="btn btn-primary w-100 py-3 fw-semibold"
-                >
-                  Submit
-                </button>
+                
+                <div className="text-center mt-4">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-submit-feedback"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-paper-plane me-2"></i>
+                        Submit Feedback
+                      </>
+                    )}
+                  </button>
+                  
+                  
+                </div>
               </form>
             </div>
           </div>
@@ -142,12 +234,33 @@ const Feedback = () => {
 
       {/* Success Popup */}
       {showPopup && (
-        <div className="popup visible">
-          <div className="popup-content">
-            <h3>Submit Successful</h3>
-            <p>Thank you for your feedback! We appreciate your input.</p>
+        <div className="feedback-popup-overlay">
+          <div className="feedback-popup-content">
+            <div className="popup-icon">
+              <i className="fab fa-whatsapp"></i>
+            </div>
+            
+            <h3 className="popup-title">Thank You!</h3>
+            
+            <p className="popup-message">
+              Your feedback has been submitted successfully. Please check the WhatsApp window that opened and click "Send" to complete your submission.
+            </p>
+            
+            <div className="popup-instructions mt-3">
+              <p className="small mb-2"><strong>If WhatsApp didn't open:</strong></p>
+              <a 
+                href={`https://wa.me/919247485871`} 
+                className="btn btn-whatsapp-direct"
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                <i className="fab fa-whatsapp me-2"></i>
+                Open WhatsApp Directly
+              </a>
+            </div>
+            
             <button 
-              className="btn btn-primary mt-3"
+              className="btn btn-close-popup mt-3"
               onClick={() => setShowPopup(false)}
             >
               Close
@@ -155,6 +268,269 @@ const Feedback = () => {
           </div>
         </div>
       )}
+
+      {/* Inline Styles */}
+      <style jsx>{`
+        #feedback {
+          font-family: 'Poppins', sans-serif;
+        }
+        
+        .contact-card {
+          background: rgba(25, 35, 56, 0.8);
+          border: 1px solid rgba(143, 179, 226, 0.2);
+          border-radius: 1rem;
+          backdrop-filter: blur(10px);
+          transition: all 0.3s ease;
+        }
+        
+        .contact-card:hover {
+          border-color: rgba(143, 179, 226, 0.4);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .contact-details {
+          margin-top: 1.5rem;
+        }
+        
+        .contact-item {
+          padding: 0.5rem 0;
+        }
+        
+        .contact-label {
+          color: #8FB3E2;
+          font-size: 0.9rem;
+          margin-bottom: 0.25rem;
+        }
+        
+        .contact-value {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.9rem;
+          line-height: 1.5;
+        }
+        
+        .contact-value a {
+          color: rgba(255, 255, 255, 0.9);
+          transition: color 0.3s ease;
+        }
+        
+        .contact-value a:hover {
+          color: #8FB3E2;
+        }
+        
+        .feedback-form-card {
+          background: rgba(25, 35, 56, 0.8);
+          border: 1px solid rgba(143, 179, 226, 0.2);
+          border-radius: 1rem;
+          backdrop-filter: blur(10px);
+          transition: all 0.3s ease;
+        }
+        
+        .feedback-form-card:hover {
+          border-color: rgba(143, 179, 226, 0.4);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .feedback-input {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: white;
+          padding: 0.75rem 1rem;
+          border-radius: 0.75rem;
+          font-size: 1rem;
+          transition: all 0.3s ease;
+          width: 100%;
+        }
+        
+        .feedback-input:focus {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: #8FB3E2;
+          box-shadow: 0 0 0 3px rgba(143, 179, 226, 0.2);
+          outline: none;
+        }
+        
+        .feedback-input::placeholder {
+          color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .btn-submit-feedback {
+          background: linear-gradient(135deg, #8FB3E2, #31487A);
+          border: none;
+          color: white;
+          padding: 1rem 2.5rem;
+          font-size: 1.1rem;
+          font-weight: 600;
+          border-radius: 0.75rem;
+          transition: all 0.3s ease;
+          min-width: 200px;
+          min-height: 50px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .btn-submit-feedback:hover:not(:disabled) {
+          background: linear-gradient(135deg, #7fa1d6, #2a3e6b);
+          transform: translateY(-3px);
+          box-shadow: 0 10px 20px rgba(143, 179, 226, 0.4);
+        }
+        
+        .btn-submit-feedback:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+        
+        .feedback-note {
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 0.9rem;
+          margin-top: 1rem;
+        }
+        
+        .feedback-popup-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          backdrop-filter: blur(5px);
+        }
+        
+        .feedback-popup-content {
+          background: rgba(25, 35, 56, 0.95);
+          border: 2px solid rgba(143, 179, 226, 0.3);
+          border-radius: 1.5rem;
+          padding: 2.5rem;
+          text-align: center;
+          max-width: 500px;
+          width: 90%;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+          animation: slideUpFade 0.5s ease-out;
+        }
+        
+        .popup-icon {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: rgba(37, 211, 102, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 1.5rem;
+        }
+        
+        .popup-icon i {
+          font-size: 2.5rem;
+          color: #25D366;
+        }
+        
+        .popup-title {
+          color: #8FB3E2;
+          font-size: 1.8rem;
+          font-weight: 600;
+          margin-bottom: 1rem;
+        }
+        
+        .popup-message {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 1.1rem;
+          line-height: 1.6;
+          margin-bottom: 1.5rem;
+        }
+        
+        .popup-instructions {
+          background: rgba(37, 211, 102, 0.1);
+          border-radius: 0.75rem;
+          padding: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .popup-instructions .small {
+          color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .btn-whatsapp-direct {
+          background: linear-gradient(135deg, #25D366, #128C7E);
+          color: white;
+          border: none;
+          padding: 0.5rem 1.5rem;
+          border-radius: 0.5rem;
+          font-weight: 600;
+          font-size: 0.9rem;
+          transition: all 0.3s ease;
+          text-decoration: none;
+          display: inline-block;
+        }
+        
+        .btn-whatsapp-direct:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(37, 211, 102, 0.4);
+          color: white;
+        }
+        
+        .btn-close-popup {
+          background: linear-gradient(135deg, #8FB3E2, #31487A);
+          color: white;
+          border: none;
+          padding: 0.75rem 2rem;
+          border-radius: 0.75rem;
+          font-weight: 600;
+          font-size: 1rem;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+        
+        .btn-close-popup:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(143, 179, 226, 0.4);
+        }
+        
+        @keyframes slideUpFade {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 768px) {
+          .contact-card, .feedback-form-card {
+            margin-bottom: 1.5rem;
+          }
+          
+          .btn-submit-feedback {
+            width: 100%;
+            min-width: auto;
+          }
+        }
+        
+        @media (max-width: 576px) {
+          .feedback-popup-content {
+            padding: 1.5rem;
+          }
+          
+          .popup-title {
+            font-size: 1.5rem;
+          }
+          
+          .popup-message {
+            font-size: 1rem;
+          }
+        }
+      `}</style>
+      
+      {/* Add Font Awesome for icons */}
+      <link 
+        rel="stylesheet" 
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+      />
     </section>
   );
 };

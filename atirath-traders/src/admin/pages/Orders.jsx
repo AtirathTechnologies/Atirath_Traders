@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { getDatabase, ref, onValue, update } from "firebase/database";
-import { app } from "../../firebase";
+import { database, ref, onValue, update } from "../../firebase";
 import { 
   FiSearch, 
   FiCalendar, 
@@ -47,8 +46,7 @@ export default function Orders() {
   });
 
   useEffect(() => {
-    const db = getDatabase(app);
-    const quotesRef = ref(db, "quotes");
+    const quotesRef = ref(database, "quotes");
 
     const unsubscribe = onValue(quotesRef, (snapshot) => {
       const data = snapshot.val();
@@ -81,7 +79,7 @@ export default function Orders() {
         productName: data[key].productName || data[key].product || data[key].item || "",
         price: parseFloat(data[key].price) || 0,
         quantity: parseInt(data[key].quantity) || 1,
-        unit: data[key].unit || data[key].quantityUnit || "",
+        unit: data[key].unit || data[key].quantityUnit || data[key].actualUnit || "",
         grade: data[key].grade || data[key].productGrade || "",
         packing: data[key].packing || data[key].packingType || "",
         state: data[key].state || data[key].deliveryState || "",
@@ -93,7 +91,6 @@ export default function Orders() {
         category: data[key].category || data[key].productCategory || "",
         createdAt: data[key].createdAt || data[key].date || data[key].timestamp || "",
         updatedAt: data[key].updatedAt || data[key].lastUpdated || "",
-        // Estimated bill fields - parse them properly
         baseProductPrice: parseFloat(data[key].baseProductPrice) || 0,
         gradePrice: parseFloat(data[key].gradePrice) || 0,
         packingPrice: parseFloat(data[key].packingPrice) || 0,
@@ -104,9 +101,7 @@ export default function Orders() {
         finalTotal: parseFloat(data[key].finalTotal) || 0,
         taxes: parseFloat(data[key].taxes) || 0,
         insuranceCost: parseFloat(data[key].insuranceCost) || 0,
-        // Additional fields for estimated bill display
         displayValues: data[key].displayValues || {},
-        // Legacy estimated bill fields
         estimatedBill: parseFloat(data[key].estimatedBill) || 0,
         currency: data[key].currency || "INR",
         additionalCharges: parseFloat(data[key].additionalCharges) || 0,
@@ -199,21 +194,32 @@ export default function Orders() {
   }, [search, orders]);
 
   const updateOrderStatus = async (orderId, newStatus) => {
-    if (!orderId) return;
+    if (!orderId || !newStatus) return;
     
     setUpdatingStatus(true);
     try {
-      const db = getDatabase(app);
-      const orderRef = ref(db, `quotes/${orderId}`);
-      
+      const orderRef = ref(database, `quotes/${orderId}`);
+
       await update(orderRef, {
-        status: newStatus,
+        status: newStatus.toLowerCase(),
         updatedAt: new Date().toISOString(),
         updatedBy: "admin"
       });
       
       setOrders(prevOrders => 
         prevOrders.map(order => 
+          order.id === orderId 
+            ? { 
+                ...order, 
+                status: newStatus.toLowerCase(),
+                updatedAt: new Date().toISOString() 
+              }
+            : order
+        )
+      );
+      
+      setFilteredOrders(prev => 
+        prev.map(order => 
           order.id === orderId 
             ? { 
                 ...order, 
@@ -235,15 +241,18 @@ export default function Orders() {
       );
       
       const oldStatus = orders.find(o => o.id === orderId)?.status;
-      setStats(prev => ({
-        ...prev,
-        [oldStatus]: Math.max(0, prev[oldStatus] - 1),
-        [newStatus.toLowerCase()]: prev[newStatus.toLowerCase()] + 1
-      }));
+      if (oldStatus && oldStatus !== newStatus.toLowerCase()) {
+        setStats(prev => ({
+          ...prev,
+          [oldStatus]: Math.max(0, prev[oldStatus] - 1),
+          [newStatus.toLowerCase()]: (prev[newStatus.toLowerCase()] || 0) + 1
+        }));
+      }
       
       setEditingStatus(null);
     } catch (error) {
       console.error("Error updating order status:", error);
+      alert("Failed to update status. Please try again.");
     } finally {
       setUpdatingStatus(false);
     }
@@ -316,12 +325,9 @@ export default function Orders() {
     { value: "cancelled", label: "Cancelled", icon: <FiXCircle />, color: "#f44336" }
   ];
 
-  // NEW FUNCTION: Get the final total value from Firebase
   const getFinalTotalValue = (order) => {
-    // 1. First try to get from displayValues.finalTotal
     if (order.displayValues && order.displayValues.finalTotal) {
       const finalTotalStr = order.displayValues.finalTotal;
-      // Extract number from string like "₹12,500.00"
       const match = finalTotalStr.match(/[\d,]+\.?\d*/);
       if (match) {
         const numberStr = match[0].replace(/,/g, '');
@@ -329,22 +335,18 @@ export default function Orders() {
       }
     }
     
-    // 2. Try direct finalTotal field
     if (order.finalTotal > 0) {
       return order.finalTotal;
     }
     
-    // 3. Try totalAmount field
     if (order.totalAmount > 0) {
       return order.totalAmount;
     }
     
-    // 4. Try estimatedBill field
     if (order.estimatedBill > 0) {
       return order.estimatedBill;
     }
     
-    // 5. Calculate from individual fields
     const baseProductPrice = order.baseProductPrice || 0;
     const gradePrice = order.gradePrice || 0;
     const packingPrice = order.packingPrice || 0;
@@ -360,12 +362,10 @@ export default function Orders() {
     let subtotal = baseProductPrice + gradePrice + packingPrice + brandingCost + 
                    shippingCost + insuranceCost + taxes + additionalCharges + deliveryCharges;
     
-    // Add GST if applicable
     if (gst > 0) {
       subtotal += (subtotal * gst) / 100;
     }
     
-    // Apply discount
     if (discount > 0) {
       subtotal -= discount;
     }
@@ -374,7 +374,6 @@ export default function Orders() {
   };
 
   const formatCurrency = (amount) => {
-    // Use Indian currency format with ₹ symbol
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
@@ -383,11 +382,9 @@ export default function Orders() {
     }).format(amount);
   };
 
-  // Helper function to parse display values
   const parseDisplayValue = (value) => {
     if (!value) return { amount: 0, unit: "" };
     
-    // Handle string values like "₹120.00/unit"
     const match = value.match(/([¥₹$]?)([0-9,]+(?:\.[0-9]+)?)(?:\/([a-zA-Z]+))?/);
     if (match) {
       const amount = parseFloat(match[2].replace(/,/g, ''));
@@ -405,7 +402,7 @@ export default function Orders() {
     }
 
     const csvContent = [
-      ['Order ID', 'Customer Name', 'Email', 'Phone', 'Product', 'Quantity', 'Price', 'Final Total Value', 'Status', 'Created Date', 'Last Updated', 'Location', 'Company', 'Category', 'Payment Status', 'Payment Method', 'Remarks'],
+      ['Order ID', 'Customer Name', 'Email', 'Phone', 'Product', 'Quantity', 'Unit', 'Price', 'Final Total Value', 'Status', 'Created Date', 'Last Updated', 'Location', 'Company', 'Category', 'Payment Status', 'Payment Method', 'Remarks'],
       ...orders.map(order => [
         order.id,
         order.name || '',
@@ -413,6 +410,7 @@ export default function Orders() {
         order.phone || '',
         order.product || order.item || '',
         order.quantity || 1,
+        order.unit || '',
         order.price || 0,
         getFinalTotalValue(order),
         order.status,
@@ -609,7 +607,7 @@ export default function Orders() {
                   <th>Customer</th>
                   <th>Product</th>
                   <th>Quantity</th>
-                  <th>Final Value</th> {/* Changed from VALUE to Final Value */}
+                  <th>Final Value</th>
                   <th>Status</th>
                   <th>Date</th>
                   <th>Actions</th>
@@ -618,7 +616,6 @@ export default function Orders() {
 
               <tbody>
                 {filteredOrders.map((order) => {
-                  // Calculate final total value for this order
                   const finalValue = getFinalTotalValue(order);
                   
                   return (
@@ -661,27 +658,37 @@ export default function Orders() {
                         </div>
                       </td>
                       <td className="quantity-cell">
-                        <div className="quantity-value">{order.quantity || "1"}</div>
-                        {order.unit && <div className="quantity-unit">{order.unit}</div>}
+                        <div className="quantity-display">
+                          <div className="quantity-value">
+                            {order.quantity || "1"}
+                            {order.unit && <span className="unit-suffix"> {order.unit}</span>}
+                          </div>
+                          {order.actualUnit && order.actualUnit !== order.unit && (
+                            <div className="actual-unit-note">
+                              (Actual: {order.actualUnit})
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="value-cell">
-                        {/* CHANGED: Show final total value instead of basic order value */}
                         <div className="value-display final-value">
                           <FiDollarSign size={12} />
                           {formatCurrency(finalValue)}
                         </div>
-                        <div className="value-source">
-                          {order.displayValues?.finalTotal ? "From estimated bill" : "Calculated"}
-                        </div>
                       </td>
                       <td>
                         {editingStatus === order.id ? (
-                          <div className="status-edit">
+                          <div className="status-edit" style={{ position: 'relative', zIndex: 100 }}>
                             <select
                               value={order.status}
-                              onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                              onChange={(e) => {
+                                const newStatus = e.target.value;
+                                if (newStatus !== order.status) {
+                                  updateOrderStatus(order.id, newStatus);
+                                }
+                              }}
+                              onBlur={() => setTimeout(() => setEditingStatus(null), 200)}
                               className="status-select"
-                              disabled={updatingStatus}
                               autoFocus
                             >
                               {statusOptions.map(option => (
@@ -699,6 +706,10 @@ export default function Orders() {
                               <button 
                                 className="status-edit-btn"
                                 title="Change Status"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingStatus(order.id);
+                                }}
                               >
                                 <FiEdit size={14} />
                               </button>
@@ -737,7 +748,7 @@ export default function Orders() {
         )}
       </div>
 
-      {/* Order Details Modal - UPDATED WITH CENTERED HEADER AND BLUE CLOSE BUTTON */}
+      {/* Order Details Modal */}
       {selectedOrder && (
         <div className="modal-overlay" onClick={() => {
           setSelectedOrder(null);
@@ -830,7 +841,10 @@ export default function Orders() {
                     <div className="info-row">
                       <span className="info-label">Quantity:</span>
                       <span className="info-value" style={{color: '#0A2347'}}>
-                        {selectedOrder.quantity || "1"} {selectedOrder.unit ? ` ${selectedOrder.unit}` : ""}
+                        {selectedOrder.quantity || "1"} 
+                        {selectedOrder.unit && ` ${selectedOrder.unit}`}
+                        {selectedOrder.actualUnit && selectedOrder.actualUnit !== selectedOrder.unit && 
+                          ` (Actual: ${selectedOrder.actualUnit})`}
                       </span>
                     </div>
                     {selectedOrder.grade && (
@@ -907,7 +921,6 @@ export default function Orders() {
                     <h3>Estimated Bill</h3>
                   </div>
                   <div className="info-card-body">
-                    {/* Display from displayValues if available */}
                     {selectedOrder.displayValues && Object.keys(selectedOrder.displayValues).length > 0 ? (
                       <>
                         {selectedOrder.displayValues.baseProductPrice && (
@@ -984,7 +997,6 @@ export default function Orders() {
                         )}
                       </>
                     ) : (
-                      /* Fallback to direct fields */
                       <>
                         {selectedOrder.baseProductPrice > 0 && (
                           <div className="info-row">
@@ -1067,7 +1079,6 @@ export default function Orders() {
                       </>
                     )}
                     
-                    {/* Additional Charges from legacy system */}
                     {selectedOrder.additionalCharges > 0 && (
                       <div className="info-row">
                         <span className="info-label">Additional Charges:</span>
@@ -1104,11 +1115,9 @@ export default function Orders() {
                       </div>
                     )}
                     
-                    {/* Final Total */}
                     <div className="info-row total-row">
                       <span className="info-label">Final Total:</span>
                       <span className="info-value total-amount" style={{color: '#4ade80'}}>
-                        {/* Display from displayValues if available */}
                         {selectedOrder.displayValues?.finalTotal || 
                          (selectedOrder.finalTotal > 0 ? formatCurrency(selectedOrder.finalTotal) : 
                           selectedOrder.displayValues?.subtotal || 

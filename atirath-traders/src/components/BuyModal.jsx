@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import ThankYouPopup from "../components/ThankYouPopup";
 import { submitQuote } from "../firebase";
-import { 
-  varietyGrades, 
-  gradePrices, 
-  getPackingOptions, 
-  getQuantityOptions, 
+import {
+  varietyGrades,
+  gradePrices,
+  getPackingOptions,
+  getQuantityOptions,
   transportData,
   getPackingUnit,
   getAvailableGrades,
-  stateOptions,
-  getPortOptions,
   getTransportPrice,
   getUnitType
 } from "../data/ProductData";
@@ -20,7 +18,7 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const [grade, setGrade] = useState("");
   const [packing, setPacking] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [cifRequired, setCifRequired] = useState("");
+  const [cifRequired, setCifRequired] = useState("No");
   const [additionalInfo, setAdditionalInfo] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -34,22 +32,27 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const [packingPrice, setPackingPrice] = useState("0.00");
   const [quantityPrice, setQuantityPrice] = useState("0.00");
   const [totalPrice, setTotalPrice] = useState("0.00");
-  const [currency, setCurrency] = useState("INR");
-  const [brandingRequired, setBrandingRequired] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [brandingRequired, setBrandingRequired] = useState("No");
   const [shippingCost, setShippingCost] = useState("0.00");
   const [insuranceCost, setInsuranceCost] = useState("0.00");
   const [taxes, setTaxes] = useState("0.00");
-  const [exchangeRates, setExchangeRates] = useState({});
-  const [isLoadingRates, setIsLoadingRates] = useState(false);
   const [baseProductPrice, setBaseProductPrice] = useState("0.00");
   const [customQuantity, setCustomQuantity] = useState("");
   const [brandingCost, setBrandingCost] = useState("0.00");
   const [transportCost, setTransportCost] = useState("0.00");
-  
-  // New state for transport selection
+  const [productCurrency, setProductCurrency] = useState("USD");
+  const [productOrigin, setProductOrigin] = useState("");
+  const [availableGrades, setAvailableGrades] = useState([]);
+  const [hasGrades, setHasGrades] = useState(false);
+  const [productPriceDisplay, setProductPriceDisplay] = useState("");
+  const [quantityOptions, setQuantityOptions] = useState([]);
+  const [packingOptions, setPackingOptions] = useState([]);
+  const [submitError, setSubmitError] = useState("");
+
+  // New state for transport selection - BOTH AS INPUT FIELDS
   const [selectedState, setSelectedState] = useState("");
   const [selectedPort, setSelectedPort] = useState("");
-  const [portOptions, setPortOptions] = useState([]);
   const [transportPrice, setTransportPrice] = useState("0-0");
 
   // New state for profile fields
@@ -57,7 +60,10 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [pincode, setPincode] = useState("");
-  
+
+  // New state to track if profile data has been auto-filled
+  const [hasAutoFilled, setHasAutoFilled] = useState(false);
+
   const modalRef = useRef(null);
   const formContainerRef = useRef(null);
   const estimateContainerRef = useRef(null);
@@ -71,6 +77,8 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     { value: "+971", flag: "🇦🇪", name: "UAE", length: 9, currency: "AED" },
     { value: "+61", flag: "🇦🇺", name: "Australia", length: 9, currency: "AUD" },
     { value: "+98", flag: "🇮🇷", name: "Iran", length: 10, currency: "IRR" },
+    { value: "+66", flag: "🇹🇭", name: "Thailand", length: 9, currency: "THB" },
+    { value: "+90", flag: "🇹🇷", name: "Turkey", length: 10, currency: "TRY" },
   ];
 
   const countryNames = [
@@ -85,6 +93,8 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     { name: "France", code: "FR" },
     { name: "Singapore", code: "SG" },
     { name: "Japan", code: "JP" },
+    // { name: "Thailand", code: "TH" },
+    { name: "Turkey", code: "TR" },
     { name: "China", code: "CN" }
   ];
 
@@ -95,244 +105,367 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     { value: "GBP", symbol: "£", name: "British Pound" },
     { value: "AED", symbol: "د.إ", name: "UAE Dirham" },
     { value: "SAR", symbol: "﷼", name: "Saudi Riyal" },
+    { value: "THB", symbol: "฿", name: "Thai Baht" },
+    { value: "TRY", symbol: "₺", name: "Turkish Lira" },
     { value: "CAD", symbol: "C$", name: "Canadian Dollar" },
     { value: "AUD", symbol: "A$", name: "Australian Dollar" },
     { value: "JPY", symbol: "¥", name: "Japanese Yen" },
-    { value: "CNY", symbol: "¥", name: "Chinese Yuan" }
+    { value: "CNY", symbol: "¥", name: "Chinese Yuan" },
+    { value: "OMR", symbol: "﷼", name: "Omani Rial" }
   ];
 
-  // Extract base price from product price string and convert to number
-  const extractBasePrice = (priceString) => {
-    if (!priceString) return 0;
-    
-    try {
-      const priceMatch = priceString.match(/(\d+(?:,\d+)*(?:\.\d+)?)/);
-      if (priceMatch) {
-        const priceValue = parseFloat(priceMatch[1].replace(/,/g, ''));
-        return priceValue;
-      }
-      
-      return 0;
-    } catch (error) {
-      console.error('Error extracting price:', error);
-      return 0;
+  // Analyze product data from Firebase
+  const analyzeProductData = () => {
+    if (!product) return {};
+
+    console.log("📦 Raw Product Data:", product);
+
+    // Extract price and currency
+    let priceValue = 0;
+    let currencyDetected = "USD";
+    let priceDisplay = "";
+
+    // Check for price_usd_per_carton (Heritage products)
+    if (product.price_usd_per_carton !== undefined) {
+      priceValue = product.price_usd_per_carton;
+      currencyDetected = "USD";
+      priceDisplay = `$${priceValue} per carton`;
     }
+    // Check for fob_price_usd (Nut Walker products)
+    else if (product.fob_price_usd !== undefined) {
+      priceValue = product.fob_price_usd;
+      currencyDetected = "USD";
+      priceDisplay = `$${priceValue} per carton`;
+    }
+    // Check for Ex-Mill_usd (Akil Drinks products)
+    else if (product["Ex-Mill_usd"] !== undefined) {
+      priceValue = product["Ex-Mill_usd"];
+      currencyDetected = "USD";
+      priceDisplay = `$${priceValue} EX-MILL per carton`;
+    }
+    // Check for price object with min/max (SIEA Rice)
+    else if (product.price && typeof product.price === 'object') {
+      if (product.price.min !== undefined && product.price.max !== undefined) {
+        priceValue = (product.price.min + product.price.max) / 2;
+        currencyDetected = "INR";
+        priceDisplay = `₹${product.price.min} - ₹${product.price.max} per ${product.price.unit || "unit"}`;
+      }
+    }
+    // Check for string price
+    else if (typeof product.price === 'string') {
+      // Extract currency from string
+      if (product.price.includes('$')) {
+        currencyDetected = "USD";
+        priceValue = parseFloat(product.price.replace(/[^\d.-]/g, '')) || 0;
+      } else if (product.price.includes('₹') || product.price.includes('Rs') || product.price.includes('INR')) {
+        currencyDetected = "INR";
+        priceValue = parseFloat(product.price.replace(/[^\d.-]/g, '')) || 0;
+      } else if (product.price.includes('€')) {
+        currencyDetected = "EUR";
+        priceValue = parseFloat(product.price.replace(/[^\d.-]/g, '')) || 0;
+      } else if (product.price.includes('£')) {
+        currencyDetected = "GBP";
+        priceValue = parseFloat(product.price.replace(/[^\d.-]/g, '')) || 0;
+      } else {
+        // Try to extract number
+        priceValue = parseFloat(product.price) || 0;
+        // Default to INR for Indian companies
+        if (product.companyName?.includes('Heritage') ||
+          product.companyName?.includes('Nut Walker') ||
+          product.companyName?.includes('Akil Drinks') ||
+          product.companyName?.includes('SIEA')) {
+          currencyDetected = "USD";
+        }
+      }
+      priceDisplay = product.price;
+    }
+    // Check for number price
+    else if (typeof product.price === 'number') {
+      priceValue = product.price;
+      // Default currency based on company
+      if (product.companyName?.includes('Heritage') ||
+        product.companyName?.includes('Nut Walker') ||
+        product.companyName?.includes('Akil Drinks')) {
+        currencyDetected = "USD";
+        priceDisplay = `$${priceValue}`;
+      } else {
+        currencyDetected = "INR";
+        priceDisplay = `₹${priceValue}`;
+      }
+    }
+
+    // Extract origin
+    let origin = product.origin ||
+      product.Origin ||
+      product.country_of_origin ||
+      "India";
+
+    // Extract grades if available
+    let grades = [];
+    let hasGradesField = false;
+
+    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
+      grades = product.grades.map(grade => ({
+        value: grade.grade || grade.name || grade.type || "Standard",
+        price: grade.price || grade.price_inr || "1.00",
+        currency: grade.currency || currencyDetected
+      }));
+      hasGradesField = true;
+    } else if (product.grade) {
+      // Single grade field
+      grades = [{
+        value: product.grade,
+        price: "1.00",
+        currency: currencyDetected
+      }];
+      hasGradesField = true;
+    }
+
+    // Extract packaging information
+    let packagingInfo = "";
+    if (product.packaging) {
+      if (typeof product.packaging === 'object') {
+        if (product.packaging.type) {
+          packagingInfo = product.packaging.type;
+        } else if (product.packaging.units_per_carton) {
+          packagingInfo = `${product.packaging.units_per_carton} units per carton`;
+          if (product.packaging.unit_weight_g) {
+            packagingInfo += ` (${product.packaging.unit_weight_g}g each)`;
+          }
+        }
+      } else if (typeof product.packaging === 'string') {
+        packagingInfo = product.packaging;
+      }
+    } else if (product.pack_type) {
+      packagingInfo = product.pack_type;
+    }
+
+    // Determine product type from data
+    const productType = getProductType();
+
+    return {
+      priceValue,
+      currency: currencyDetected,
+      priceDisplay,
+      origin,
+      grades,
+      hasGrades: hasGradesField,
+      packagingInfo,
+      productType,
+      rawPrice: product.price
+    };
   };
 
-  // Get quantity options based on product type
-  const getQuantityOptionsForProduct = () => {
-    const productType = getProductType();
+  // Get quantity options based on actual product data
+  const getQuantityOptionsFromProduct = () => {
+    const analysis = analyzeProductData();
+    const productType = analysis.productType;
     const productName = product?.name?.toLowerCase() || '';
-    return getQuantityOptions(productType, productName);
+
+    // Check for carton-based products
+    const isCartonBased = product?.price_usd_per_carton ||
+      product?.fob_price_usd ||
+      product?.["Ex-Mill_usd"] ||
+      (product?.packaging && product.packaging.units_per_carton);
+
+    if (isCartonBased) {
+      const unitsPerCarton = product?.packaging?.units_per_carton || 48; // Default to 48 based on screenshot
+
+      // Return carton-based options
+      return [
+        { value: "1", label: `1 Carton (${unitsPerCarton} units)`, multiplier: 1, unit: "cartons", actualQuantity: unitsPerCarton, actualUnit: "units" },
+        { value: "5", label: `5 Cartons (${unitsPerCarton * 5} units)`, multiplier: 5, unit: "cartons", actualQuantity: unitsPerCarton * 5, actualUnit: "units" },
+        { value: "10", label: `10 Cartons (${unitsPerCarton * 10} units)`, multiplier: 10, unit: "cartons", actualQuantity: unitsPerCarton * 10, actualUnit: "units" },
+        { value: "20", label: `20 Cartons (${unitsPerCarton * 20} units)`, multiplier: 20, unit: "cartons", actualQuantity: unitsPerCarton * 20, actualUnit: "units" },
+        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "cartons", actualQuantity: 0, actualUnit: "cartons" }
+      ];
+    }
+
+    // Get base options for non-carton products
+    let options = getQuantityOptions(productType, productName);
+
+    // Adjust based on product packaging if available
+    if (product?.packaging && typeof product.packaging === 'object') {
+      const unitsPerCarton = product.packaging.units_per_carton || 48;
+      const unitWeight = product.packaging.unit_weight_g;
+
+      if (unitsPerCarton) {
+        // Add carton-based options
+        const cartonOptions = [
+          { value: "1", label: `1 Carton (${unitsPerCarton} units)`, multiplier: unitsPerCarton, unit: "cartons", actualQuantity: unitsPerCarton, actualUnit: "units" },
+          { value: "5", label: `5 Cartons (${unitsPerCarton * 5} units)`, multiplier: unitsPerCarton * 5, unit: "cartons", actualQuantity: unitsPerCarton * 5, actualUnit: "units" },
+          { value: "10", label: `10 Cartons (${unitsPerCarton * 10} units)`, multiplier: unitsPerCarton * 10, unit: "cartons", actualQuantity: unitsPerCarton * 10, actualUnit: "units" },
+          { value: "20", label: `20 Cartons (${unitsPerCarton * 20} units)`, multiplier: unitsPerCarton * 20, unit: "cartons", actualQuantity: unitsPerCarton * 20, actualUnit: "units" }
+        ];
+
+        options = [...cartonOptions, ...options.filter(opt => opt.value === "custom")];
+      }
+    }
+
+    return options;
   };
 
-  // Product-specific packing options
-  const getPackingOptionsForProduct = () => {
-    const productType = getProductType();
+  // Get packing options based on actual product data
+  const getPackingOptionsFromProduct = () => {
+    const analysis = analyzeProductData();
+    const productType = analysis.productType;
     const productName = product?.name?.toLowerCase() || '';
+    const packagingInfo = analysis.packagingInfo;
+
+    // FOR RICE PRODUCTS: Show standard packing options
+    if (productType === 'rice') {
+      // Get standard rice packing options from ProductData
+      return getPackingOptions('rice', productName);
+    }
+
+    // FOR ALL OTHER PRODUCTS: Display packing from Firebase data
+    // Get the packing from Firebase
+    let firebasePacking = "";
+
+    // Check multiple possible fields for packing in Firebase
+    if (product?.pack_type) {
+      firebasePacking = product.pack_type;
+    } else if (product?.packaging) {
+      if (typeof product.packaging === 'string') {
+        firebasePacking = product.packaging;
+      } else if (typeof product.packaging === 'object' && product.packaging.type) {
+        firebasePacking = product.packaging.type;
+      }
+    } else if (analysis.packagingInfo) {
+      firebasePacking = analysis.packagingInfo;
+    }
+
+    // If we have packing from Firebase, return it as the only option
+    if (firebasePacking) {
+      return [
+        { value: firebasePacking, price: "10" }
+      ];
+    }
+
+    // Fallback: Get packing options based on product type
     return getPackingOptions(productType, productName);
+  };
+
+  // Get available grades from product data
+  const getGradesFromProduct = () => {
+    const analysis = analyzeProductData();
+
+    // If product has grades, use them
+    if (analysis.hasGrades && analysis.grades.length > 0) {
+      return analysis.grades;
+    }
+
+    // Otherwise, only show grades if it's a rice product
+    const productType = analysis.productType;
+    if (productType === 'rice') {
+      return getAvailableGrades(productType, product);
+    }
+
+    // For non-rice products without grades, return empty array
+    return [];
   };
 
   // Helper functions
   const getCurrencySymbol = () => {
     const selectedCurrency = currencyOptions.find(curr => curr.value === currency);
-    return selectedCurrency ? selectedCurrency.symbol : "₹";
+    return selectedCurrency ? selectedCurrency.symbol : "$";
+  };
+
+  const getProductCurrencySymbol = () => {
+    const analysis = analyzeProductData();
+    const productCurr = analysis.currency;
+    const selectedCurrency = currencyOptions.find(curr => curr.value === productCurr);
+    return selectedCurrency ? selectedCurrency.symbol : "$";
   };
 
   const getCurrentCountry = () => countryOptions.find((opt) => opt.value === countryCode);
 
-  // IMPROVED PRODUCT TYPE DETECTION
+  // PRODUCT TYPE DETECTION from actual data
   const getProductType = () => {
     if (!product) return 'default';
-    
+
+    // First check category from product data
     if (product.category) {
-      return product.category;
+      return product.category.toLowerCase();
     }
-    
+
+    // Check product name and company name
     const productName = product.name?.toLowerCase() || '';
-    
-    if (productName.includes('oil') || 
-        productName.includes('sunflower') || 
-        productName.includes('olive') || 
-        productName.includes('coconut') ||
-        productName.includes('mustard') ||
-        productName.includes('groundnut') ||
-        productName.includes('soybean') ||
-        productName.includes('palm')) {
-      return 'oil';
-    }
-    
-    if (productName.includes('rice') || 
-        productName.includes('basmati') || 
-        product.variety) {
+    const companyName = product.companyName?.toLowerCase() || '';
+
+    // SIEA - rice
+    if (companyName.includes('siea')) {
       return 'rice';
     }
-    
-    if (productName.includes('dal') || 
-        productName.includes('chana') || 
-        productName.includes('moong') || 
-        productName.includes('masoor') ||
-        productName.includes('urad') ||
-        productName.includes('toor') ||
-        productName.includes('lentil') ||
-        productName.includes('bean') ||
-        productName.includes('pulse')) {
-      return 'pulses';
+
+    // Fallback to name-based detection - prioritize rice detection
+    if (productName.includes('rice') || productName.includes('basmati')) {
+      return 'rice';
     }
-    
-    if (productName.includes('spice') || 
-        productName.includes('turmeric') || 
-        productName.includes('chilli') || 
-        productName.includes('pepper') ||
-        productName.includes('cumin') ||
-        productName.includes('coriander') ||
-        productName.includes('cardamom') ||
-        productName.includes('clove') ||
-        productName.includes('cinnamon')) {
-      return 'spices';
+
+    // Heritage foods - check if it's rice
+    if (companyName.includes('heritage')) {
+      if (productName.includes('rice')) return 'rice';
+      if (productName.includes('dal') || productName.includes('lentil')) return 'pulses';
+      if (productName.includes('spice')) return 'spices';
+      if (productName.includes('tea')) return 'tea';
+      return 'default';
     }
-    
-    if (productName.includes('tea') || 
-        productName.includes('green tea') || 
-        productName.includes('black tea') || 
-        productName.includes('oolong') ||
-        productName.includes('chai')) {
-      return 'tea';
-    }
-    
-    if (productName.includes('almond') || 
-        productName.includes('cashew') || 
-        productName.includes('raisin') || 
-        productName.includes('walnut') ||
-        productName.includes('pistachio') ||
-        productName.includes('dry fruit') ||
-        productName.includes('nut')) {
+
+    // Nut Walker - dry fruits
+    if (companyName.includes('nut walker')) {
       return 'dryfruits';
     }
-    
-    if (productName.includes('cement') || 
-        productName.includes('steel') || 
-        productName.includes('brick') || 
-        productName.includes('construction') ||
-        productName.includes('tmt') ||
-        productName.includes('rod') ||
-        productName.includes('sand') ||
-        productName.includes('gravel') ||
-        productName.includes('concrete') ||
-        productName.includes('block') ||
-        productName.includes('wood') ||
-        productName.includes('pipe') ||
-        productName.includes('tile') ||
-        productName.includes('wire') ||
-        productName.includes('marble') ||
-        productName.includes('paint') ||
-        productName.includes('window') ||
-        productName.includes('glass') ||
-        productName.includes('aggregate') ||
-        productName.includes('aluminum') ||
-        productName.includes('roof') ||
-        productName.includes('bitumen') ||
-        productName.includes('hardware') ||
-        productName.includes('plywood') ||
-        productName.includes('door') ||
-        productName.includes('putty') ||
-        productName.includes('insulation') ||
-        productName.includes('ceiling')) {
-      return 'construction';
-    }
-    
-    if (productName.includes('apple') || 
-        productName.includes('banana') || 
-        productName.includes('orange') || 
-        productName.includes('mango') ||
-        productName.includes('fruit')) {
-      return 'fruits';
-    }
-    
-    if (productName.includes('vegetable') || 
-        productName.includes('potato') || 
-        productName.includes('tomato') || 
-        productName.includes('onion') ||
-        productName.includes('carrot') ||
-        productName.includes('spinach')) {
-      return 'vegetables';
-    }
-    
-    if (productName.includes('juice') || 
-        productName.includes('soda') || 
-        productName.includes('drink') || 
-        productName.includes('beverage')) {
+
+    // Akil Drinks - beverages
+    if (companyName.includes('akil drinks')) {
       return 'beverages';
     }
-    
-    if (productName.includes('phone') || 
-        productName.includes('laptop') || 
-        productName.includes('tablet') || 
-        productName.includes('gadget') ||
-        productName.includes('electronic')) {
-      return 'gadgets';
+
+    // Other product type detection...
+    if (productName.includes('oil') || productName.includes('sunflower') || productName.includes('olive')) {
+      return 'oil';
     }
-    
-    if (productName.includes('shirt') || 
-        productName.includes('dress') || 
-        productName.includes('pants') || 
-        productName.includes('jeans') ||
-        productName.includes('clothing') ||
-        productName.includes('apparel')) {
-      return 'clothing';
+    if (productName.includes('dal') || productName.includes('lentil') || productName.includes('pulse')) {
+      return 'pulses';
     }
-    
-    if (productName.includes('chocolate') || 
-        productName.includes('cocoa') || 
-        productName.includes('dark chocolate') || 
-        productName.includes('milk chocolate')) {
-      return 'chocolate';
+    if (productName.includes('spice') || productName.includes('turmeric') || productName.includes('chilli')) {
+      return 'spices';
     }
-    
-    if (productName.includes('perfume') || 
-        productName.includes('fragrance') || 
-        productName.includes('cologne') || 
-        productName.includes('scent')) {
-      return 'perfume';
+    if (productName.includes('tea') || productName.includes('green tea') || productName.includes('black tea')) {
+      return 'tea';
     }
-    
-    if (productName.includes('flower') || 
-        productName.includes('rose') || 
-        productName.includes('lily') || 
-        productName.includes('tulip') ||
-        productName.includes('orchid') ||
-        productName.includes('bouquet')) {
-      return 'flowers';
+    if (productName.includes('almond') || productName.includes('cashew') || productName.includes('dry fruit')) {
+      return 'dryfruits';
     }
-    
+    if (productName.includes('juice') || productName.includes('drink') || productName.includes('beverage')) {
+      return 'beverages';
+    }
+
     return 'default';
   };
 
-  // Get available grades using the imported function
-  const getAvailableGradesForProduct = () => {
-    const productType = getProductType();
-    return getAvailableGrades(productType, product);
-  };
+  // Calculate shipping cost based on actual product data
+  const calculateShippingCost = (quantityValue, productValue, customQty = null) => {
+    if (!quantityValue || cifRequired !== "Yes") return 0;
 
-  // Calculate shipping cost based on quantity and product type
-  const calculateShippingCost = (quantityValue, productType, productValue, customQty = null) => {
-    if (!quantityValue) return 0;
-    
     let actualQuantity = 0;
-    
+
     if (quantityValue === "custom") {
       actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
     } else {
-      const quantityOptionsList = getQuantityOptionsForProduct();
-      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      const selectedQuantity = quantityOptions.find(q => q.value === quantityValue);
       if (!selectedQuantity) return 0;
       actualQuantity = selectedQuantity.actualQuantity;
     }
-    
+
     if (actualQuantity <= 0) return 0;
-    
+
+    const analysis = analyzeProductData();
+    const productType = analysis.productType;
+
     let baseRate = 0;
-    
+
     const shippingRates = {
       oil: 1.5,
       rice: 2.5,
@@ -351,18 +484,20 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
       flowers: 1,
       default: 2
     };
-    
+
     baseRate = shippingRates[productType] || shippingRates.default;
     return Math.max(actualQuantity * baseRate, productValue * 0.02);
   };
 
   // Calculate insurance cost
   const calculateInsuranceCost = (productValue) => {
+    if (cifRequired !== "Yes") return 0;
     return productValue * 0.005;
   };
 
   // Calculate taxes and duties
   const calculateTaxes = (subtotal) => {
+    if (cifRequired !== "Yes") return 0;
     return subtotal * 0.03;
   };
 
@@ -379,136 +514,104 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     if (!quantityValue || !transportPriceRange || transportPriceRange === "0-0") {
       return 0;
     }
-    
+
     let actualQuantity = 0;
-    
+
     if (quantityValue === "custom") {
       actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
     } else {
-      const quantityOptionsList = getQuantityOptionsForProduct();
-      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      const selectedQuantity = quantityOptions.find(q => q.value === quantityValue);
       if (!selectedQuantity) return 0;
       actualQuantity = selectedQuantity.actualQuantity;
     }
-    
+
     if (actualQuantity <= 0) return 0;
-    
+
     const [minPrice, maxPrice] = transportPriceRange.split('-').map(price => parseFloat(price.trim()));
-    
+
     if (isNaN(minPrice) || isNaN(maxPrice)) return 0;
-    
+
     const averagePrice = (minPrice + maxPrice) / 2;
-    
+
     return actualQuantity * averagePrice;
   };
 
   // Format number with commas
   const formatNumber = (num) => {
-    return parseFloat(num).toLocaleString('en-US', {
+    const number = parseFloat(num);
+    if (isNaN(number)) return "0.00";
+
+    return number.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
   };
 
-  // Convert INR to selected currency
-  const convertToCurrency = (inrAmount) => {
-    if (currency === 'INR') return parseFloat(inrAmount);
-    
-    const exchangeRates = {
-      USD: 0.012,
-      EUR: 0.011,
-      GBP: 0.0095,
-      AED: 0.044,
-      SAR: 0.045,
-      CAD: 0.016,
-      AUD: 0.018,
-      JPY: 1.8,
-      CNY: 0.087,
-      IRR: 504.5
-    };
-    
-    const rate = exchangeRates[currency] || 1;
-    return parseFloat(inrAmount) * rate;
-  };
-
-  // Convert from selected currency back to INR for database storage
-  const convertFromCurrency = (amount, fromCurrency) => {
-    if (fromCurrency === 'INR') return parseFloat(amount);
-    
-    const exchangeRates = {
-      USD: 83.33,
-      EUR: 90.91,
-      GBP: 105.26,
-      AED: 22.73,
-      SAR: 22.22,
-      CAD: 62.5,
-      AUD: 55.56,
-      JPY: 0.556,
-      CNY: 11.49,
-      IRR: 0.00198
-    };
-    
-    const rate = exchangeRates[fromCurrency] || 1;
-    return parseFloat(amount) / rate;
-  };
-
-  // Get price per unit based on product type
+  // Get price per unit based on actual product data
   const getPricePerUnit = () => {
-    const productType = getProductType();
-    const basePrice = parseFloat(baseProductPrice);
-    
-    if (productType === 'rice') {
-      return basePrice / 100;
+    const analysis = analyzeProductData();
+    let price = analysis.priceValue;
+    const productType = analysis.productType;
+
+    // Check if this is a per-carton price (like Heritage, Akil Drinks products)
+    if (product?.price_usd_per_carton || product?.fob_price_usd || product?.["Ex-Mill_usd"]) {
+      // This is already a per-carton price, don't divide
+      return price; // Return as is for carton price
     }
-    
-    if (productType === 'construction') {
-      const productName = product?.name?.toLowerCase() || '';
-      
-      if (productName.includes('cement')) {
-        return basePrice / 50;
-      }
-      
-      if (productName.includes('sand') || productName.includes('gravel') || productName.includes('aggregate')) {
-        return basePrice / 1000;
-      }
-      
-      return basePrice;
+
+    // Only divide for per-unit pricing structures
+    if (product?.packaging?.units_per_carton) {
+      // Some products might have per-unit pricing, but check carefully
+      // For now, assume if it has units_per_carton, it's per-carton pricing
+      return price; // Return as is for carton price
+    } else if (productType === 'rice') {
+      // Rice is often priced per quintal (100kg), convert to per kg
+      price = price / 100;
+    } else if (productType === 'construction' && product?.name?.toLowerCase().includes('cement')) {
+      // Cement bags: 50kg per bag
+      price = price / 50;
     }
-    
-    return basePrice;
+
+    return price;
   };
 
-  // Calculate quantity price based on selected quantity and unit
+  // Calculate quantity price based on selected quantity
   const calculateQuantityPrice = (quantityValue, gradeMultiplier, customQty = null) => {
-    const pricePerUnit = getPricePerUnit();
-    const productType = getProductType();
-    
-    let actualQuantity = 0;
-    
+    const pricePerCarton = getPricePerUnit(); // This is now price per carton
+    const analysis = analyzeProductData();
+
+    let actualCartons = 0;
+
     if (quantityValue === "custom") {
-      actualQuantity = parseFloat(customQty) || parseFloat(customQuantity) || 0;
+      actualCartons = parseFloat(customQty) || parseFloat(customQuantity) || 0;
     } else {
-      const quantityOptionsList = getQuantityOptionsForProduct();
-      const selectedQuantity = quantityOptionsList.find(q => q.value === quantityValue);
+      const selectedQuantity = quantityOptions.find(q => q.value === quantityValue);
       if (!selectedQuantity) return 0;
-      actualQuantity = selectedQuantity.actualQuantity;
+
+      // Check if quantity option specifies cartons
+      if (selectedQuantity.unit === "cartons") {
+        actualCartons = parseFloat(selectedQuantity.value); // Number of cartons
+      } else {
+        // Convert units to cartons if we know units per carton
+        const unitsPerCarton = product?.packaging?.units_per_carton;
+        if (unitsPerCarton && selectedQuantity.actualQuantity) {
+          actualCartons = selectedQuantity.actualQuantity / unitsPerCarton;
+        } else {
+          actualCartons = parseFloat(selectedQuantity.value);
+        }
+      }
     }
-    
-    if (actualQuantity <= 0) return 0;
-    
-    if (productType === 'rice') {
-      return actualQuantity * pricePerUnit * gradeMultiplier;
-    }
-    
-    if (productType === 'construction') {
-      return actualQuantity * pricePerUnit * gradeMultiplier;
-    }
-    
-    return actualQuantity * pricePerUnit * gradeMultiplier;
+
+    if (actualCartons <= 0) return 0;
+
+    return actualCartons * pricePerCarton * gradeMultiplier;
   };
 
   // Price calculation
   const calculatePrices = () => {
+    const analysis = analyzeProductData();
+    const productType = analysis.productType;
+
     let gradePriceValue = 0;
     let packingPriceValue = 0;
     let quantityPriceValue = 0;
@@ -521,102 +624,82 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     const pricePerUnit = getPricePerUnit();
 
     let gradeMultiplier = 1;
-    if (grade) {
-      const availableGrades = getAvailableGradesForProduct();
-      const selectedGrade = availableGrades.find(g => g.value === grade);
+    if (grade && analysis.hasGrades) {
+      const selectedGrade = analysis.grades.find(g => g.value === grade);
       if (selectedGrade) {
         gradeMultiplier = parseFloat(selectedGrade.price);
       }
     }
 
+    // Grade price per unit
     gradePriceValue = pricePerUnit * gradeMultiplier;
 
+    // Packing price
     if (packing) {
-      const selectedPacking = getPackingOptionsForProduct().find(p => p.value === packing);
+      const selectedPacking = packingOptions.find(p => p.value === packing);
       if (selectedPacking) {
         packingPriceValue = parseFloat(selectedPacking.price);
       }
     }
 
+    // Quantity price
     quantityPriceValue = calculateQuantityPrice(quantity, gradeMultiplier);
 
+    // Branding cost
     brandingCostValue = calculateBrandingCost(brandingRequired);
 
-    const productType = getProductType();
+    // Transport cost
     const productName = product?.name?.toLowerCase() || '';
     const unitType = getUnitType(productType, productName);
     transportCostValue = calculateTransportCost(quantity, transportPrice, unitType, customQuantity);
 
+    // CIF costs
     if (cifRequired === "Yes") {
-      shippingCostValue = calculateShippingCost(quantity, productType, quantityPriceValue, customQuantity);
+      shippingCostValue = calculateShippingCost(quantity, quantityPriceValue, customQuantity);
       insuranceCostValue = calculateInsuranceCost(quantityPriceValue);
       taxesValue = calculateTaxes(quantityPriceValue + packingPriceValue + brandingCostValue + transportCostValue);
     }
 
+    // Subtotal
     const subtotal = quantityPriceValue + packingPriceValue + brandingCostValue + shippingCostValue + insuranceCostValue + taxesValue + transportCostValue;
 
-    setGradePrice(convertToCurrency(gradePriceValue).toFixed(2));
-    setPackingPrice(convertToCurrency(packingPriceValue).toFixed(2));
-    setQuantityPrice(convertToCurrency(quantityPriceValue).toFixed(2));
-    setShippingCost(convertToCurrency(shippingCostValue).toFixed(2));
-    setInsuranceCost(convertToCurrency(insuranceCostValue).toFixed(2));
-    setTaxes(convertToCurrency(taxesValue).toFixed(2));
-    setBrandingCost(convertToCurrency(brandingCostValue).toFixed(2));
-    setTransportCost(convertToCurrency(transportCostValue).toFixed(2));
-    setTotalPrice(convertToCurrency(subtotal).toFixed(2));
+    setGradePrice(gradePriceValue.toFixed(2));
+    setPackingPrice(packingPriceValue.toFixed(2));
+    setQuantityPrice(quantityPriceValue.toFixed(2));
+    setShippingCost(shippingCostValue.toFixed(2));
+    setInsuranceCost(insuranceCostValue.toFixed(2));
+    setTaxes(taxesValue.toFixed(2));
+    setBrandingCost(brandingCostValue.toFixed(2));
+    setTransportCost(transportCostValue.toFixed(2));
+    setTotalPrice(subtotal.toFixed(2));
   };
 
   // Get prices for display
   const getDisplayPrices = () => {
-    const subtotal = parseFloat(totalPrice);
-    const finalTotalPrice = subtotal;
+    const analysis = analyzeProductData();
+    const productCurrencySymbol = getProductCurrencySymbol();
+    const selectedCurrencySymbol = getCurrencySymbol();
 
     return {
-      gradePrice: gradePrice,
-      packingPrice: packingPrice,
-      quantityPrice: quantityPrice,
-      shippingCost: shippingCost,
-      insuranceCost: insuranceCost,
-      taxes: taxes,
-      brandingCost: brandingCost,
-      transportCost: transportCost,
-      totalPrice: totalPrice,
-      finalTotalPrice: finalTotalPrice.toFixed(2),
-      baseProductPrice: convertToCurrency(getPricePerUnit()).toFixed(2)
+      baseProductPrice: `${productCurrencySymbol}${formatNumber(analysis.priceValue)}`,
+      gradePrice: `${selectedCurrencySymbol}${formatNumber(gradePrice)}`,
+      packingPrice: `${selectedCurrencySymbol}${formatNumber(packingPrice)}`,
+      quantityPrice: `${selectedCurrencySymbol}${formatNumber(quantityPrice)}`,
+      shippingCost: cifRequired === "Yes" ? `${selectedCurrencySymbol}${formatNumber(shippingCost)}` : "Not Required",
+      insuranceCost: cifRequired === "Yes" ? `${selectedCurrencySymbol}${formatNumber(insuranceCost)}` : "Not Required",
+      taxes: cifRequired === "Yes" ? `${selectedCurrencySymbol}${formatNumber(taxes)}` : "Not Required",
+      brandingCost: brandingRequired === "Yes" ? `${selectedCurrencySymbol}${formatNumber(brandingCost)}` : "Not Required",
+      transportCost: transportPrice !== "0-0" ? `${selectedCurrencySymbol}${formatNumber(transportCost)}` : "Not Required",
+      totalPrice: `${selectedCurrencySymbol}${formatNumber(totalPrice)}`,
+      finalTotalPrice: `${selectedCurrencySymbol}${formatNumber(totalPrice)}`
     };
   };
 
-  // Get exchange rate info for display
-  const getExchangeRateInfo = () => {
-    if (currency === 'INR') return null;
-    
-    const exchangeRates = {
-      USD: { rate: "0.012", example: "₹100 = $1.20" },
-      EUR: { rate: "0.011", example: "₹100 = €1.10" },
-      GBP: { rate: "0.0095", example: "₹100 = £0.95" },
-      AED: { rate: "0.044", example: "₹100 = د.إ4.40" },
-      SAR: { rate: "0.045", example: "₹100 = ﷼4.50" },
-      CAD: { rate: "0.016", example: "₹100 = C$1.60" },
-      AUD: { rate: "0.018", example: "₹100 = A$1.80" },
-      JPY: { rate: "1.8", example: "₹100 = ¥180" },
-      CNY: { rate: "0.087", example: "₹100 = ¥8.70" },
-      IRR: { rate: "504.5", example: "₹100 = ﷼50,450" }
-    };
-    
-    return exchangeRates[currency] || null;
-  };
-
-  // FIXED: Validation functions - Skip validation for profile fields
-  const validatePhoneNumber = (number, code, isFromProfile = false) => {
-    // If field is read-only (auto-filled from profile), skip validation
-    if (isFromProfile) {
-      setPhoneError("");
-      return true;
-    }
-    
+  // Validation functions
+  const validatePhoneNumber = (number, code) => {
     const selectedCountry = countryOptions.find((opt) => opt.value === code);
     const expectedLength = selectedCountry?.length || 10;
-    
+
     if (!number) {
       setPhoneError("Phone number is required");
       return false;
@@ -632,13 +715,7 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     }
   };
 
-  const validateEmail = (email, isFromProfile = false) => {
-    // If field is read-only (auto-filled from profile), skip validation
-    if (isFromProfile) {
-      setEmailError("");
-      return true;
-    }
-    
+  const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
       setEmailError("Email is required");
@@ -656,7 +733,7 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const handleCountryChange = (e) => {
     const newCode = e.target.value;
     setCountryCode(newCode);
-    
+
     // Update country name based on country code
     const selectedCountry = countryOptions.find(opt => opt.value === newCode);
     if (selectedCountry) {
@@ -665,20 +742,20 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
         setCurrency(selectedCountry.currency);
       }
     }
-    
-    validatePhoneNumber(phoneNumber, newCode, !!profile);
+
+    validatePhoneNumber(phoneNumber, newCode);
   };
 
   const handlePhoneChange = (e) => {
     const value = e.target.value.replace(/\D/g, "");
     setPhoneNumber(value);
-    validatePhoneNumber(value, countryCode, !!profile);
+    validatePhoneNumber(value, countryCode);
   };
 
   const handleEmailChange = (e) => {
     const value = e.target.value;
     setEmail(value);
-    validateEmail(value, !!profile);
+    validateEmail(value);
   };
 
   const handleFullNameChange = (e) => {
@@ -712,14 +789,9 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const handleCustomQuantityChange = (e) => {
     const value = e.target.value;
     setCustomQuantity(value);
-    
+
     if (value && !isNaN(value) && parseFloat(value) > 0) {
-      const pricePerUnit = getPricePerUnit();
-      const gradeMultiplier = grade ? parseFloat(getAvailableGradesForProduct().find(g => g.value === grade)?.price || 1) : 1;
-      const calculatedPrice = parseFloat(value) * pricePerUnit * gradeMultiplier;
-      setQuantityPrice(convertToCurrency(calculatedPrice).toFixed(2));
-    } else {
-      setQuantityPrice("0.00");
+      calculatePrices();
     }
   };
 
@@ -743,17 +815,15 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
     setBrandingRequired(e.target.value);
   };
 
-  // New handlers for state and port selection
+  // New handlers for state and port selection - BOTH AS INPUT FIELDS
   const handleStateChange = (e) => {
     const stateValue = e.target.value;
     setSelectedState(stateValue);
-    setSelectedPort("");
-    setPortOptions(getPortOptions(stateValue));
-    
+    setSelectedPort(""); // Clear port when state changes
+
     if (stateValue) {
-      const productType = getProductType();
-      const productName = product?.name?.toLowerCase() || '';
-      const unitType = getUnitType(productType, productName);
+      const analysis = analyzeProductData();
+      const unitType = getUnitType(analysis.productType, product?.name?.toLowerCase() || '');
       setTransportPrice(getTransportPrice(stateValue, "", unitType));
     } else {
       setTransportPrice("0-0");
@@ -763,203 +833,210 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   const handlePortChange = (e) => {
     const port = e.target.value;
     setSelectedPort(port);
-    
+
+    // Update transport price when port is entered
     if (selectedState && port) {
-      const productType = getProductType();
-      const productName = product?.name?.toLowerCase() || '';
-      const unitType = getUnitType(productType, productName);
+      const analysis = analyzeProductData();
+      const unitType = getUnitType(analysis.productType, product?.name?.toLowerCase() || '');
       setTransportPrice(getTransportPrice(selectedState, port, unitType));
     }
   };
 
   // Helper function to get quantity unit for custom input placeholder
   const getQuantityUnit = () => {
-    const productType = getProductType();
-    const productName = product?.name?.toLowerCase() || '';
-    
-    if (productType === 'construction') {
-      if (productName.includes('cement')) {
-        return "Bags (50kg each)";
-      } else if (productName.includes('steel') || productName.includes('rod') || productName.includes('tmt')) {
-        return "Kg or Bundles";
-      } else if (productName.includes('brick')) {
-        return "Pieces";
-      } else if (productName.includes('sand') || productName.includes('gravel') || productName.includes('aggregate')) {
-        return "Kg, Tons or Truck Loads";
-      } else if (productName.includes('concrete') && productName.includes('block')) {
-        return "Blocks";
-      } else if (productName.includes('wood') || productName.includes('timber') || productName.includes('plywood')) {
-        return "Sq Ft or Cubic Feet";
-      } else if (productName.includes('pipe')) {
-        return "Meters or Pieces";
-      } else if (productName.includes('tile')) {
-        return "Sq Ft or Boxes";
-      } else if (productName.includes('wire')) {
-        return "Meters or Coils";
-      } else if (productName.includes('marble') || productName.includes('slab')) {
-        return "Pieces or Sq Ft";
-      } else if (productName.includes('paint')) {
-        return "Liters or Buckets";
-      } else if (productName.includes('window') || productName.includes('glass')) {
-        return "Pieces or Sq Ft";
-      }
-      return "Units";
+    const analysis = analyzeProductData();
+
+    // Check if this is a carton-based product
+    const isCartonBased = product?.price_usd_per_carton ||
+      product?.fob_price_usd ||
+      product?.["Ex-Mill_usd"];
+
+    if (isCartonBased) {
+      return "cartons";
     }
-    
-    const unitMap = {
-      oil: "Liters",
-      rice: "Kg",
-      pulses: "Kg",
-      spices: "Kg",
-      dryfruits: "Kg",
-      tea: "Kg",
-      fruits: "Kg",
-      vegetables: "Kg",
-      chocolate: "Kg",
-      construction: "Units",
-      beverages: "Bottles",
-      gadgets: "Pieces",
-      clothing: "Pieces",
-      perfume: "Bottles",
-      flowers: "Stems",
-      default: "Units"
-    };
-    return unitMap[productType] || "Units";
+
+    const productType = analysis.productType;
+
+    if (product?.packaging?.units_per_carton) {
+      return "cartons";
+    }
+
+    switch (productType) {
+      case 'rice': return 'kg';
+      case 'oil': return 'liters';
+      case 'beverages': return 'bottles';
+      case 'dryfruits': return 'kg';
+      case 'spices': return 'kg';
+      case 'tea': return 'kg';
+      case 'pulses': return 'kg';
+      default: return 'units';
+    }
   };
 
-  // FIXED: Auto-fill form with profile data
-  useEffect(() => {
-    if (isOpen && profile) {
-      console.log('📋 Auto-filling form with profile data:', profile);
-      
-      // Fill all fields from profile
-      setFullName(profile.name || "");
-      setEmail(profile.email || "");
-      setCountry(profile.country || "India");
-      setState(profile.state || "");
-      setCity(profile.city || "");
-      setPincode(profile.pincode || "");
-      
-      // Handle phone number - extract country code and number
-      if (profile.phone) {
-        const phoneStr = profile.phone.toString();
-        let foundCountryCode = "+91"; // Default to India
-        
-        // Find country code from phone number
-        const matchedCountry = countryOptions.find((opt) => phoneStr.startsWith(opt.value));
-        if (matchedCountry) {
-          foundCountryCode = matchedCountry.value;
-          const phoneWithoutCode = phoneStr.replace(matchedCountry.value, "");
-          setPhoneNumber(phoneWithoutCode);
-          setCountryCode(foundCountryCode);
-          
-          // Set currency based on country
-          if (matchedCountry.currency) {
-            setCurrency(matchedCountry.currency);
-          }
-        } else {
-          // Check for known country codes
-          if (phoneStr.startsWith('968')) {
-            setCountryCode('+968');
-            setPhoneNumber(phoneStr.substring(3));
-            setCountry('Oman');
-          } else if (phoneStr.startsWith('44')) {
-            setCountryCode('+44');
-            setPhoneNumber(phoneStr.substring(2));
-            setCountry('United Kingdom');
-          } else if (phoneStr.startsWith('1')) {
-            setCountryCode('+1');
-            setPhoneNumber(phoneStr.substring(1));
-            setCountry('United States');
-          } else if (phoneStr.startsWith('971')) {
-            setCountryCode('+971');
-            setPhoneNumber(phoneStr.substring(3));
-            setCountry('UAE');
-          } else if (phoneStr.startsWith('61')) {
-            setCountryCode('+61');
-            setPhoneNumber(phoneStr.substring(2));
-            setCountry('Australia');
-          } else {
-            // Default to India
-            setCountryCode('+91');
-            setPhoneNumber(phoneStr);
-            setCountry('India');
-          }
+  // Helper function to get product origin display
+  const getProductOrigin = () => {
+    const analysis = analyzeProductData();
+    return analysis.origin;
+  };
+
+  // Function to auto-fill from profile
+  const handleAutoFillFromProfile = () => {
+    if (!profile) return;
+
+    console.log('📋 Auto-filling form from profile:', profile);
+
+    // Fill all fields from profile
+    setFullName(profile.name || "");
+    setEmail(profile.email || "");
+    setCountry(profile.country || "India");
+    setState(profile.state || "");
+    setCity(profile.city || "");
+    setPincode(profile.pincode || "");
+
+    // Handle phone number
+    if (profile.phone) {
+      const phoneStr = profile.phone.toString();
+      let foundCountryCode = "+91";
+
+      const matchedCountry = countryOptions.find((opt) => phoneStr.startsWith(opt.value));
+      if (matchedCountry) {
+        foundCountryCode = matchedCountry.value;
+        const phoneWithoutCode = phoneStr.replace(matchedCountry.value, "");
+        setPhoneNumber(phoneWithoutCode);
+        setCountryCode(foundCountryCode);
+
+        if (matchedCountry.currency) {
+          setCurrency(matchedCountry.currency);
         }
       } else {
-        setCountryCode("+91");
-        setPhoneNumber("");
+        // Default to India
+        setCountryCode('+91');
+        setPhoneNumber(phoneStr);
+        setCountry('India');
       }
-      
-      // Clear validation errors for profile fields
-      setPhoneError("");
-      setEmailError("");
-      
-      console.log('✅ Form auto-filled with:', {
-        name: profile.name,
-        email: profile.email,
-        country: profile.country,
-        state: profile.state,
-        city: profile.city,
-        pincode: profile.pincode,
-        phone: phoneNumber,
-        countryCode: countryCode
-      });
+    } else {
+      setCountryCode("+91");
+      setPhoneNumber("");
+    }
+
+    // Clear validation errors
+    setPhoneError("");
+    setEmailError("");
+
+    // Mark as auto-filled
+    setHasAutoFilled(true);
+
+    console.log('✅ Form auto-filled with profile data');
+  };
+
+  // Initialize product data when modal opens
+  useEffect(() => {
+    if (isOpen && product) {
+      const analysis = analyzeProductData();
+      console.log("🔍 Product Analysis:", analysis);
+
+      setProductCurrency(analysis.currency);
+      setProductOrigin(analysis.origin);
+      setHasGrades(analysis.hasGrades);
+      setProductPriceDisplay(analysis.priceDisplay);
+      setBaseProductPrice(analysis.priceValue.toString());
+
+      // Set grades if available
+      const grades = getGradesFromProduct();
+      setAvailableGrades(grades);
+
+      // Set quantity options based on product
+      const qtyOptions = getQuantityOptionsFromProduct();
+      setQuantityOptions(qtyOptions);
+
+      // Set packing options
+      const packOptions = getPackingOptionsFromProduct();
+      setPackingOptions(packOptions);
+
+      // Set currency based on product
+      setCurrency(analysis.currency);
+
+      // Set default packing if available
+      if (packOptions.length > 0 && !packing) {
+        setPacking(packOptions[0].value);
+      }
+
+      // Set default quantity if available
+      if (qtyOptions.length > 0 && !quantity) {
+        setQuantity(qtyOptions[0].value);
+      }
+    }
+  }, [isOpen, product]);
+
+  // Auto-fill form with profile data on open
+  useEffect(() => {
+    if (isOpen && profile && !hasAutoFilled) {
+      handleAutoFillFromProfile();
     }
   }, [isOpen, profile]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!quantity || !packing || !grade || !fullName || !cifRequired || !brandingRequired) {
-      alert("Please fill all required fields.");
-      return;
-    }
-    
-    if (grade === "") {
-      alert("Please select a grade.");
+    setSubmitError("");
+
+    console.log("🔄 Starting form submission...");
+
+    // Validate required fields
+    const requiredFields = [
+      { field: quantity, name: "Quantity" },
+      { field: packing, name: "Packing" },
+      { field: fullName, name: "Full Name" },
+      { field: cifRequired, name: "CIF Required" },
+      { field: brandingRequired, name: "Brand Required" },
+      { field: currency, name: "Currency" }
+    ];
+
+    const missingFields = requiredFields.filter(f => !f.field);
+    if (missingFields.length > 0) {
+      const errorMsg = `Please fill all required fields: ${missingFields.map(f => f.name).join(', ')}`;
+      alert(errorMsg);
+      setSubmitError(errorMsg);
       return;
     }
 
-    if (cifRequired === "") {
-      alert("Please select if CIF is required.");
+    // Only validate grade if product has grades
+    const analysis = analyzeProductData();
+    if (analysis.hasGrades && !grade) {
+      const errorMsg = "Please select a grade.";
+      alert(errorMsg);
+      setSubmitError(errorMsg);
       return;
     }
 
-    if (brandingRequired === "") {
-      alert("Please select if branding is required.");
-      return;
-    }
-
-    if (!currency) {
-      alert("Please select a currency.");
-      return;
-    }
-    
     if (quantity === "custom" && (!customQuantity || parseFloat(customQuantity) <= 0)) {
-      alert("Please enter a valid custom quantity.");
+      const errorMsg = "Please enter a valid custom quantity.";
+      alert(errorMsg);
+      setSubmitError(errorMsg);
       return;
     }
-    
-    // Use isFromProfile parameter to skip validation for profile fields
-    const isFromProfile = !!profile;
-    const isPhoneValid = validatePhoneNumber(phoneNumber, countryCode, isFromProfile);
-    const isEmailValid = validateEmail(email, isFromProfile);
+
+    // Validate phone and email
+    const isPhoneValid = validatePhoneNumber(phoneNumber, countryCode);
+    const isEmailValid = validateEmail(email);
 
     if (!isPhoneValid || !isEmailValid) {
-      if (!isPhoneValid) alert("Please enter a valid phone number.");
-      if (!isEmailValid) alert("Please enter a valid email address.");
+      let errorMsg = "";
+      if (!isPhoneValid) errorMsg = "Please enter a valid phone number.";
+      if (!isEmailValid) errorMsg = "Please enter a valid email address.";
+      if (!isPhoneValid && !isEmailValid) errorMsg = "Please enter valid phone number and email address.";
+
+      alert(errorMsg);
+      setSubmitError(errorMsg);
       return;
     }
 
     const fullPhoneNumber = `${countryCode}${phoneNumber}`;
-    const quantityOptions = getQuantityOptionsForProduct();
     const selectedQuantityOption = quantityOptions.find(opt => opt.value === quantity);
-    
+
     let quantityDisplay = "";
     let actualQuantity = 0;
     let actualUnit = "";
-    
+
     if (quantity === "custom") {
       quantityDisplay = `${customQuantity} ${getQuantityUnit()}`;
       actualQuantity = parseFloat(customQuantity);
@@ -972,24 +1049,10 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
 
     const displayPrices = getDisplayPrices();
     const currencySymbol = getCurrencySymbol();
-    const exchangeInfo = getExchangeRateInfo();
-    const packingUnit = getPackingUnit(packing);
-    
-    // Get state and port labels
-    const stateLabel = selectedState ? stateOptions.find(s => s.value === selectedState)?.label || selectedState : "";
-    const portLabel = selectedPort ? portOptions.find(p => p.value === selectedPort)?.label || selectedPort : "";
 
-    // Calculate actual INR values for database
-    const baseProductPriceINR = convertFromCurrency(displayPrices.baseProductPrice, currency);
-    const gradePriceINR = convertFromCurrency(displayPrices.gradePrice, currency);
-    const packingPriceINR = convertFromCurrency(displayPrices.packingPrice, currency);
-    const quantityPriceINR = convertFromCurrency(displayPrices.quantityPrice, currency);
-    const brandingCostINR = convertFromCurrency(displayPrices.brandingCost, currency);
-    const transportCostINR = convertFromCurrency(displayPrices.transportCost, currency);
-    const shippingCostINR = cifRequired === "Yes" ? convertFromCurrency(displayPrices.shippingCost, currency) : 0;
-    const insuranceCostINR = cifRequired === "Yes" ? convertFromCurrency(displayPrices.insuranceCost, currency) : 0;
-    const taxesINR = cifRequired === "Yes" ? convertFromCurrency(displayPrices.taxes, currency) : 0;
-    const totalINR = convertFromCurrency(displayPrices.finalTotalPrice, currency);
+    // Get state and port labels - now just use the input values
+    const stateLabel = selectedState;
+    const portLabel = selectedPort;
 
     // Prepare the quote data
     const quoteData = {
@@ -1001,98 +1064,101 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
       state: state,
       city: city,
       pincode: pincode,
-      
+
       // Product Information
       product: product?.name || "",
+      productId: product?.id || "",
       variety: product?.variety || "",
-      brand: product?.brand || "",
-      grade: grade,
+      brand: product?.brand || product?.brandName || "",
+      origin: getProductOrigin(),
+      grade: grade || "Standard",
       packing: packing,
       quantity: quantityDisplay,
       actualQuantity: actualQuantity,
       actualUnit: actualUnit,
-      
+
       // Requirements
       cifRequired: cifRequired,
       brandingRequired: brandingRequired,
       currency: currency,
-      
+      productCurrency: productCurrency,
+
       // Transport Information
       transportState: stateLabel,
       port: portLabel,
-      transportPrice: `₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}`,
-      
+      transportPrice: transportPrice !== "0-0" ? `₹${transportPrice} per ${getUnitType(analysis.productType, product?.name?.toLowerCase() || '')}` : "Not Selected",
+
       // Price Breakdown
       priceBreakdown: {
         note: "This is an estimated bill. Final pricing may vary based on actual costs and market conditions.",
-        
+        originalPrice: `Original Price: ${productPriceDisplay}`,
+
         ...(transportPrice !== "0-0" && {
-          transportPriceLine: `Transport Price: ₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}`
+          transportPriceLine: `Transport Price: ₹${transportPrice} per ${getUnitType(analysis.productType, product?.name?.toLowerCase() || '')}`
         }),
-        
-        baseProductPrice: `Base Product Price: ₹${baseProductPriceINR.toFixed(2)}/unit`,
-        gradePrice: `Grade Price: ₹${gradePriceINR.toFixed(2)}/unit`,
-        packingPrice: `Packing Price: ₹${packingPriceINR.toFixed(2)}/${packingUnit}`,
-        quantityPrice: `Quantity Price: ₹${quantityPriceINR.toFixed(2)}`,
-        
+
+        ...(grade && {
+          gradeLine: `Grade: ${grade}`
+        }),
+
+        packingLine: `Packing: ${packing}`,
+        quantityLine: `Quantity: ${quantityDisplay}`,
+        quantityPriceLine: `Quantity Price: ${displayPrices.quantityPrice}`,
+
         ...(brandingRequired === "Yes" && {
-          brandingCostLine: `Branding/Custom Printing: ₹${brandingCostINR.toFixed(2)}`
+          brandingCostLine: `Branding/Custom Printing: ${displayPrices.brandingCost}`
         }),
-        
+
         ...(transportPrice !== "0-0" && {
-          transportCostLine: `Transport Cost: ₹${transportCostINR.toFixed(2)}`
+          transportCostLine: `Transport Cost: ${displayPrices.transportCost}`
         }),
-        
-        ...(currency !== 'INR' && exchangeInfo && {
-          currencyNote: `All prices converted from INR to ${currency}. ${exchangeInfo.example}`
-        })
+
+        ...(cifRequired === "Yes" && {
+          shippingCostLine: `Shipping Cost: ${displayPrices.shippingCost}`,
+          insuranceCostLine: `Insurance Cost: ${displayPrices.insuranceCost}`,
+          taxesLine: `Taxes & Duties: ${displayPrices.taxes}`
+        }),
+
+        finalTotalLine: `Final Total: ${displayPrices.finalTotalPrice}`
       },
-      
-      calculatedValues: {
-        baseProductPriceINR: baseProductPriceINR,
-        gradePriceINR: gradePriceINR,
-        packingPriceINR: packingPriceINR,
-        quantityPriceINR: quantityPriceINR,
-        brandingCostINR: brandingCostINR,
-        transportCostINR: transportCostINR,
-        shippingCostINR: shippingCostINR,
-        insuranceCostINR: insuranceCostINR,
-        taxesINR: taxesINR,
-        totalINR: totalINR
-      },
-      
+
       displayValues: {
-        baseProductPrice: `${currencySymbol}${formatNumber(displayPrices.baseProductPrice)}/unit`,
-        gradePrice: `${currencySymbol}${formatNumber(displayPrices.gradePrice)}/unit`,
-        packingPrice: `${currencySymbol}${formatNumber(displayPrices.packingPrice)}/${packingUnit}`,
-        quantityPrice: `${currencySymbol}${formatNumber(displayPrices.quantityPrice)}`,
-        brandingCost: brandingRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.brandingCost)}` : "Not Required",
-        transportCost: transportPrice !== "0-0" ? `${currencySymbol}${formatNumber(displayPrices.transportCost)}` : "Not Required",
-        shippingCost: cifRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.shippingCost)}` : "Not Required",
-        insuranceCost: cifRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.insuranceCost)}` : "Not Required",
-        taxes: cifRequired === "Yes" ? `${currencySymbol}${formatNumber(displayPrices.taxes)}` : "Not Required",
-        subtotal: `${currencySymbol}${formatNumber(displayPrices.totalPrice)}`,
-        finalTotal: `${currencySymbol}${formatNumber(displayPrices.finalTotalPrice)}`
+        originalPrice: productPriceDisplay,
+        grade: grade || "Not Selected",
+        packing: packing,
+        quantity: quantityDisplay,
+        brandingCost: displayPrices.brandingCost,
+        transportCost: displayPrices.transportCost,
+        shippingCost: displayPrices.shippingCost,
+        insuranceCost: displayPrices.insuranceCost,
+        taxes: displayPrices.taxes,
+        finalTotal: displayPrices.finalTotalPrice
       },
-      
+
       additionalInfo: additionalInfo || "",
-      
+
       userId: profile?.uid || "guest",
+      userEmail: profile?.email || email,
       timestamp: Date.now(),
-      date: new Date().toLocaleString(),
-      productType: getProductType(),
+      date: new Date().toISOString(),
+      readableDate: new Date().toLocaleString(),
+      productType: analysis.productType,
       status: "new",
       source: "website",
-      isNew: true  // Add this flag to identify new orders
+      isNew: true,
+      hasAutoFilled: hasAutoFilled,
+      profileUsed: !!profile
     };
 
+    console.log("📝 Quote Data Prepared:", quoteData);
     setIsSubmitting(true);
 
     try {
+      console.log("📤 Submitting to Firebase...");
       // Submit to Firebase
       const quoteId = await submitQuote(quoteData);
-      console.log('Quote submitted successfully with ID:', quoteId);
-      
+      console.log('✅ Quote submitted successfully with ID:', quoteId);
+
       // Create WhatsApp message
       const message = `Hello! I want a quote for:
 - Name: ${fullName}
@@ -1103,29 +1169,35 @@ const BuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
 - City: ${city}
 - Pincode: ${pincode}
 - Product: ${product?.name || ""}
+- Origin: ${getProductOrigin()}
 - Variety: ${product?.variety || ""}
-- Brand: ${product?.brand || ""}
-- Grade: ${grade}
+- Brand: ${product?.brand || product?.brandName || ""}
+${grade ? `- Grade: ${grade}` : ""}
 - Packing: ${packing}
 - Quantity: ${quantityDisplay}
 - CIF Required: ${cifRequired}
 - Brand Required: ${brandingRequired}
-- Currency: ${currency}
-${selectedState ? `- Transport State: ${stateLabel}` : ""}
-${selectedPort ? `- Port: ${portLabel}` : ""}
-${transportPrice !== "0-0" ? `- Transport Price: ₹${transportPrice} per ${getUnitType(getProductType(), product?.name?.toLowerCase() || '')}` : ""}
-${exchangeInfo ? `- Exchange Rate: ${exchangeInfo.example}` : ""}
-- Estimated Bill Breakdown:
-  • Base Product Price: ${currencySymbol}${formatNumber(displayPrices.baseProductPrice)}/unit
-  • Grade Price: ${currencySymbol}${formatNumber(displayPrices.gradePrice)}/unit
-  • Packing Price: ${currencySymbol}${formatNumber(displayPrices.packingPrice)}/${packingUnit}
-  • Quantity Price: ${currencySymbol}${formatNumber(displayPrices.quantityPrice)}
-  ${brandingRequired === "Yes" ? `• Branding/Custom Printing: ${currencySymbol}${formatNumber(displayPrices.brandingCost)}` : ""}
-  ${transportPrice !== "0-0" ? `• Transport Cost: ${currencySymbol}${formatNumber(displayPrices.transportCost)}` : ""}
-  • Subtotal: ${currencySymbol}${formatNumber(displayPrices.totalPrice)}
-  • Final Total: ${currencySymbol}${formatNumber(displayPrices.finalTotalPrice)}
+- Product Currency: ${productCurrency}
+- Selected Currency: ${currency}
+${selectedState ? `- Transport State: ${selectedState}` : ""}
+${selectedPort ? `- Port: ${selectedPort}` : ""}
+${transportPrice !== "0-0" ? `- Transport Price: ₹${transportPrice} per ${getUnitType(analysis.productType, product?.name?.toLowerCase() || '')}` : ""}
+- Estimated Bill:
+  • Original Price: ${productPriceDisplay}
+  ${grade ? `• Grade: ${grade}` : ""}
+  • Packing: ${packing}
+  • Quantity: ${quantityDisplay}
+  • Quantity Price: ${displayPrices.quantityPrice}
+  ${brandingRequired === "Yes" ? `• Branding/Custom Printing: ${displayPrices.brandingCost}` : ""}
+  ${transportPrice !== "0-0" ? `• Transport Cost: ${displayPrices.transportCost}` : ""}
+  ${cifRequired === "Yes" ? `• Shipping Cost: ${displayPrices.shippingCost}` : ""}
+  ${cifRequired === "Yes" ? `• Insurance Cost: ${displayPrices.insuranceCost}` : ""}
+  ${cifRequired === "Yes" ? `• Taxes & Duties: ${displayPrices.taxes}` : ""}
+  • Final Total: ${displayPrices.finalTotalPrice}
 ${additionalInfo ? `- Additional Info: ${additionalInfo}` : ""}
 Thank you!`;
+
+      console.log("📱 WhatsApp Message Created");
 
       // Open WhatsApp
       window.open(
@@ -1133,23 +1205,27 @@ Thank you!`;
         "_blank"
       );
 
-      // Show success message with order count
-      alert(`✅ Order #${quoteId.substring(0, 8)} submitted successfully! Check "My Orders" for details.`);
-      
+      // Show success message
+      const successMsg = `✅ Order #${quoteId.substring(0, 8)} submitted successfully! Check "My Orders" for details.`;
+      alert(successMsg);
+      console.log(successMsg);
+
       // Notify parent component about new order
       if (onOrderSubmitted) {
-        onOrderSubmitted();
+        onOrderSubmitted(quoteId);
       }
 
       // Show thank you popup
       setShowThankYou(true);
-      
+
       // Reset form
       resetForm();
 
     } catch (err) {
-      console.error("Error submitting form:", err);
-      alert("Something went wrong while submitting your quote. Please try again.");
+      console.error("❌ Error submitting form:", err);
+      const errorMsg = err.message || "Something went wrong while submitting your quote. Please try again.";
+      alert(errorMsg);
+      setSubmitError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -1159,9 +1235,9 @@ Thank you!`;
     setGrade("");
     setPacking("");
     setQuantity("");
-    setCifRequired("");
-    setCurrency("INR");
-    setBrandingRequired("");
+    setCifRequired("No");
+    setCurrency("USD");
+    setBrandingRequired("No");
     setAdditionalInfo("");
     setCustomQuantity("");
     setGradePrice("0.00");
@@ -1175,21 +1251,27 @@ Thank you!`;
     setTotalPrice("0.00");
     setSelectedState("");
     setSelectedPort("");
-    setPortOptions([]);
     setTransportPrice("0-0");
-    
-    // Reset profile fields if no profile
-    if (!profile) {
-      setFullName("");
-      setEmail("");
-      setPhoneNumber("");
-      setCountryCode("+91");
-      setCountry("India");
-      setState("");
-      setCity("");
-      setPincode("");
-    }
-    
+    setProductCurrency("USD");
+    setProductOrigin("");
+    setAvailableGrades([]);
+    setHasGrades(false);
+    setProductPriceDisplay("");
+    setQuantityOptions([]);
+    setPackingOptions([]);
+    setHasAutoFilled(false);
+    setSubmitError("");
+
+    // Reset all fields
+    setFullName("");
+    setEmail("");
+    setPhoneNumber("");
+    setCountryCode("+91");
+    setCountry("India");
+    setState("");
+    setCity("");
+    setPincode("");
+
     setPhoneError("");
     setEmailError("");
   };
@@ -1200,17 +1282,19 @@ Thank you!`;
     onClose();
   };
 
-  // Effects
+  // Recalculate prices when dependencies change
   useEffect(() => {
     calculatePrices();
   }, [grade, packing, quantity, cifRequired, currency, baseProductPrice, customQuantity, brandingRequired, transportPrice, selectedState, selectedPort]);
 
   useEffect(() => {
     if (isOpen && product) {
+      const analysis = analyzeProductData();
+
+      // Reset form fields
       setGrade("");
-      setCifRequired("");
-      setCurrency("INR");
-      setBrandingRequired("");
+      setCifRequired("No");
+      setBrandingRequired("No");
       setCustomQuantity("");
       setGradePrice("0.00");
       setPackingPrice("0.00");
@@ -1223,14 +1307,38 @@ Thank you!`;
       setTotalPrice("0.00");
       setSelectedState("");
       setSelectedPort("");
-      setPortOptions([]);
       setTransportPrice("0-0");
-      
-      const basePrice = extractBasePrice(product.price);
-      setBaseProductPrice(basePrice.toFixed(2));
-      
-      console.log('Product detected as:', getProductType());
-      console.log('Product details:', product);
+      setSubmitError("");
+
+      // Set product-specific data
+      setBaseProductPrice(analysis.priceValue.toString());
+      setProductCurrency(analysis.currency);
+      setProductOrigin(analysis.origin);
+      setHasGrades(analysis.hasGrades);
+      setProductPriceDisplay(analysis.priceDisplay);
+
+      // Initialize options
+      const grades = getGradesFromProduct();
+      setAvailableGrades(grades);
+
+      const qtyOptions = getQuantityOptionsFromProduct();
+      setQuantityOptions(qtyOptions);
+
+      const packOptions = getPackingOptionsFromProduct();
+      setPackingOptions(packOptions);
+
+      // Set currency to match product
+      setCurrency(analysis.currency);
+
+      // Set default packing if available
+      if (packOptions.length > 0) {
+        setPacking(packOptions[0].value);
+      }
+
+      // Set default quantity if available
+      if (qtyOptions.length > 0) {
+        setQuantity(qtyOptions[0].value);
+      }
     }
   }, [isOpen, product]);
 
@@ -1254,13 +1362,11 @@ Thank you!`;
 
   if (!isOpen) return null;
 
-  const availableGrades = getAvailableGradesForProduct();
+  const analysis = analyzeProductData();
   const currencySymbol = getCurrencySymbol();
-  const quantityOptions = getQuantityOptionsForProduct();
+  const productCurrencySymbol = getProductCurrencySymbol();
   const displayPrices = getDisplayPrices();
-  const exchangeInfo = getExchangeRateInfo();
-  const productType = getProductType();
-  const packingOptions = getPackingOptionsForProduct();
+  const productType = analysis.productType;
   const packingUnit = getPackingUnit(packing);
   const unitType = getUnitType(productType, product?.name?.toLowerCase() || '');
 
@@ -1271,35 +1377,42 @@ Thank you!`;
           <button className="buy-modal-close-btn" onClick={handleClose} aria-label="Close modal">
             &times;
           </button>
-          
+
           <div className="buy-modal-header">
             <h2 className="buy-modal-title">Get Quote</h2>
             <p className="buy-modal-subtitle">Fill out the form below and we'll get back to you shortly</p>
-            {product && (
-              <div className="product-price-info">
-                <small>Base Price: {product.price} (INR)</small>
-                {productType === 'rice' && (
-                  <div className="rice-price-note">
-                    <small>Note: Rice prices are per quintal (100kg). Calculations are converted to per kg.</small>
-                  </div>
-                )}
-                {productType === 'construction' && (
-                  <div className="construction-price-note">
-                    <small>Construction materials: Prices calculated based on selected quantity and packaging type.</small>
-                  </div>
-                )}
-                <div className="product-type-info">
-                  <small>Product Type: {productType}</small>
-                </div>
-              </div>
-            )}
+
           </div>
-          
+
           <div className="buy-modal-body">
             <div className="modal-layout">
               {/* Left Side - Form (Scrollable) */}
               <div className="form-section-container" ref={formContainerRef}>
                 <form onSubmit={handleSubmit}>
+                  {/* Auto-fill button for signed-in users */}
+                  {profile && !hasAutoFilled && (
+                    <div className="auto-fill-section">
+                      <button
+                        type="button"
+                        className="auto-fill-btn"
+                        onClick={handleAutoFillFromProfile}
+                      >
+                        🔄 Auto-fill from Profile
+                      </button>
+                      <small className="auto-fill-note">
+                        Click to auto-fill your information from your profile. You can still edit any field.
+                      </small>
+                    </div>
+                  )}
+
+                  {submitError && (
+                    <div className="submit-error-section">
+                      <div className="error-message alert-error">
+                        ⚠️ {submitError}
+                      </div>
+                    </div>
+                  )}
+
                   <section className="form-section">
                     <h3 className="section-title">Contact Information</h3>
 
@@ -1312,11 +1425,10 @@ Thank you!`;
                         onChange={handleFullNameChange}
                         required
                         className="form-input"
-                        readOnly={!!profile}
                       />
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1330,11 +1442,10 @@ Thank you!`;
                         onChange={handleEmailChange}
                         required
                         className="form-input"
-                        readOnly={!!profile}
                       />
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                       {emailError && <div className="error-message">{emailError}</div>}
@@ -1347,7 +1458,6 @@ Thank you!`;
                         onChange={handleCountryNameChange}
                         required
                         className="form-select"
-                        disabled={!!profile}
                       >
                         <option value="">Select Country</option>
                         {countryNames.map((countryOption) => (
@@ -1356,9 +1466,9 @@ Thank you!`;
                           </option>
                         ))}
                       </select>
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1372,11 +1482,10 @@ Thank you!`;
                         onChange={handleStateChangeInput}
                         required
                         className="form-input"
-                        readOnly={!!profile}
                       />
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1390,11 +1499,10 @@ Thank you!`;
                         onChange={handleCityChange}
                         required
                         className="form-input"
-                        readOnly={!!profile}
                       />
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1408,11 +1516,10 @@ Thank you!`;
                         onChange={handlePincodeChange}
                         required
                         className="form-input"
-                        readOnly={!!profile}
                       />
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1424,7 +1531,6 @@ Thank you!`;
                           value={countryCode}
                           onChange={handleCountryChange}
                           className="country-code-select"
-                          disabled={!!profile}
                         >
                           {countryOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -1440,12 +1546,11 @@ Thank you!`;
                           maxLength={getCurrentCountry()?.length || 10}
                           required
                           className="form-input phone-input"
-                          readOnly={!!profile}
                         />
                       </div>
-                      {profile && (
+                      {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from your profile</small>
+                          <small>Auto-filled from profile</small>
                         </div>
                       )}
                       {phoneError && <div className="error-message">{phoneError}</div>}
@@ -1480,10 +1585,10 @@ Thank you!`;
                     )}
 
                     <div className="form-group">
-                      <label className="form-label">Original Price (INR)</label>
+                      <label className="form-label">Origin</label>
                       <input
                         type="text"
-                        value={product?.price || ""}
+                        value={getProductOrigin()}
                         className="form-input"
                         readOnly
                         disabled
@@ -1491,29 +1596,65 @@ Thank you!`;
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Grade *</label>
-                      <select value={grade} onChange={handleGradeChange} required className="form-select">
-                        <option value="">Select Grade</option>
-                        {availableGrades.map((gradeOption, index) => (
-                          <option key={index} value={gradeOption.value}>{gradeOption.value}</option>
-                        ))}
-                      </select>
-                      <div className="grade-info">
-                        <small>Available grades for {product?.variety || product?.name}</small>
-                      </div>
+                      <label className="form-label">Price</label>
+                      <input
+                        type="text"
+                        value={productPriceDisplay}
+                        className="form-input"
+                        readOnly
+                        disabled
+                      />
                     </div>
+
+                    {/* Only show grade selection if product has grades */}
+                    {hasGrades && availableGrades.length > 0 && (
+                      <div className="form-group">
+                        <label className="form-label">Grade *</label>
+                        <select value={grade} onChange={handleGradeChange} required className="form-select">
+                          <option value="">Select Grade</option>
+                          {availableGrades.map((gradeOption, index) => (
+                            <option key={index} value={gradeOption.value}>
+                              {gradeOption.value}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="grade-info">
+                          <small>Available grades for this product</small>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="form-group">
                       <label className="form-label">Packing *</label>
-                      <select value={packing} onChange={handlePackingChange} required className="form-select">
-                        <option value="">Select Packing</option>
-                        {packingOptions.map((packingOption, index) => (
-                          <option key={index} value={packingOption.value}>{packingOption.value}</option>
-                        ))}
-                      </select>
-                      <div className="packing-info">
-                        <small>Available packing options for {productType}</small>
-                      </div>
+                      {productType === 'rice' ? (
+                        <>
+                          <select value={packing} onChange={handlePackingChange} required className="form-select">
+                            <option value="">Select Packing</option>
+                            {packingOptions.map((packingOption, index) => (
+                              <option key={index} value={packingOption.value}>
+                                {packingOption.value} {packingOption.price ? `(${currencySymbol}${packingOption.price})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="packing-info">
+                            <small>Available packing options for rice</small>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <select value={packing} onChange={handlePackingChange} required className="form-select">
+                            <option value="">Select Packing</option>
+                            {packingOptions.map((packingOption, index) => (
+                              <option key={index} value={packingOption.value}>
+                                {packingOption.value} {packingOption.price ? `(${currencySymbol}${packingOption.price})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="packing-info">
+                            <small>Available packing options for this product</small>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="form-group">
@@ -1539,47 +1680,30 @@ Thank you!`;
                       )}
                     </div>
 
-                    {/* Transport Selection Section - UPDATED with alphabetical sorting */}
+                    {/* Transport Selection Section - BOTH AS INPUT FIELDS */}
                     <div className="form-group">
                       <label className="form-label">Transport Information</label>
                       <div className="transport-selection-group">
                         <div className="transport-row">
                           <div className="transport-column">
                             <label className="form-label">State</label>
-                            <select 
-                              value={selectedState} 
-                              onChange={handleStateChange} 
-                              className="form-select"
-                            >
-                              <option value="">Select State</option>
-                              {/* States displayed in alphabetical order */}
-                              {stateOptions
-                                .sort((a, b) => a.label.localeCompare(b.label))
-                                .map((state) => (
-                                  <option key={state.value} value={state.value}>
-                                    {state.label}
-                                  </option>
-                                ))}
-                            </select>
+                            <input
+                              type="text"
+                              placeholder="Enter state for transport"
+                              value={selectedState}
+                              onChange={handleStateChange}
+                              className="form-input"
+                            />
                           </div>
                           <div className="transport-column">
                             <label className="form-label">Port/Destination</label>
-                            <select 
-                              value={selectedPort} 
-                              onChange={handlePortChange} 
-                              className="form-select"
-                              disabled={!selectedState}
-                            >
-                              <option value="">Select Port</option>
-                              {/* Ports displayed in alphabetical order */}
-                              {portOptions
-                                .sort((a, b) => a.label.localeCompare(b.label))
-                                .map((port, index) => (
-                                  <option key={index} value={port.value}>
-                                    {port.label}
-                                  </option>
-                                ))}
-                            </select>
+                            <input
+                              type="text"
+                              placeholder="Enter port or destination"
+                              value={selectedPort}
+                              onChange={handlePortChange}
+                              className="form-input"
+                            />
                           </div>
                         </div>
                         {transportPrice !== "0-0" && (
@@ -1591,8 +1715,8 @@ Thank you!`;
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">CIF Required (If Any)</label>
-                      <select value={cifRequired} onChange={handleCifChange} className="form-select">
+                      <label className="form-label">CIF Required (If Any) *</label>
+                      <select value={cifRequired} onChange={handleCifChange} required className="form-select">
                         <option value="">Select Option</option>
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
@@ -1603,8 +1727,8 @@ Thank you!`;
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Brand Required (If Any)</label>
-                      <select value={brandingRequired} onChange={handleBrandingChange} className="form-select">
+                      <label className="form-label">Brand Required (If Any) *</label>
+                      <select value={brandingRequired} onChange={handleBrandingChange} required className="form-select">
                         <option value="">Select Option</option>
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
@@ -1613,7 +1737,7 @@ Thank you!`;
                         <small>Add your logo/branding to the packaging - Additional charge: {currencySymbol}35</small>
                         {brandingRequired === "Yes" && (
                           <div className="branding-cost-preview">
-                            <small>Branding/custom printing cost: {currencySymbol}{formatNumber(displayPrices.brandingCost)}</small>
+                            <small>Branding/custom printing cost: {displayPrices.brandingCost}</small>
                           </div>
                         )}
                       </div>
@@ -1629,11 +1753,6 @@ Thank you!`;
                           </option>
                         ))}
                       </select>
-                      {exchangeInfo && (
-                        <div className="currency-info">
-                          <small>Exchange Rate: {exchangeInfo.example}</small>
-                        </div>
-                      )}
                     </div>
 
                     <div className="form-group">
@@ -1672,21 +1791,7 @@ Thank you!`;
                   <h4 className="price-breakdown-title">Estimated Bill Breakdown</h4>
                   <div className="estimate-note">
                     <small>This is an estimated bill. Final pricing may vary based on actual costs and market conditions.</small>
-                    {productType === 'rice' && (
-                      <div className="rice-calculation-note">
-                        <small>Rice prices calculated per kg (converted from quintal price)</small>
-                      </div>
-                    )}
-                    {productType === 'construction' && (
-                      <div className="construction-calculation-note">
-                        <small>Construction materials: Prices calculated based on selected quantity type</small>
-                      </div>
-                    )}
-                    {exchangeInfo && (
-                      <div className="currency-conversion-note">
-                        <small>Prices converted from INR to {currency}. {exchangeInfo.example}</small>
-                      </div>
-                    )}
+
                     {transportPrice !== "0-0" && (
                       <div className="transport-price-display">
                         <small>Transport Price: ₹{transportPrice} per {unitType}</small>
@@ -1694,57 +1799,68 @@ Thank you!`;
                     )}
                   </div>
                   <div className="price-breakdown-grid">
+                    {hasGrades && grade && (
+                      <div className="price-item">
+                        <span className="price-label">Selected Grade:</span>
+                        <span className="price-value">{grade}</span>
+                      </div>
+                    )}
+
+                    {/* Show packing for all products */}
                     <div className="price-item">
-                      <span className="price-label">Base Product Price:</span>
-                      <span className="price-value">{currencySymbol}{formatNumber(displayPrices.baseProductPrice)}/unit</span>
+                      <span className="price-label">Packing:</span>
+                      <span className="price-value">{packing || "Not Selected"}</span>
                     </div>
+
                     <div className="price-item">
-                      <span className="price-label">Grade Price:</span>
-                      <span className="price-value">{currencySymbol}{formatNumber(displayPrices.gradePrice)}/unit</span>
+                      <span className="price-label">Quantity:</span>
+                      <span className="price-value">
+                        {quantity === "custom"
+                          ? `${customQuantity} ${getQuantityUnit()}`
+                          : quantityOptions.find(q => q.value === quantity)?.label || "Not Selected"
+                        }
+                      </span>
                     </div>
-                    <div className="price-item">
-                      <span className="price-label">Packing Price:</span>
-                      <span className="price-value">{currencySymbol}{formatNumber(displayPrices.packingPrice)}/{packingUnit}</span>
-                    </div>
+
                     <div className="price-item">
                       <span className="price-label">Quantity Price:</span>
-                      <span className="price-value">{currencySymbol}{formatNumber(displayPrices.quantityPrice)}</span>
+                      <span className="price-value">{displayPrices.quantityPrice}</span>
                     </div>
-                    
+
                     {brandingRequired === "Yes" && (
                       <div className="price-item branding-costs">
                         <span className="price-label">Branding/Custom Printing:</span>
-                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.brandingCost)}</span>
+                        <span className="price-value">{displayPrices.brandingCost}</span>
                       </div>
                     )}
-                    
+
                     {transportPrice !== "0-0" && (
                       <div className="price-item transport-costs">
                         <span className="price-label">Transport Cost:</span>
-                        <span className="price-value">{currencySymbol}{formatNumber(displayPrices.transportCost)}</span>
+                        <span className="price-value">{displayPrices.transportCost}</span>
                       </div>
                     )}
-                    
+
                     {cifRequired === "Yes" && (
                       <>
                         <div className="price-item">
                           <span className="price-label">Shipping Cost:</span>
-                          <span className="price-value">{currencySymbol}{formatNumber(displayPrices.shippingCost)}</span>
+                          <span className="price-value">{displayPrices.shippingCost}</span>
                         </div>
                         <div className="price-item">
                           <span className="price-label">Insurance Cost:</span>
-                          <span className="price-value">{currencySymbol}{formatNumber(displayPrices.insuranceCost)}</span>
+                          <span className="price-value">{displayPrices.insuranceCost}</span>
                         </div>
                         <div className="price-item">
                           <span className="price-label">Taxes & Duties:</span>
-                          <span className="price-value">{currencySymbol}{formatNumber(displayPrices.taxes)}</span>
+                          <span className="price-value">{displayPrices.taxes}</span>
                         </div>
                       </>
                     )}
-                    
+
                     <div className="price-item final-total">
                       <span className="price-label">Final Total:</span>
-                      <span className="price-value">{currencySymbol}{formatNumber(displayPrices.finalTotalPrice)}</span>
+                      <span className="price-value">{displayPrices.finalTotalPrice}</span>
                     </div>
                   </div>
                 </div>
@@ -1756,6 +1872,7 @@ Thank you!`;
 
       <ThankYouPopup isOpen={showThankYou} onClose={() => setShowThankYou(false)} />
 
+      {/* CSS Styles remain the same */}
       <style jsx>{`
         .buy-modal-overlay {
           position: fixed;
@@ -1862,55 +1979,46 @@ Thank you!`;
           line-height: 1.4;
         }
 
+        .submit-error-section {
+          padding: 15px 25px;
+          background: rgba(248, 113, 113, 0.1);
+          border-bottom: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .alert-error {
+          color: #fed7d7;
+          background: rgba(248, 113, 113, 0.2);
+          padding: 10px 15px;
+          border-radius: 8px;
+          border-left: 3px solid #fc8181;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
         .product-price-info {
           margin-top: 8px;
-          padding: 6px 10px;
+          padding: 8px 12px;
           background: rgba(66, 153, 225, 0.1);
           border-radius: 6px;
           border-left: 3px solid #4299e1;
-        }
-
-        .product-price-info small {
-          color: #90cdf4;
-          font-size: 0.8rem;
-          line-height: 1.3;
-        }
-
-        .rice-price-note {
-          margin-top: 5px;
-          padding: 4px 8px;
-          background: rgba(101, 163, 13, 0.1);
-          border-radius: 4px;
-          border-left: 2px solid #65a30d;
-        }
-
-        .rice-price-note small {
-          color: #84cc16;
-          font-size: 0.75rem;
-        }
-
-        .construction-price-note {
-          margin-top: 5px;
-          padding: 4px 8px;
-          background: rgba(101, 163, 13, 0.1);
-          border-radius: 4px;
-          border-left: 2px solid #65a30d;
-        }
-
-        .construction-price-note small {
-          color: #84cc16;
-          font-size: 0.75rem;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
 
         .product-type-info {
-          margin-top: 5px;
-          padding: 4px 8px;
-          background: rgba(101, 163, 13, 0.1);
-          border-radius: 4px;
-          border-left: 2px solid #65a30d;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 4px;
         }
 
         .product-type-info small {
+          padding: 2px 6px;
+          background: rgba(101, 163, 13, 0.1);
+          border-radius: 4px;
           color: #84cc16;
           font-size: 0.75rem;
         }
@@ -1947,6 +2055,43 @@ Thank you!`;
           overflow-y: auto;
           display: flex;
           flex-direction: column;
+        }
+
+        /* Auto-fill section styles */
+        .auto-fill-section {
+          padding: 15px 25px;
+          background: rgba(66, 153, 225, 0.1);
+          border-bottom: 1px solid rgba(66, 153, 225, 0.3);
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .auto-fill-btn {
+          background: linear-gradient(135deg, #4299e1, #3182ce);
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          font-size: 0.9rem;
+          align-self: flex-start;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .auto-fill-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+        }
+
+        .auto-fill-note {
+          color: #90cdf4;
+          font-size: 0.8rem;
+          line-height: 1.3;
         }
 
         .form-section {
@@ -2048,7 +2193,7 @@ Thank you!`;
 
         .country-code-select {
           appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2363b3ed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2363b3ed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 14px center;
           background-size: 14px;
@@ -2193,6 +2338,9 @@ Thank you!`;
           background: rgba(66, 153, 225, 0.1);
           border-radius: 6px;
           border-left: 3px solid #4299e1;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
         }
 
         .estimate-note small {
@@ -2202,7 +2350,6 @@ Thank you!`;
         }
 
         .rice-calculation-note {
-          margin-top: 8px;
           padding: 8px;
           background: rgba(101, 163, 13, 0.1);
           border-radius: 5px;
@@ -2210,34 +2357,6 @@ Thank you!`;
         }
 
         .rice-calculation-note small {
-          color: #84cc16;
-          font-size: 0.75rem;
-          line-height: 1.3;
-        }
-
-        .construction-calculation-note {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(101, 163, 13, 0.1);
-          border-radius: 5px;
-          border-left: 3px solid #65a30d;
-        }
-
-        .construction-calculation-note small {
-          color: #84cc16;
-          font-size: 0.75rem;
-          line-height: 1.3;
-        }
-
-        .currency-conversion-note {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(101, 163, 13, 0.1);
-          border-radius: 5px;
-          border-left: 3px solid #65a30d;
-        }
-
-        .currency-conversion-note small {
           color: #84cc16;
           font-size: 0.75rem;
           line-height: 1.3;

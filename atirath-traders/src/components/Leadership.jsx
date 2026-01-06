@@ -6,20 +6,20 @@ const Leadership = () => {
     {
       name: "Mr. G. Chandar",
       position: "CEO",
-      image: "/img/Director.png",
+      image: "/img/Leader/Director.png",
       description: "He brings expertise in real estate, agriculture, IT, and supply chain management. Having worked with international partners across MENA and USA markets, he plays a key role in driving operational excellence, building partnerships, and expanding Atirath Traders' global presence."
     },
     
     {
       name: "Mr. Md. Faiz",
       position: "Executive Director",
-      image: "/img/faiz.jpg",
+      image: "/img/Leader/faiz.jpg",
       description: "Mr. Faiz is an accomplished MBA graduate with deep expertise in finance, operations, and global trade, complemented by extensive international experience in IT and supply chain management. At Atirath Traders, he leads initiatives to strengthen financial discipline, optimize operational efficiency, and drive international expansion, consistently delivering sustainable growth and superior customer satisfaction."
     },
     {
       name: "Ms. Tripti Gaur",
       position: "Regional Director (Australia/Europe)",
-      image: "/img/tripti.jpg",
+      image: "/img/Leader/tripti.jpg",
       description: "With 10+ years of expertise in Marketing, HR, FMCG, Pharmaceuticals, Export-Import, and Strategic Leadership, she brings a wealth of knowledge to the organization. She holds MBA in HR & Marketing, she has successfully driven global business expansion and positioned the company as a strong player in agro-trade and exports."
     }
   ];

@@ -17,7 +17,7 @@ const About = () => {
         <div className="row align-items-center mb-5">
           <div className="col-md-6 mb-4 mb-md-0" data-aos="fade-right">
             <img
-              src="/img/found.jpg"
+              src="/img/About/found.webp"
               alt="ATIRATH GROUP Overview"
               className="img-fluid rounded-3 shadow"
             />
@@ -46,7 +46,7 @@ const About = () => {
           </div>
           <div className="col-md-6 mb-4 mb-md-0 order-1 order-md-2" data-aos="fade-left">
             <img
-              src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
+              src="/img/About/Diverse.webp"
               alt="Diversified Portfolio"
               className="img-fluid rounded-3 shadow"
             />
@@ -57,7 +57,7 @@ const About = () => {
         <div className="row align-items-center mb-5">
           <div className="col-md-6 mb-4 mb-md-0" data-aos="fade-right">
             <img
-              src="https://images.unsplash.com/photo-1506784983877-45594efa4cbe?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
+              src="/img/About/vision.webp"
               alt="Our Vision"
               className="img-fluid rounded-3 shadow"
             />

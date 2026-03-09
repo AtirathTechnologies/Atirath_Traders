@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getDatabase, ref, onValue, set, remove } from "firebase/database";
-import { app } from "../../firebase";
+import { app, logHistoryAction } from "../../firebase";
 
 export default function Products() {
   const db = getDatabase(app);
@@ -17,6 +17,7 @@ export default function Products() {
   const [brandsList, setBrandsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentAdmin, setCurrentAdmin] = useState({ name: 'Admin', email: 'admin@system.com' }); // You should get this from auth context
 
   const [filterCategory, setFilterCategory] = useState("");
   const [filterCompany, setFilterCompany] = useState("");
@@ -202,11 +203,24 @@ export default function Products() {
     const path = `categories/${catKey}`;
 
     try {
-      await set(ref(db, path), {
+      const categoryData = {
         name: categoryForm.name,
         description: categoryForm.description || "",
         image: categoryForm.image || ""
+      };
+      
+      await set(ref(db, path), categoryData);
+      
+      // Log to history
+      await logHistoryAction({
+        entity: 'category',
+        entityId: catKey,
+        action: editingType === 'category' ? 'update' : 'create',
+        changedBy: currentAdmin.name,
+        details: `${editingType === 'category' ? 'Updated' : 'Created'} category: ${categoryForm.name}`,
+        newValue: categoryData
       });
+      
       alert("Category saved successfully!");
       resetCategoryForm();
     } catch (error) {
@@ -219,6 +233,16 @@ export default function Products() {
     if (!window.confirm(`Delete category "${category.name}"? This will delete all products under it.`)) return;
     
     try {
+      // Log before deletion
+      await logHistoryAction({
+        entity: 'category',
+        entityId: category.key,
+        action: 'delete',
+        changedBy: currentAdmin.name,
+        details: `Deleted category: ${category.name}`,
+        oldValue: category
+      });
+      
       await remove(ref(db, `categories/${category.key}`));
       alert("Category deleted successfully!");
     } catch (error) {
@@ -260,11 +284,24 @@ export default function Products() {
     const path = `companies/${companyKey}`;
 
     try {
-      await set(ref(db, path), {
+      const companyData = {
         name: companyForm.name,
         logo: companyForm.logo || "",
         ...(companyForm.description && { description: companyForm.description })
+      };
+      
+      await set(ref(db, path), companyData);
+      
+      // Log to history
+      await logHistoryAction({
+        entity: 'company',
+        entityId: companyKey,
+        action: editingType === 'company' ? 'update' : 'create',
+        changedBy: currentAdmin.name,
+        details: `${editingType === 'company' ? 'Updated' : 'Created'} company: ${companyForm.name}`,
+        newValue: companyData
       });
+      
       alert("Company saved successfully!");
       resetCompanyForm();
     } catch (error) {
@@ -277,6 +314,16 @@ export default function Products() {
     if (!window.confirm(`Delete company "${company.name}"? This will delete all brands and products under it.`)) return;
     
     try {
+      // Log before deletion
+      await logHistoryAction({
+        entity: 'company',
+        entityId: company.key,
+        action: 'delete',
+        changedBy: currentAdmin.name,
+        details: `Deleted company: ${company.name}`,
+        oldValue: company
+      });
+      
       await remove(ref(db, `companies/${company.key}`));
       alert("Company deleted successfully!");
     } catch (error) {
@@ -313,12 +360,25 @@ export default function Products() {
     const path = `brands/${brandKey}`;
 
     try {
-      await set(ref(db, path), {
+      const brandData = {
         name: brandForm.name,
         companyId: brandForm.companyId,
         ...(brandForm.description && { description: brandForm.description }),
         ...(brandForm.image && { image: brandForm.image })
+      };
+      
+      await set(ref(db, path), brandData);
+      
+      // Log to history
+      await logHistoryAction({
+        entity: 'brand',
+        entityId: brandKey,
+        action: editingType === 'brand' ? 'update' : 'create',
+        changedBy: currentAdmin.name,
+        details: `${editingType === 'brand' ? 'Updated' : 'Created'} brand: ${brandForm.name} for company: ${brandForm.companyId}`,
+        newValue: brandData
       });
+      
       alert("Brand saved successfully!");
       resetBrandForm();
     } catch (error) {
@@ -331,6 +391,16 @@ export default function Products() {
     if (!window.confirm(`Delete brand "${brand.name}"? This will delete all products under it.`)) return;
     
     try {
+      // Log before deletion
+      await logHistoryAction({
+        entity: 'brand',
+        entityId: brand.key,
+        action: 'delete',
+        changedBy: currentAdmin.name,
+        details: `Deleted brand: ${brand.name}`,
+        oldValue: brand
+      });
+      
       await remove(ref(db, `brands/${brand.key}`));
       alert("Brand deleted successfully!");
     } catch (error) {
@@ -478,6 +548,17 @@ export default function Products() {
 
     try {
       await set(ref(db, path), productData);
+      
+      // Log to history
+      await logHistoryAction({
+        entity: 'product',
+        entityId: productKey,
+        action: editingType === 'product' ? 'update' : 'create',
+        changedBy: currentAdmin.name,
+        details: `${editingType === 'product' ? 'Updated' : 'Created'} product: ${productForm.name}`,
+        newValue: productData
+      });
+      
       alert(`Product saved successfully with key: ${productKey}`);
       resetProductForm();
     } catch (error) {
@@ -490,6 +571,16 @@ export default function Products() {
     if (!window.confirm("Delete this product?")) return;
     
     try {
+      // Log before deletion
+      await logHistoryAction({
+        entity: 'product',
+        entityId: product.key,
+        action: 'delete',
+        changedBy: currentAdmin.name,
+        details: `Deleted product: ${product.name}`,
+        oldValue: product
+      });
+      
       await remove(ref(db, `products/${product.key}`));
       alert("Product deleted successfully!");
     } catch (error) {
@@ -1704,7 +1795,6 @@ export default function Products() {
         </>
       )}
 
-      {/* CSS */}
       <style>{`
 /* ===== PAGE ===== */
 .products-page {

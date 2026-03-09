@@ -2,7 +2,7 @@ import { Link, Outlet, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useState, useEffect } from "react";
-import { FiMenu, FiX, FiLogOut, FiHome, FiUsers, FiPackage, FiShoppingBag } from "react-icons/fi";
+import { FiMenu, FiX, FiLogOut, FiHome, FiUsers, FiPackage, FiShoppingBag, FiClock } from "react-icons/fi";
 import './admin.css'
 
 export default function AdminLayout() {
@@ -115,9 +115,9 @@ export default function AdminLayout() {
       )}
 
       <aside className={`admin-sidebar ${getSidebarClass()}`}>
-        {/* Sidebar Header - ADDED "Admin Panel" text back */}
+        {/* Sidebar Header */}
         <div className="sidebar-header">
-          <h2>Admin Panel</h2> {/* Added "Admin Panel" text back */}
+          <h2>Admin Panel</h2>
         </div>
 
         <div className="sidebar-nav">
@@ -153,7 +153,15 @@ export default function AdminLayout() {
             <FiShoppingBag />
             <span>Orders</span>
           </Link>
-          {/* REMOVED Settings link */}
+          {/* NEW: History Link */}
+          <Link 
+            to="/admin/history" 
+            onClick={() => isMobileOrTablet && setSidebarOpen(false)}
+            className={({ isActive }) => isActive ? 'active' : ''}
+          >
+            <FiClock />
+            <span>History</span>
+          </Link>
         </div>
 
         <button 

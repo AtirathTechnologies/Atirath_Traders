@@ -15,7 +15,7 @@ const ServiceDetailPage = () => {
 
 We handle the entire process from documentation to final delivery, providing you with a hassle-free trading experience. Our team stays updated with the latest trade regulations and tariff codes to ensure compliance and optimize costs.`,
       icon: <Globe className="w-12 h-12" />,
-      image: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/trade.webp",
       features: [
         "Customs Clearance & Documentation",
         "Export License Applications",
@@ -46,7 +46,7 @@ We handle the entire process from documentation to final delivery, providing you
 
 With real-time tracking and proactive communication, we ensure complete visibility throughout the supply chain. Our network of trusted carriers and partners guarantees reliable and efficient transportation solutions.`,
       icon: <Truck className="w-12 h-12" />,
-      image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/transport.webp",
       features: [
         "Multi-modal Transport Solutions",
         "Warehousing & Distribution",
@@ -77,7 +77,7 @@ With real-time tracking and proactive communication, we ensure complete visibili
 
 We specialize in identifying reliable manufacturing partners and managing the entire procurement process, from initial supplier identification to final product delivery.`,
       icon: <Search className="w-12 h-12" />,
-      image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/product.webp",
       features: [
         "Supplier Verification & Audits",
         "Quality Assurance Programs",
@@ -108,7 +108,7 @@ We specialize in identifying reliable manufacturing partners and managing the en
 
 From factory audits to final inspection, our quality experts work closely with manufacturers to maintain consistent quality standards and protect your brand reputation.`,
       icon: <Package className="w-12 h-12" />,
-      image: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/quality.webp",
       features: [
         "Factory Audits & Certification",
         "Production Monitoring",
@@ -139,7 +139,7 @@ From factory audits to final inspection, our quality experts work closely with m
 
 With deep industry knowledge and market insights, we provide actionable recommendations to optimize your international trade operations and maximize profitability.`,
       icon: <Users className="w-12 h-12" />,
-      image: "https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/conslouation.webp",
       features: [
         "Market Analysis & Research",
         "Regulatory Compliance Guidance",
@@ -170,7 +170,7 @@ With deep industry knowledge and market insights, we provide actionable recommen
 
 Using advanced analytics and industry best practices, we identify bottlenecks, reduce costs, and improve overall supply chain performance while maintaining flexibility to adapt to market changes.`,
       icon: <Shield className="w-12 h-12" />,
-      image: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/operation.webp",
       features: [
         "End-to-End Supply Chain Management",
         "Inventory Optimization",

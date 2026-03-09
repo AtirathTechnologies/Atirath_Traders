@@ -1,12 +1,13 @@
+// AuthPage.jsx
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Eye, EyeOff } from 'lucide-react';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   updateProfile,
-  sendPasswordResetEmail 
+  signOut
 } from 'firebase/auth';
-import { storeUserProfile, auth, getUserProfile } from '../firebase';
+import { storeUserOrVendorProfile, auth, getUserProfile, updateLastLogin, checkIsAdmin } from '../firebase';
 
 // Import ForgotPassword component
 import ForgotPassword from './ForgotPassword';
@@ -19,6 +20,8 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
   const [loading, setLoading] = useState(false);
   const [signInSuccess, setSignInSuccess] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -26,25 +29,12 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
       [e.target.name]: e.target.value
     });
   };
-  
-  const ADMIN_EMAIL = "admin@atirath.com"; 
-  const ADMIN_PASSWORD = "Admin@123";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setDebugInfo('Starting sign in process...');
 
-    // 1️⃣ HARD-CODED ADMIN LOGIN
-    if (formData.email === ADMIN_EMAIL && formData.password === ADMIN_PASSWORD) {
-      console.log("Admin login: success");
-      setSignInSuccess(true);
-      setTimeout(() => {
-        window.location.href = "/admin";
-      }, 1500);
-      return;
-    }
-
-    // 2️⃣ NORMAL USER LOGIN (FIREBASE)
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -54,11 +44,55 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
 
       const user = userCredential.user;
       console.log('🔵 User authenticated:', user.uid);
+      setDebugInfo(`User authenticated: ${user.uid}`);
       
-      // Fetch user profile from Firebase
+      // Check if user is admin (from admin node in Realtime Database)
+      console.log('🔄 Checking if user is admin...');
+      const isAdmin = await checkIsAdmin(user.uid, user.email);
+      
+      if (isAdmin) {
+        console.log('👑 Admin user detected, redirecting to admin panel...');
+        setDebugInfo('Admin user detected, redirecting to admin panel');
+        
+        setSignInSuccess(true);
+        
+        // Create minimal admin data
+        const adminData = {
+          uid: user.uid,
+          name: 'Admin',
+          email: user.email,
+          userType: 'admin'
+        };
+        
+        // Call onSignIn to update parent state
+        onSignIn(adminData);
+        
+        setTimeout(() => {
+          window.location.href = "/admin";
+        }, 1500);
+        
+        return;
+      }
+      
+      // Fetch user profile from Firebase for regular users/vendors
+      console.log('🔄 Fetching user profile from Firebase...');
       const userDB = await getUserProfile(user.uid);
       
-      console.log('📊 User data from Firebase:', userDB);
+      if (userDB) {
+        console.log('📊 User data from Firebase:', userDB);
+        console.log('🔍 User Type:', userDB.userType);
+        
+        if (userDB.userType === 'vendor') {
+          console.log('- GST No:', userDB.gstNo);
+          console.log('- Vendor Status:', userDB.vendorStatus);
+          console.log('- Vendor Approved:', userDB.vendorApproved);
+        }
+        
+        setDebugInfo(`User type: ${userDB.userType || 'user'}`);
+      } else {
+        console.log('❌ No user data found in Firebase');
+        setDebugInfo('No user data found in Firebase database');
+      }
 
       const userData = {
         uid: user.uid,
@@ -80,25 +114,43 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
         emailVerified: userDB?.emailVerified || false,
         phoneVerified: userDB?.phoneVerified || false,
         orderCount: userDB?.orderCount || 0,
-        totalSpent: userDB?.totalSpent || 0
+        totalSpent: userDB?.totalSpent || 0,
+        userType: userDB?.userType || 'user',
+        // Vendor specific fields
+        ...(userDB?.userType === 'vendor' && {
+          gstNo: userDB?.gstNo || '',
+          registeredBy: userDB?.registeredBy || '',
+          vendorStatus: userDB?.vendorStatus || 'active',
+          vendorApproved: userDB?.vendorApproved || true,
+          vendorKey: userDB?.vendorKey || '',
+          vendorNumber: userDB?.vendorNumber || null
+        })
       };
 
-      console.log('✅ Final user data for app:', userData);
+      console.log('✅ Final user data for app:');
+      console.log('- User Type:', userData.userType);
+      
+      if (userData.userType === 'vendor') {
+        console.log('- Vendor Status:', userData.vendorStatus);
+        console.log('- Vendor Approved:', userData.vendorApproved);
+      }
       
       // Update last login timestamp
-      const { updateLastLogin } = await import('../firebase');
       await updateLastLogin(user.uid);
 
       setSignInSuccess(true);
+      
+      // Call onSignIn immediately to update parent state
+      onSignIn(userData);
+      
       setTimeout(() => {
-        onSignIn(userData);
         onClose();
       }, 1500);
 
     } catch (err) {
       console.error("Firebase login failed:", err);
+      setDebugInfo(`Login failed: ${err.code} - ${err.message}`);
       
-      // More specific error messages
       if (err.code === 'auth/user-not-found') {
         alert("No account found with this email. Please sign up first.");
       } else if (err.code === 'auth/wrong-password') {
@@ -106,7 +158,7 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
       } else if (err.code === 'auth/too-many-requests') {
         alert("Too many failed attempts. Please try again later or reset your password.");
       } else {
-        alert("Invalid email or password.");
+        alert(`Login failed: ${err.message}`);
       }
       
       setLoading(false);
@@ -114,16 +166,15 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
   };
 
   const handleForgotPassword = () => {
-    if (!formData.email) {
-      setShowForgotPassword(true);
-      return;
-    }
-    // Show forgot password modal with pre-filled email
     setShowForgotPassword(true);
   };
 
   const handleBackFromForgotPassword = () => {
     setShowForgotPassword(false);
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   // Render Forgot Password component
@@ -208,8 +259,13 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
                 </div>
                 <h3 className="text-white mb-3">Sign In Successful!</h3>
                 <p className="text-white opacity-80">
-                  Welcome back! Redirecting to home page...
+                  Welcome back! Redirecting...
                 </p>
+                {debugInfo && (
+                  <div className="debug-info mt-3 p-2 rounded" style={{ background: 'rgba(0,0,0,0.3)', fontSize: '0.8rem' }}>
+                    <div className="text-white">Debug: {debugInfo}</div>
+                  </div>
+                )}
                 <div className="spinner-border text-accent mt-4" role="status">
                   <span className="visually-hidden">Loading...</span>
                 </div>
@@ -223,6 +279,80 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
 
   return (
     <div className="auth-form-with-video">
+      <style>{`
+        .password-input-container {
+          position: relative;
+        }
+        
+        .password-toggle-btn {
+          position: absolute;
+          right: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: transparent;
+          border: none;
+          color: #8FB3E2;
+          cursor: pointer;
+          padding: 5px;
+          z-index: 10;
+        }
+        
+        .password-toggle-btn:hover {
+          color: #7a9fd1;
+        }
+        
+        .form-control.search-bar-transparent {
+          padding-right: 40px !important;
+        }
+        
+        /* Fix for text visibility in inputs */
+        .form-control.search-bar-transparent,
+        .form-control.search-bar-transparent:focus,
+        .form-control.search-bar-transparent:hover {
+          color: white !important;
+          background: rgba(255, 255, 255, 0.08) !important;
+          border: 1px solid rgba(143, 179, 226, 0.3) !important;
+        }
+        
+        /* Placeholder color */
+        .form-control.search-bar-transparent::placeholder {
+          color: rgba(255, 255, 255, 0.6) !important;
+          opacity: 1;
+        }
+        
+        /* For autofill background */
+        .form-control.search-bar-transparent:-webkit-autofill,
+        .form-control.search-bar-transparent:-webkit-autofill:hover,
+        .form-control.search-bar-transparent:-webkit-autofill:focus {
+          -webkit-text-fill-color: white !important;
+          -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.08) inset !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
+        
+        /* For text input types */
+        input[type="text"].search-bar-transparent,
+        input[type="email"].search-bar-transparent,
+        input[type="password"].search-bar-transparent,
+        input[type="tel"].search-bar-transparent {
+          color: white !important;
+        }
+        
+        /* For select elements */
+        select.search-bar-transparent {
+          color: white !important;
+          background: rgba(255, 255, 255, 0.08) !important;
+          border: 1px solid rgba(143, 179, 226, 0.3) !important;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+        }
+        
+        select.search-bar-transparent option {
+          color: #333 !important;
+          background: white !important;
+        }
+      `}</style>
+      
       <div className="auth-video-background">
         <video autoPlay muted loop playsInline className="auth-background-video">
           <source src="/img/signin.mp4" type="video/mp4" />
@@ -261,17 +391,27 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
                   required
                 />
               </div>
+              
               <div className="form-group">
                 <label className="form-label fw-semibold">Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="form-control search-bar-transparent"
-                  placeholder="Enter your password"
-                  required
-                />
+                <div className="password-input-container">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="form-control search-bar-transparent"
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={togglePasswordVisibility}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               
               <div className="auth-links-container">
@@ -304,24 +444,38 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
   );
 };
 
-// SignUp component with DEBUGGING and FIXED data storage
+// SignUp component remains exactly the same as before
 const SignUp = ({ onNavigate, onSignUp, onClose }) => {
+  const [userType, setUserType] = useState('user');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    countryCode: '+91', // Default to India
+    countryCode: '+91',
     phone: '',
-    country: 'India',
+    country: '',
     state: '',
     city: '',
     pincode: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    gstNo: '',
+    registeredBy: '', // Empty by default - user must select
+    executives: [
+      'Varsha',
+      'Rakesh', 
+      'B.Srikanth Goud',
+      'D.Sunil Goud',
+      'M.Raju',
+      'Praveen Rathod',
+      'M.Nikhil'
+    ]
   });
   const [loading, setLoading] = useState(false);
   const [passwordValid, setPasswordValid] = useState(false);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Country data with codes and validation patterns
   const countries = [
@@ -354,15 +508,20 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     return selectedCountry.pattern.test(formData.phone);
   };
 
+  const validateGST = () => {
+    if (userType !== 'vendor') return true;
+    // Basic GST validation for India
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    return gstRegex.test(formData.gstNo.toUpperCase());
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    // Special handling for phone number based on country
     if (name === 'phone') {
       const selectedCountry = countries.find(c => c.code === formData.countryCode);
       let numericValue = value.replace(/\D/g, '');
       
-      // Apply max length based on country
       if (selectedCountry) {
         if (selectedCountry.code === '+91') numericValue = numericValue.slice(0, 10);
         else if (selectedCountry.code === '+968') numericValue = numericValue.slice(0, 8);
@@ -378,13 +537,17 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
         [name]: numericValue
       }));
     } else if (name === 'countryCode') {
-      // When country code changes, reset phone number
       const selectedCountry = countries.find(c => c.code === value);
       setFormData(prev => ({
         ...prev,
         countryCode: value,
-        country: selectedCountry ? selectedCountry.name : 'India',
-        phone: '' // Reset phone number
+        // Don't auto-set country name anymore - user will type it
+        phone: ''
+      }));
+    } else if (name === 'gstNo') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.toUpperCase()
       }));
     } else {
       setFormData(prev => ({
@@ -398,16 +561,49 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     }
   };
 
+  const handleUserTypeChange = (type) => {
+    setUserType(type);
+    if (type === 'user') {
+      setFormData(prev => ({
+        ...prev,
+        gstNo: '',
+        registeredBy: '' // Clear registeredBy when switching to user
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setDebugInfo('');
+    setDebugInfo(`Starting ${userType} signup process...`);
+    console.log(`🚀 ${userType} SignUp form submitted`);
 
-    console.log('📝 Form Data at submit:', formData);
+    // Log all form data
+    console.log('📝 Form Data at submit:');
+    console.log('- User Type:', userType);
+    console.log('- Name:', formData.name);
+    console.log('- Email:', formData.email);
+    console.log('- Country Code:', formData.countryCode);
+    console.log('- Phone:', formData.phone);
+    console.log('- Country:', formData.country);
+    console.log('- State:', formData.state);
+    console.log('- City:', formData.city);
+    console.log('- Pincode:', formData.pincode);
+    
+    if (userType === 'vendor') {
+      console.log('- GST No:', formData.gstNo);
+      console.log('- Registered By:', formData.registeredBy);
+    }
 
     // Validate phone number
     if (!validatePhone()) {
       const selectedCountry = countries.find(c => c.code === formData.countryCode);
       alert(`Please enter a valid phone number for ${selectedCountry.name}. Example: ${selectedCountry.placeholder}`);
+      return;
+    }
+
+    // Validate GST for vendors
+    if (userType === 'vendor' && !validateGST()) {
+      alert('Please enter a valid GST number (15 characters, format: 22AAAAA0000A1Z5).');
       return;
     }
 
@@ -437,6 +633,10 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       alert('Please enter your email address');
       return;
     }
+    if (!formData.country.trim()) {
+      alert('Please enter your country');
+      return;
+    }
     if (!formData.state.trim()) {
       alert('Please enter your state/province');
       return;
@@ -445,16 +645,24 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       alert('Please enter your city/town');
       return;
     }
-    if (!formData.country.trim()) {
-      alert('Please select your country');
-      return;
+
+    // Additional validation for vendors
+    if (userType === 'vendor') {
+      if (!formData.gstNo.trim()) {
+        alert('Please enter GST number for vendor registration');
+        return;
+      }
+      if (!formData.registeredBy) {
+        alert('Please select the executive who registered you');
+        return;
+      }
     }
 
     setLoading(true);
-    setDebugInfo('Starting signup process...');
 
     try {
       // 1. Create user in Firebase Authentication
+      console.log(`🔐 Creating ${userType} in Firebase Auth...`);
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
         formData.email, 
@@ -462,8 +670,7 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       );
       const user = userCredential.user;
 
-      console.log('✅ User created in Auth:', user.uid);
-      setDebugInfo(`User created in Auth: ${user.uid}`);
+      console.log(`✅ ${userType} created in Auth:`, user.uid);
 
       // 2. Update user profile in Auth
       await updateProfile(user, { 
@@ -494,74 +701,59 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
         phoneVerified: false,
         orderCount: 0,
         totalSpent: 0,
-        lastOrderDate: null
+        lastOrderDate: null,
+        userType: userType,
+        ...(userType === 'vendor' && {
+          gstNo: formData.gstNo.toUpperCase(),
+          registeredBy: formData.registeredBy,
+          vendorStatus: 'active', // Changed from 'pending' to 'active'
+          vendorApproved: true,    // Changed from false to true
+          approvedAt: new Date().toISOString(),
+          approvedBy: 'system'
+        })
       };
 
-      console.log('💾 Full user data prepared for Firebase:');
-      console.log('- Name:', userData.name);
-      console.log('- Email:', userData.email);
-      console.log('- Phone:', userData.phone);
-      console.log('- Country:', userData.country);
-      console.log('- State:', userData.state);
-      console.log('- City:', userData.city);
-      console.log('- Pincode:', userData.pincode);
-      console.log('- Location:', userData.location);
-      
-      setDebugInfo(`Preparing to store: ${userData.name}, ${userData.email}, Phone: ${userData.phone}, State: ${userData.state}, City: ${userData.city}, Pincode: ${userData.pincode}`);
-      
-      // 4. Store COMPLETE user profile in Firebase Realtime Database
-      const storeResult = await storeUserProfile(userData);
+      // 4. Store user/vendor profile in appropriate collection
+      console.log('📤 Calling storeUserOrVendorProfile function...');
+      const storeResult = await storeUserOrVendorProfile(userData);
       
       if (!storeResult.success) {
         console.error('❌ Failed to store user data:', storeResult.error);
-        setDebugInfo(`Storage failed: ${storeResult.error}`);
-        alert('Account created but failed to save profile data. Please update your profile later.');
-      } else {
-        console.log('✅ User data stored successfully in Realtime DB:', storeResult);
-        setDebugInfo(`Storage successful! UserKey: ${storeResult.userKey}, UserNumber: ${storeResult.userNumber}`);
         
-        // Verify the data was stored
-        setTimeout(async () => {
-          const verifyData = await getUserProfile(user.uid);
-          console.log('🔍 Verification - Retrieved user data from Firebase:', verifyData);
-          
-          if (verifyData) {
-            console.log('✅ Phone stored:', verifyData.phone);
-            console.log('✅ State stored:', verifyData.state);
-            console.log('✅ City stored:', verifyData.city);
-            console.log('✅ Pincode stored:', verifyData.pincode);
-            console.log('✅ Country stored:', verifyData.country);
-            console.log('✅ Location stored:', verifyData.location);
-            
-            if (!verifyData.phone || !verifyData.state || !verifyData.city || !verifyData.pincode) {
-              console.warn('⚠️ Some fields are missing in the retrieved data!');
-              setDebugInfo(`Warning: Some fields missing. Phone: ${verifyData.phone || 'empty'}, State: ${verifyData.state || 'empty'}, City: ${verifyData.city || 'empty'}, Pincode: ${verifyData.pincode || 'empty'}`);
-            }
-          } else {
-            console.log('❌ No data found in verification');
-            setDebugInfo('Verification failed: No data found');
-          }
-        }, 2000);
-      }
-      
-      // 5. Show success message
-      setSignUpSuccess(true);
-      
-      // 6. Wait 2 seconds then redirect to sign in
-      setTimeout(() => {
+        // Store minimal data in local storage as fallback
+        localStorage.setItem('temp_user_data', JSON.stringify({
+          uid: user.uid,
+          name: formData.name,
+          email: formData.email,
+          phone: fullPhoneNumber,
+          userType: userType
+        }));
+        
+        setSignUpSuccess(true);
         setLoading(false);
-        // Navigate to sign in with pre-filled email
-        onNavigate('signin', formData.email);
-      }, 2000);
+        
+        return;
+      } else {
+        console.log('✅ User data stored successfully:', storeResult);
+        
+        setSignUpSuccess(true);
+        setLoading(false);
+      }
+
+      // 5. Sign out the user after signup
+      console.log('🔒 Signing out user after signup...');
+      await signOut(auth);
+      console.log('✅ User signed out successfully');
 
     } catch (error) {
-      console.error('❌ Sign up error:', error);
-      setDebugInfo(`Error: ${error.message}`);
+      console.error(`❌ ${userType} sign up error:`, error);
+      setLoading(false);
       
       let errorMessage = 'Sign up failed. Please try again.';
 
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'This email is already registered. Please sign in instead.';
+        onNavigate('signin', formData.email);
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid email address.';
       } else if (error.code === 'auth/weak-password') {
@@ -571,7 +763,6 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       }
 
       alert(errorMessage);
-      setLoading(false);
     }
   };
 
@@ -587,6 +778,15 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     { label: 'One special character (!@#$%^&*)', test: /[!@#$%^&*]/.test(formData.password) }
   ];
 
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
+  };
+
+  // Success state
   if (signUpSuccess) {
     return (
       <div className="auth-form-with-video">
@@ -601,11 +801,20 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
         <div className="auth-form-container-transparent">
           <div className="auth-form-transparent">
             <div className="auth-form-header">
+              <button 
+                className="back-button btn btn-link p-0 text-decoration-none" 
+                onClick={onClose}
+                title="Close"
+                type="button"
+              >
+                <X className="w-6 h-6" />
+              </button>
               <div className="auth-logo-center">
                 <div className="auth-logo">
                   <img src="/img/icon2.png" alt="ATIRATH GROUP Logo" className="logo-img" />
                 </div>
               </div>
+              <div style={{ width: '40px' }}></div>
             </div>
             
             <div className="auth-form-content">
@@ -620,34 +829,36 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                     </div>
                   </div>
                 </div>
-                <h3 className="text-white mb-3">Account Created Successfully!</h3>
+                
+                <h3 className="text-white mb-3">{userType === 'vendor' ? 'Vendor Registration Successful!' : 'Account Created Successfully!'}</h3>
                 <p className="text-white opacity-80 mb-4">
-                  Your account has been created and ALL data saved to Firebase. You will be redirected to sign in...
+                  Your {userType === 'vendor' ? 'vendor' : 'account'} has been created successfully.
+                  <br />
+                  Please sign in with your email and password.
                 </p>
-                <div className="database-sync-status mb-3">
-                  <span className="database-icon">✅</span>
-                  <span>All data saved to Firebase Realtime Database</span>
+                
+                <div className="d-flex flex-column gap-3 mt-4">
+                  <button
+                    className="btn btn-primary-transparent"
+                    onClick={() => {
+                      onNavigate('signin', formData.email);
+                    }}
+                  >
+                    <span className="me-2">👉</span>
+                    Go to Sign In
+                  </button>
+                  
+                  <button
+                    className="btn btn-outline-light"
+                    onClick={onClose}
+                  >
+                    Back to Home
+                  </button>
                 </div>
-                <div className="data-stored-list mb-4">
-                  <div className="text-white opacity-80 mb-2" style={{ fontSize: '0.9rem' }}>Data stored includes:</div>
-                  <div className="d-flex flex-wrap gap-2 justify-content-center">
-                    <span className="badge bg-success">Name: {formData.name}</span>
-                    <span className="badge bg-success">Email: {formData.email}</span>
-                    <span className="badge bg-success">Phone: {formData.countryCode}{formData.phone}</span>
-                    <span className="badge bg-success">Country: {formData.country}</span>
-                    <span className="badge bg-success">State: {formData.state}</span>
-                    <span className="badge bg-success">City: {formData.city}</span>
-                    <span className="badge bg-success">Pincode: {formData.pincode}</span>
-                  </div>
-                </div>
-                {debugInfo && (
-                  <div className="debug-info mt-3 p-2 rounded" style={{ background: 'rgba(0,0,0,0.3)', fontSize: '0.8rem' }}>
-                    <div className="text-white">Debug: {debugInfo}</div>
-                  </div>
-                )}
-                <div className="spinner-border text-accent" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
+                
+                <p className="text-white opacity-60 mt-4" style={{ fontSize: '0.8rem' }}>
+                  Please sign in with your email: <strong>{formData.email}</strong>
+                </p>
               </div>
             </div>
           </div>
@@ -658,6 +869,287 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
 
   return (
     <div className="auth-form-with-video">
+      <style>{`
+        .password-input-container {
+          position: relative;
+        }
+        
+        .password-toggle-btn {
+          position: absolute;
+          right: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: transparent;
+          border: none;
+          color: #8FB3E2;
+          cursor: pointer;
+          padding: 5px;
+          z-index: 10;
+        }
+        
+        .password-toggle-btn:hover {
+          color: #7a9fd1;
+        }
+        
+        .form-control.search-bar-transparent {
+          padding-right: 40px !important;
+        }
+        
+        /* Fix for text visibility in inputs - UPDATED */
+        .form-control.search-bar-transparent,
+        .form-control.search-bar-transparent:focus,
+        .form-control.search-bar-transparent:hover {
+          color: white !important;
+          background: rgba(255, 255, 255, 0.08) !important;
+          border: 1px solid rgba(143, 179, 226, 0.3) !important;
+        }
+        
+        /* Placeholder color */
+        .form-control.search-bar-transparent::placeholder {
+          color: rgba(255, 255, 255, 0.6) !important;
+          opacity: 1;
+        }
+        
+        /* For autofill background */
+        .form-control.search-bar-transparent:-webkit-autofill,
+        .form-control.search-bar-transparent:-webkit-autofill:hover,
+        .form-control.search-bar-transparent:-webkit-autofill:focus {
+          -webkit-text-fill-color: white !important;
+          -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.08) inset !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
+        
+        /* For all input types */
+        input[type="text"].search-bar-transparent,
+        input[type="email"].search-bar-transparent,
+        input[type="password"].search-bar-transparent,
+        input[type="tel"].search-bar-transparent,
+        input[type="number"].search-bar-transparent {
+          color: white !important;
+        }
+        
+        /* For select elements */
+        select.search-bar-transparent {
+          color: white !important;
+          background: rgba(255, 255, 255, 0.08) !important;
+          border: 1px solid rgba(143, 179, 226, 0.3) !important;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+        }
+        
+        select.search-bar-transparent option {
+          color: #333 !important;
+          background: white !important;
+        }
+        
+        /* For GST number input specifically */
+        input[name="gstNo"].search-bar-transparent {
+          text-transform: uppercase;
+          color: white !important;
+        }
+        
+        /* For phone number input */
+        input[name="phone"].search-bar-transparent {
+          color: white !important;
+        }
+        
+        /* For pincode input */
+        input[name="pincode"].search-bar-transparent {
+          color: white !important;
+        }
+        
+        /* For name input */
+        input[name="name"].search-bar-transparent {
+          color: white !important;
+        }
+        
+        /* For email input */
+        input[name="email"].search-bar-transparent {
+          color: white !important;
+        }
+        
+        /* User Type Selection */
+        .user-type-selector {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 25px;
+          border: 1px solid rgba(143, 179, 226, 0.1);
+        }
+        
+        .user-type-btn {
+          flex: 1;
+          padding: 20px 15px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 2px solid rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+          color: white;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .user-type-btn:hover {
+          background: rgba(143, 179, 226, 0.1);
+          border-color: rgba(143, 179, 226, 0.3);
+          transform: translateY(-2px);
+        }
+        
+        .user-type-btn.active {
+          background: rgba(143, 179, 226, 0.15);
+          border-color: #8FB3E2;
+          box-shadow: 0 4px 15px rgba(143, 179, 226, 0.2);
+        }
+        
+        .user-type-btn.vendor.active {
+          background: rgba(40, 167, 69, 0.15);
+          border-color: #28a745;
+          box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);
+        }
+        
+        .user-type-icon {
+          font-size: 2rem;
+        }
+        
+        .user-type-text {
+          font-size: 1rem;
+          font-weight: 500;
+        }
+        
+        /* Vendor specific fields */
+        .vendor-field {
+          background: rgba(40, 167, 69, 0.05);
+          padding: 15px;
+          border-radius: 8px;
+          border-left: 3px solid #28a745;
+          margin-bottom: 20px;
+        }
+        
+        /* Password criteria */
+        .password-criteria {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          padding: 15px;
+          margin-top: 10px;
+          margin-bottom: 15px;
+        }
+        
+        .criteria-icon.valid {
+          color: #28a745;
+        }
+        
+        .criteria-icon.invalid {
+          color: #dc3545;
+        }
+        
+        .criteria-label.valid {
+          color: #ccc;
+        }
+        
+        .criteria-label.invalid {
+          color: #aaa;
+        }
+        
+        /* Vendor button */
+        .btn-vendor {
+          background: linear-gradient(135deg, #28a745, #20c997);
+          border: none;
+          color: white;
+          border-radius: 8px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+        }
+        
+        .btn-vendor:hover:not(:disabled) {
+          background: linear-gradient(135deg, #218838, #1ba87e);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-vendor:disabled {
+          background: rgba(40, 167, 69, 0.3);
+          color: rgba(255, 255, 255, 0.5);
+          cursor: not-allowed;
+        }
+        
+        /* Agreement text */
+        .agreement-text {
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.6);
+          margin-top: 15px;
+        }
+        
+        .agreement-text a {
+          text-decoration: none;
+          transition: color 0.2s;
+          color: #8FB3E2;
+        }
+        
+        .agreement-text a:hover {
+          color: #7a9fd1;
+          text-decoration: underline;
+        }
+        
+        /* Phone input container */
+        .phone-input-container {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 5px;
+        }
+        
+        .country-code-selector {
+          flex: 0 0 140px;
+        }
+        
+        .country-code-select {
+          min-width: 140px;
+          appearance: none;
+          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238FB3E2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+          background-repeat: no-repeat;
+          background-position: right 10px center;
+          background-size: 16px;
+          padding-right: 35px;
+        }
+        
+        .phone-number-input {
+          flex: 1;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+          .phone-input-container {
+            flex-direction: column;
+            gap: 10px;
+          }
+          
+          .country-code-selector {
+            flex: 0 0 auto;
+            width: 100%;
+          }
+          
+          .country-code-select {
+            width: 100%;
+          }
+          
+          .user-type-btn {
+            padding: 15px 10px;
+          }
+          
+          .user-type-icon {
+            font-size: 1.5rem;
+          }
+          
+          .user-type-text {
+            font-size: 0.9rem;
+          }
+        }
+      `}</style>
+      
       <div className="auth-video-background">
         <video autoPlay muted loop playsInline className="auth-background-video">
           <source src="/img/signup.mp4" type="video/mp4" />
@@ -686,16 +1178,48 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
               Fill in all fields to create your account. All data will be saved securely.
             </p>
             
+            {/* User Type Selection */}
+            <div className="user-type-selector">
+              <div className="text-white mb-2" style={{ fontSize: '0.9rem', fontWeight: '500' }}>
+                Select Account Type:
+              </div>
+              <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  className={`user-type-btn ${userType === 'user' ? 'active' : ''}`}
+                  onClick={() => handleUserTypeChange('user')}
+                >
+                  <div className="user-type-icon">👤</div>
+                  <div className="user-type-text">User</div>
+                </button>
+                <button
+                  type="button"
+                  className={`user-type-btn ${userType === 'vendor' ? 'active vendor' : ''}`}
+                  onClick={() => handleUserTypeChange('vendor')}
+                >
+                  <div className="user-type-icon">🏢</div>
+                  <div className="user-type-text">Vendor</div>
+                </button>
+              </div>
+              <div className="text-sm opacity-80 mt-2">
+                {userType === 'user' 
+                  ? 'Register as a regular user to browse and purchase products.' 
+                  : 'Register as a vendor to sell products through our platform.'}
+              </div>
+            </div>
+            
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="form-label fw-semibold">Full Name <span className="text-danger">*</span></label>
+                <label className="form-label fw-semibold">
+                  {userType === 'vendor' ? 'Vendor/Business Name' : 'Full Name'} <span className="text-danger">*</span>
+                </label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   className="form-control search-bar-transparent"
-                  placeholder="Enter your full name"
+                  placeholder={userType === 'vendor' ? "Enter vendor/business name" : "Enter your full name"}
                   required
                 />
               </div>
@@ -743,36 +1267,44 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                 </div>
                 <small className="text-sm opacity-80 d-block mt-1">
                   {selectedCountry ? `Valid ${selectedCountry.name} number format required. Example: ${selectedCountry.placeholder}` : 'Enter valid phone number'}
-                  <br />
-                  Current: {formData.countryCode}{formData.phone}
                 </small>
               </div>
               
-              {/* Country Selection */}
+              {/* GST Number Field (Vendor only) */}
+              {userType === 'vendor' && (
+                <div className="vendor-field">
+                  <label className="form-label fw-semibold">GST Number <span className="text-danger">*</span></label>
+                  <input
+                    type="text"
+                    name="gstNo"
+                    value={formData.gstNo}
+                    onChange={handleChange}
+                    className="form-control search-bar-transparent"
+                    placeholder="Enter GST Number (15 characters)"
+                    required
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                  <small className="text-sm opacity-80 d-block mt-1">
+                    Format: 22AAAAA0000A1Z5 (15 characters, alphanumeric)
+                  </small>
+                </div>
+              )}
+              
+              {/* Country Selection - UPDATED: Changed from dropdown to text input */}
               <div className="form-group">
                 <label className="form-label fw-semibold">Country <span className="text-danger">*</span></label>
-                <select
+                <input
+                  type="text"
                   name="country"
                   value={formData.country}
                   onChange={handleChange}
                   className="form-control search-bar-transparent"
+                  placeholder="Enter your country (e.g., India, USA, UAE)"
                   required
-                >
-                  <option value="">Select Country</option>
-                  <option value="India">India</option>
-                  <option value="Oman">Oman</option>
-                  <option value="United Kingdom">United Kingdom</option>
-                  <option value="United States">United States</option>
-                  <option value="UAE">UAE</option>
-                  <option value="Australia">Australia</option>
-                  <option value="Canada">Canada</option>
-                  <option value="Germany">Germany</option>
-                  <option value="France">France</option>
-                  <option value="Singapore">Singapore</option>
-                  <option value="Japan">Japan</option>
-                  <option value="China">China</option>
-                  <option value="Other">Other</option>
-                </select>
+                />
+                <small className="text-sm opacity-80 d-block mt-1">
+                  Enter your country name (e.g., India, United States, UAE)
+                </small>
               </div>
               
               {/* State */}
@@ -787,9 +1319,6 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                   placeholder="Enter your state or province"
                   required
                 />
-                <small className="text-sm opacity-80 d-block mt-1">
-                  Current: {formData.state || 'Not set'}
-                </small>
               </div>
               
               {/* City */}
@@ -804,9 +1333,6 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                   placeholder="Enter your city or town"
                   required
                 />
-                <small className="text-sm opacity-80 d-block mt-1">
-                  Current: {formData.city || 'Not set'}
-                </small>
               </div>
               
               {/* Pincode */}
@@ -822,56 +1348,89 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                   required
                 />
                 <small className="text-sm opacity-80 d-block mt-1">
-                  Must be 4-10 digits. Current: {formData.pincode || 'Not set'}
+                  Must be 4-10 digits.
                 </small>
               </div>
               
+              {/* Registered By Field (Vendor only) */}
+              {userType === 'vendor' && (
+                <div className="vendor-field">
+                  <label className="form-label fw-semibold">Registered By Executive <span className="text-danger">*</span></label>
+                  <select
+                    name="registeredBy"
+                    value={formData.registeredBy}
+                    onChange={handleChange}
+                    className="form-control search-bar-transparent"
+                    required
+                  >
+                    <option value="">Select Executive</option>
+                    {formData.executives.map((executive) => (
+                      <option key={executive} value={executive.toLowerCase()}>
+                        {executive}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
               <div className="form-group">
                 <label className="form-label fw-semibold">Password <span className="text-danger">*</span></label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="form-control search-bar-transparent"
-                  placeholder="Create a strong password"
-                  required
-                />
-                <small className="text-sm opacity-80 d-block mt-1">Must be 8+ chars with uppercase, lowercase, number & special char</small>
+                <div className="password-input-container">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="form-control search-bar-transparent"
+                    placeholder="Create a strong password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={togglePasswordVisibility}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {/* Password Strength Indicator */}
-              <div className="password-criteria mt-2 p-3 rounded" style={{ background: 'rgba(255,255,255,0.1)', fontSize: '0.8rem' }}>
-                <div className="mb-2 text-white" style={{ fontSize: '0.75rem' }}>Password Requirements:</div>
-                {criteria.map((c, i) => (
-                  <div key={i} className="d-flex align-items-center gap-2 mb-1">
-                    <span style={{ color: c.test ? '#28a745' : '#dc3545' }}>
-                      {c.test ? '✓' : '✗'}
-                    </span>
-                    <span style={{ color: c.test ? '#ccc' : '#aaa' }}>{c.label}</span>
-                  </div>
-                ))}
-              </div>
+              {formData.password && (
+                <div className="password-criteria">
+                  <div className="mb-2 text-white" style={{ fontSize: '0.75rem' }}>Password Requirements:</div>
+                  {criteria.map((c, i) => (
+                    <div key={i} className="d-flex align-items-center gap-2 mb-1">
+                      <span className={`criteria-icon ${c.test ? 'valid' : 'invalid'}`}>
+                        {c.test ? '✓' : '✗'}
+                      </span>
+                      <span className={`criteria-label ${c.test ? 'valid' : 'invalid'}`}>{c.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label fw-semibold">Confirm Password <span className="text-danger">*</span></label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="form-control search-bar-transparent"
-                  placeholder="Confirm your password"
-                  required
-                />
-              </div>
-              
-              {/* Debug Info */}
-              {debugInfo && (
-                <div className="debug-info mt-3 p-2 rounded" style={{ background: 'rgba(0,0,0,0.3)', fontSize: '0.8rem' }}>
-                  <div className="text-white">Debug: {debugInfo}</div>
+                <div className="password-input-container">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className="form-control search-bar-transparent"
+                    placeholder="Confirm your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={toggleConfirmPasswordVisibility}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
-              )}
+              </div>
               
               <div className="auth-links-container">
                 <div>
@@ -884,22 +1443,21 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
               
               <button
                 type="submit"
-                className="btn btn-primary-transparent w-100 py-3 fw-semibold mt-3"
-                disabled={loading || !passwordValid || formData.password !== formData.confirmPassword || !validatePhone() || !formData.name || !formData.email || !formData.state || !formData.city || !formData.pincode || !formData.country}
-                title={(!passwordValid || formData.password !== formData.confirmPassword || !validatePhone() || !formData.name || !formData.email || !formData.state || !formData.city || !formData.pincode || !formData.country) ? "Please fill all required fields correctly" : ""}
+                className={`btn w-100 py-3 fw-semibold mt-3 ${userType === 'vendor' ? 'btn-vendor' : 'btn-primary-transparent'}`}
+                disabled={loading || !passwordValid || formData.password !== formData.confirmPassword || !validatePhone() || !formData.name || !formData.email || !formData.state || !formData.city || !formData.pincode || !formData.country || (userType === 'vendor' && (!formData.gstNo || !validateGST() || !formData.registeredBy))}
               >
                 {loading ? (
                   <>
                     <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                    Creating Account...
+                    {userType === 'vendor' ? 'Registering Vendor...' : 'Creating Account...'}
                   </>
                 ) : (
-                  'Sign Up'
+                  userType === 'vendor' ? 'Register as Vendor' : 'Sign Up'
                 )}
               </button>
               
-              <div className="mt-3 text-center" style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
-                By signing up, you agree to our Terms & Conditions
+              <div className="mt-3 text-center agreement-text">
+                By signing up, you agree to our <a href="/terms-policy" target="_blank" className="text-accent">Terms & Conditions</a> and <a href="/terms-policy" target="_blank" className="text-accent">Privacy Policy</a>
               </div>
             </form>
           </div>

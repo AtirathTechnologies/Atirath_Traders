@@ -5,108 +5,41 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
   const navigate = useNavigate();
 
   const services = [
-    
     {
       name: "Rice",
-      product: "rice",
-      image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
+      product: "rice", // Should match database category ID
+      image: "/img/All_Products/Rice.webp",
       description: "Premium quality rice varieties for domestic and international markets."
     },
     {
       name: "Chocolates",
-      product: "chocolates",
+      product: "chocolates", // Should match database category ID
       image: "/img/All_Products/Chocolate.webp",
       description: "Premium chocolate coated nuts and confectionery products."
     },
     {
       name: "Beverages",
-      product: "beverages",
-      image: "/img/All_Products/Beverages.jpg",
+      product: "beverages", // Should match database category ID
+      image: "/img/All_Products/Beverages.webp",
       description: "Premium Quality Beverages including soft drinks and energy drinks."
     },
     {
       name: "Dry Fruits",
-      product: "dryfruits",
-      image: "/img/All_Products/Dryfruits.jpg",
+      product: "dry_fruits", // Fixed: Changed to match typical Firebase category ID
+      image: "/img/All_Products/Dryfruits.webp",
       description: "Premium quality dry fruits including nuts, dried berries, and snacks."
     },
     {
       name: "Dried Fruits",
-      product: "driedfruits",
+      product: "dried_fruits", // Fixed: Changed to match typical Firebase category ID
       image: "/img/All_Products/Dried_Logo.webp",
-      description: "High-quality dehydrated fruits and berries."
+      description: "High-quality dehydrated fruits and berries"
     },
     {
       name: "Popcorn",
-      product: "Popcorn",
-      image: "/img/All_Products/Popcorn.jpg",
-      description: "Wonder Puff premium popcorn varieties."
-    },
-    {
-      name: "Pulses",
-      product: "pulses",
-      image: "https://food.fnr.sndimg.com/content/dam/images/food/fullset/2016/2/15/0/HE_dried-legumes-istock-2_s4x3.jpg.rend.hgtvcom.1280.1280.85.suffix/1455572939649.webp",
-      description: "Premium pulses including Toor Dal, Moong Dal, Chana Dal and more."
-    },
-    {
-      name: "Fruits",
-      product: "fruits",
-      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTJaB4CfdpehM4mzx6avwe6dBvgAl1QnuQkxA&s",
-      description: "Fresh and high-quality fruits sourced from the best farms."
-    },
-    {
-      name: "Vegetables",
-      product: "vegetables",
-      image: "https://cdn.britannica.com/17/196817-050-6A15DAC3/vegetables.jpg?w=400&h=300&c=crop",
-      description: "Fresh and organic vegetables for healthy living."
-    },
-    {
-      name: "Gadgets",
-      product: "gadgets",
-      image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Latest electronic gadgets and accessories."
-    },
-    {
-      name: "Perfume",
-      product: "perfume",
-      image: "https://images.unsplash.com/photo-1541643600914-78b084683601?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Premium fragrances and personal care products."
-    },
-    {
-      name: "Flowers",
-      product: "flowers",
-      image: "https://images.unsplash.com/photo-1563241527-3004b7be0ffd?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Fresh flowers and floral arrangements for all occasions."
-    },
-    {
-      name: "Spices",
-      product: "spices",
-      image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Aromatic spices to enhance your culinary experience."
-    },
-    {
-      name: "Clothing",
-      product: "clothing",
-      image: "https://images.unsplash.com/photo-1445205170230-053b83016050?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-      description: "Fashionable clothing for all ages and occasions."
-    },
-    {
-      name: "Edible Oil Refining",
-      product: "oil",
-      image: "./img/oil.jpeg",
-      description: "High-quality refined Edible oil products for culinary and industrial use."
-    },
-    {
-      name: "Construction Materials",
-      product: "construction",
-      image: "/img/steel-cement.png",
-      description: "High-quality steel and cement for construction projects."
-    },
-    {
-      name: "Tea",
-      product: "tea",
-      image: "https://domf5oio6qrcr.cloudfront.net/medialibrary/8468/conversions/Tea-thumb.jpg",
-      description: "Premium tea varieties from the finest plantations."
+      product: "popcorn", // Fixed: lowercase to match database
+      image: "/img/All_Products/Popcorn.webp",
+      description: "Wonder Puff premium popcorn varieties"
     }
   ];
 
@@ -114,7 +47,11 @@ const Services = ({ onServiceClick, onViewAllClick }) => {
   const initialServices = services.slice(0, 6);
 
   const handleServiceClick = (productType) => {
-    console.log('Service card clicked:', productType);
+    console.log('Service card clicked, product type:', productType);
+    
+    // Log for debugging
+    console.log('All services:', services.map(s => ({ name: s.name, product: s.product })));
+    
     if (onServiceClick) {
       onServiceClick(productType, { fromAllProducts: true });
     } else {

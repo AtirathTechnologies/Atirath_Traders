@@ -11,7 +11,7 @@ const ServicesPage = () => {
       title: "Import & Export Services",
       description: "Complete international trade solutions including customs clearance, documentation, and regulatory compliance for seamless cross-border transactions.",
       icon: <Globe className="w-8 h-8" />,
-      image: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/trade.webp",
       features: ["Customs Clearance", "Trade Documentation", "Regulatory Compliance", "Global Logistics"],
       category: "International Trade"
     },
@@ -20,7 +20,7 @@ const ServicesPage = () => {
       title: "Logistics & Transportation",
       description: "End-to-end logistics management with multi-modal transport solutions ensuring timely and secure delivery across global supply chains.",
       icon: <Truck className="w-8 h-8" />,
-      image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/transport.webp",
       features: ["Multi-modal Transport", "Warehousing", "Real-time Tracking", "Supply Chain Optimization"],
       category: "Supply Chain"
     },
@@ -29,7 +29,7 @@ const ServicesPage = () => {
       title: "Product Sourcing",
       description: "Strategic sourcing solutions connecting businesses with verified suppliers worldwide for quality products at competitive prices.",
       icon: <Search className="w-8 h-8" />,
-      image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/product.webp",
       features: ["Supplier Verification", "Quality Assurance", "Cost Optimization", "Market Intelligence"],
       category: "Procurement"
     },
@@ -38,7 +38,7 @@ const ServicesPage = () => {
       title: "Quality Assurance",
       description: "Comprehensive quality control and packaging solutions ensuring products meet international standards and reach customers in perfect condition.",
       icon: <Package className="w-8 h-8" />,
-      image: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/quality.webp",
       features: ["Quality Control", "Packaging Solutions", "Compliance Testing", "Brand Protection"],
       category: "Quality Management"
     },
@@ -47,7 +47,7 @@ const ServicesPage = () => {
       title: "Trade Consultation",
       description: "Expert advisory services for market expansion, regulatory compliance, and strategic planning in international trade operations.",
       icon: <Users className="w-8 h-8" />,
-      image: "https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/conslouation.webp",
       features: ["Market Analysis", "Regulatory Guidance", "Risk Assessment", "Strategic Planning"],
       category: "Business Advisory"
     },
@@ -56,7 +56,7 @@ const ServicesPage = () => {
       title: "Supply Chain Management",
       description: "Integrated supply chain solutions optimizing operations from sourcing to delivery for enhanced efficiency and cost-effectiveness.",
       icon: <Shield className="w-8 h-8" />,
-      image: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/services/operation.webp",
       features: ["End-to-End Management", "Inventory Optimization", "Cost Reduction", "Performance Analytics"],
       category: "Operations"
     }

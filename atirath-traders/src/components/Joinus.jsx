@@ -4,6 +4,9 @@ import { ArrowLeft, Users, Target, Heart, Award, Mail, Phone, MapPin } from 'luc
 
 const JoinUs = () => {
   const navigate = useNavigate();
+  
+  // ✅ WhatsApp number from environment variable
+  const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER;
 
   const benefits = [
     {
@@ -56,7 +59,7 @@ const JoinUs = () => {
   ];
 
   const handleApplyClick = (positionTitle) => {
-    const whatsappNumber = '+919247485871';
+    
     const currentDate = new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -68,6 +71,7 @@ const JoinUs = () => {
     
     const message = `*Job Application Inquiry* 📝%0A%0A*Date:* ${currentDate}%0A*Position Interested In:* ${positionTitle}%0A%0AHello Atirath Traders Team,%0A%0AI am interested in applying for the ${positionTitle} position.%0A%0APlease provide me with the application process details.%0A%0A_Contact me for further discussion._`;
     
+    // ✅ Using environment variable for WhatsApp number
     const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
     
     window.open(whatsappURL, '_blank');
@@ -168,6 +172,7 @@ const JoinUs = () => {
             <div className="card blog-card p-5 text-center">
               <h3 className="text-white mb-4">How to Apply</h3>
               <div className="row g-4">
+                {/* Email */}
                 <div className="col-md-4">
                   <div className="text-primary mb-2">
                     <Mail className="w-6 h-6 mx-auto" />
@@ -177,24 +182,38 @@ const JoinUs = () => {
                     Send your resume to info@atirathtradersltd.com
                   </p>
                 </div>
+                
+                {/* ✅ Phone - Using environment variable */}
                 <div className="col-md-4">
                   <div className="text-primary mb-2">
                     <Phone className="w-6 h-6 mx-auto" />
                   </div>
                   <h6 className="text-white">Call Us</h6>
                   <p className="text-light opacity-80 small">
-                    +91 7396007479<br />
+                    <a href={`tel:${whatsappNumber}`} 
+                       style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {whatsappNumber}
+                    </a>
+                    <br />
                     Mon-Fri, 9AM-6PM
                   </p>
                 </div>
+                
+                {/* ✅ WhatsApp - Using environment variable */}
                 <div className="col-md-4">
                   <div className="text-primary mb-2">
-                    <MapPin className="w-6 h-6 mx-auto" />
+                    <i className="fab fa-whatsapp" style={{ fontSize: '24px', color: '#25D366' }}></i>
                   </div>
-                  <h6 className="text-white">Visit Us</h6>
+                  <h6 className="text-white">WhatsApp</h6>
                   <p className="text-light opacity-80 small">
-                    Corporate Office<br />
-                    Atirath Traders India Pvt. Ltd.
+                    <a href={`https://wa.me/${whatsappNumber}`} 
+                       style={{ color: 'inherit', textDecoration: 'none' }}
+                       target="_blank" 
+                       rel="noopener noreferrer">
+                      {whatsappNumber}
+                    </a>
+                    <br />
+                    24/7 Available
                   </p>
                 </div>
               </div>
@@ -243,6 +262,20 @@ const JoinUs = () => {
         
         .apply-now-button-fixed:active {
           transform: translateY(0) !important;
+        }
+        
+        /* Blog Card Styles */
+        .blog-card {
+          background: rgba(25, 35, 56, 0.8);
+          border: 1px solid rgba(143, 179, 226, 0.2);
+          border-radius: 1rem;
+          backdrop-filter: blur(10px);
+          transition: all 0.3s ease;
+        }
+        
+        .blog-card:hover {
+          border-color: rgba(143, 179, 226, 0.4);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
         
         /* Responsive styles */

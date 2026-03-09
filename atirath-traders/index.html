@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Basic Meta -->
+    <!-- ================= BASIC META ================= -->
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Title & Description -->
+    <!-- ================= TITLE & DESCRIPTION ================= -->
     <title>Atirath Traders India Pvt. Ltd. | Agriculture & Trade Solutions</title>
     <meta
       name="description"
@@ -18,14 +18,14 @@
     />
     <meta name="author" content="Atirath Traders India Pvt. Ltd." />
 
-    <!-- Canonical URL -->
+    <!-- ================= CANONICAL ================= -->
     <link rel="canonical" href="https://www.atirathtraders.com/" />
 
-    <!-- Favicon -->
+    <!-- ================= FAVICON ================= -->
     <link rel="icon" type="image/png" href="/img/icon2.png" />
     <link rel="apple-touch-icon" href="/img/icon2.png" />
 
-    <!-- Open Graph (Facebook / WhatsApp / LinkedIn) -->
+    <!-- ================= OPEN GRAPH ================= -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Atirath Traders India Pvt. Ltd." />
     <meta
@@ -33,39 +33,60 @@
       content="Trusted agricultural trading and logistics partner delivering quality, transparency, and growth."
     />
     <meta property="og:url" content="https://www.atirathtraders.com/" />
-    <meta property="og:image" content="https://www.atirathtraders.com/img/og-image.jpg" />
+    <meta
+      property="og:image"
+      content="https://www.atirathtraders.com/img/og-image.jpg"
+    />
 
-    <!-- Twitter Card -->
+    <!-- ================= TWITTER ================= -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Atirath Traders India Pvt. Ltd." />
     <meta
       name="twitter:description"
       content="Agricultural trading, logistics, and transport services across India."
     />
-    <meta name="twitter:image" content="https://www.atirathtraders.com/img/og-image.jpg" />
+    <meta
+      name="twitter:image"
+      content="https://www.atirathtraders.com/img/og-image.jpg"
+    />
 
-    <!-- Theme Color -->
+    <!-- ================= THEME COLOR ================= -->
     <meta name="theme-color" content="#0d6efd" />
 
-    <!-- Preconnect for Performance -->
+    <!-- ================= PERFORMANCE ================= -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Schema.org Organization -->
+    <!-- ================================================= -->
+    <!-- ✅ CRITICAL: WEBSITE SCHEMA (SITE NAME SIGNAL) -->
+    <!-- ================================================= -->
     <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "Atirath Traders India Pvt. Ltd.",
-        "url": "https://www.atirathtraders.com/",
-        "logo": "https://www.atirathtraders.com/img/icon2.png",
-        "sameAs": [
-          "https://www.instagram.com/atirathtradersindia",
-          "https://x.com/atirathtraders",
-          "https://www.facebook.com",
-          "https://www.linkedin.com/company/atirath-traders-india-private/"
-        ]
-      }
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Atirath Traders India Pvt. Ltd.",
+      "alternateName": "Atirath Traders",
+      "url": "https://www.atirathtraders.com/"
+    }
+    </script>
+
+    <!-- ================================================= -->
+    <!-- ORGANIZATION SCHEMA -->
+    <!-- ================================================= -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Atirath Traders India Pvt. Ltd.",
+      "url": "https://www.atirathtraders.com/",
+      "logo": "https://www.atirathtraders.com/img/icon2.png",
+      "sameAs": [
+        "https://www.instagram.com/atirathtradersindia",
+        "https://x.com/atirathtraders",
+        "https://www.facebook.com",
+        "https://www.linkedin.com/company/atirath-traders-india-private/"
+      ]
+    }
     </script>
   </head>
 
@@ -76,9 +97,11 @@
       </strong>
     </noscript>
 
+    <!-- React Root -->
     <div id="root"></div>
 
-    <!-- Main React Entry -->
+    <!-- ================= REACT ENTRY ================= -->
+    <!-- ⚠️ Dev only. For SEO, Google reads BUILD output -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

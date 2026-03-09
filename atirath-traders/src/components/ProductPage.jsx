@@ -1,14 +1,23 @@
+// components/ProductPage.jsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Building2, X, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Building2, X, ChevronRight, ShoppingCart, Check, ShoppingBag, Package, MapPin, Clock, Tag, Layers, Award } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { database, ref, get } from '../firebase';
-import { CURRENCIES } from '../data/currency'
-import BuyModal from './BuyModal';
+import { database, ref, get, getCurrencyData } from '../firebase';
+import SingleProductBuyModal from './SingleProductBuyModal';
+import CheckoutModal from './CheckoutModal';
+import AddToCartConfigModal from './AddToCartConfigModal';
+import { useCart } from './CartContext';
+import { 
+  ricePackingOptions,
+  getQuantityOptionsForProduct,
+  getQuantityUnit 
+} from '../data/ProductData';
 
 const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isAuthenticated = false, onNewOrderSubmitted }) => {
   const { type: categoryId } = useParams();
   const navigate = useNavigate();
-
+  const { addToCart, items: cartItems, setCheckoutProducts } = useCart();
+  
   // States
   const [categoryData, setCategoryData] = useState(null);
   const [allCompanies, setAllCompanies] = useState({});
@@ -19,16 +28,29 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const [brands, setBrands] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [products, setProducts] = useState([]);
-  const [currency, setCurrency] = useState('AUTO');
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
+  const [isSingleProductModalOpen, setIsSingleProductModalOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isAddToCartConfigModalOpen, setIsAddToCartConfigModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProductForConfig, setSelectedProductForConfig] = useState(null);
+  const [checkoutProducts, setCheckoutProductsLocal] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [detailedProduct, setDetailedProduct] = useState(null);
-  const [viewMode, setViewMode] = useState('companies'); // 'companies', 'brands', 'products'
+  const [viewMode, setViewMode] = useState('companies');
   const [isLoading, setIsLoading] = useState(true);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [cartStatus, setCartStatus] = useState({});
+  const [showCartSuccess, setShowCartSuccess] = useState(false);
+  const [addedProduct, setAddedProduct] = useState(null);
+
+  // Currency states from Firebase
+  const [currencyRates, setCurrencyRates] = useState({});
+  const [currencySymbols, setCurrencySymbols] = useState({});
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  const [availableCurrencies, setAvailableCurrencies] = useState([]);
+  const [isLoadingCurrency, setIsLoadingCurrency] = useState(true);
 
   // Check mobile view
   useEffect(() => {
@@ -38,11 +60,63 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Fetch currency data from Firebase
+  const fetchCurrencyData = async () => {
+    setIsLoadingCurrency(true);
+    try {
+      const { rates, symbols } = await getCurrencyData();
+      console.log('💰 Currency rates from Firebase:', rates);
+      console.log('💰 Currency symbols from Firebase:', symbols);
+      
+      setCurrencyRates(rates);
+      setCurrencySymbols(symbols);
+
+      // Create available currencies list
+      const currencies = Object.keys(rates).map(code => ({
+        code,
+        rate: rates[code],
+        symbol: symbols[code] || code
+      }));
+
+      setAvailableCurrencies(currencies);
+      setIsLoadingCurrency(false);
+    } catch (error) {
+      console.error('Error fetching currency data:', error);
+      setIsLoadingCurrency(false);
+    }
+  };
+
+  // Set default currency based on category
+  const setDefaultCurrencyForCategory = () => {
+    if (!categoryId || !currencyRates) return;
+
+    // Check if it's rice category
+    const isRiceCategory = categoryId === 'rice' || 
+                          categoryData?.name?.toLowerCase().includes('rice') ||
+                          categoryId?.toLowerCase().includes('rice');
+
+    if (isRiceCategory && currencyRates['INR']) {
+      console.log('🌾 Rice category detected, setting default currency to INR');
+      setSelectedCurrency('INR');
+    } else {
+      console.log('📦 Non-rice category detected, setting default currency to USD');
+      setSelectedCurrency('USD');
+    }
+  };
+
   // Fetch all data from Firebase
   useEffect(() => {
     if (!categoryId) return;
     fetchAllData();
+    fetchCurrencyData();
   }, [categoryId]);
+
+  // Set default currency after category data and currency rates are loaded
+  useEffect(() => {
+    if (categoryData && Object.keys(currencyRates).length > 0) {
+      setDefaultCurrencyForCategory();
+    }
+  }, [categoryData, currencyRates]);
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -53,19 +127,17 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         get(ref(database, 'brands')),
         get(ref(database, 'products'))
       ]);
-
+      
       const fetchedCategories = categoriesSnap.exists() ? categoriesSnap.val() : {};
       const fetchedCompanies = companiesSnap.exists() ? companiesSnap.val() : {};
       const fetchedBrands = brandsSnap.exists() ? brandsSnap.val() : {};
       const fetchedProducts = productsSnap.exists() ? productsSnap.val() : {};
 
-      // Set category data
       setCategoryData(fetchedCategories[categoryId] || null);
       setAllCompanies(fetchedCompanies);
       setAllBrands(fetchedBrands);
       setAllProducts(fetchedProducts);
 
-      // Filter companies that have products in this category
       const categoryProducts = Object.entries(fetchedProducts)
         .filter(([productId, productData]) => productData.categoryId === categoryId)
         .map(([productId, productData]) => ({
@@ -73,28 +145,25 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           ...productData
         }));
 
-      // Get unique company IDs from products in this category
       const uniqueCompanyIds = [...new Set(categoryProducts.map(p => p.companyId))];
-
       let filteredCompanies = [];
+      
       if (uniqueCompanyIds.length > 0) {
         filteredCompanies = uniqueCompanyIds.map(companyId => ({
           id: companyId,
           ...fetchedCompanies[companyId]
         })).filter(c => c && c.id);
       } else {
-        // If no products, show all companies as fallback
         filteredCompanies = Object.entries(fetchedCompanies).map(([companyId, companyData]) => ({
           id: companyId,
           ...companyData
         }));
       }
 
-      // Add product count and brand count to each company
       filteredCompanies = filteredCompanies.map(company => {
         const companyProducts = categoryProducts.filter(p => p.companyId === company.id);
         const brandIds = [...new Set(companyProducts.map(p => p.brandId).filter(Boolean))];
-
+        
         return {
           ...company,
           productCount: companyProducts.length,
@@ -113,44 +182,338 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
   // Filter products based on search query
   useEffect(() => {
-    if (globalSearchQuery.trim() === '') {
-      // If no search query, show all products
-      setFilteredProducts(products);
-    } else {
-      // Filter products based on search query
+    let filtered = products;
+
+    if (globalSearchQuery.trim() !== '') {
       const searchLower = globalSearchQuery.toLowerCase().trim();
-      const filtered = products.filter(product => {
-        // Search in multiple fields
-        return (
-          (product.name && product.name.toLowerCase().includes(searchLower)) ||
-          (product.product_description && product.product_description.toLowerCase().includes(searchLower)) ||
-          (product.companyName && product.companyName.toLowerCase().includes(searchLower)) ||
-          (product.brandName && product.brandName.toLowerCase().includes(searchLower)) ||
-          (product.origin && product.origin.toLowerCase().includes(searchLower)) ||
-          (product.pack_type && product.pack_type.toLowerCase().includes(searchLower)) ||
-          (product.shelf_life && product.shelf_life.toLowerCase().includes(searchLower)) ||
-          // Search in grades for rice products
-          (product.grades && product.grades.some(grade => 
-            grade.grade && grade.grade.toLowerCase().includes(searchLower)
-          ))
-        );
-      });
-      setFilteredProducts(filtered);
+      filtered = filtered.filter(product => (
+        (product.name && product.name.toLowerCase().includes(searchLower)) ||
+        (product.product_description && product.product_description.toLowerCase().includes(searchLower)) ||
+        (product.companyName && product.companyName.toLowerCase().includes(searchLower)) ||
+        (product.brandName && product.brandName.toLowerCase().includes(searchLower)) ||
+        (product.origin && product.origin.toLowerCase().includes(searchLower)) ||
+        (product.pack_type && product.pack_type.toLowerCase().includes(searchLower)) ||
+        (product.shelf_life && product.shelf_life.toLowerCase().includes(searchLower)) ||
+        (product.grades && product.grades.some(grade =>
+          grade.grade && grade.grade.toLowerCase().includes(searchLower)
+        ))
+      ));
     }
-  }, [globalSearchQuery, products]);
 
+    if (productSearchQuery.trim() !== '') {
+      const searchLower = productSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter(product => (
+        (product.name && product.name.toLowerCase().includes(searchLower)) ||
+        (product.product_description && product.product_description.toLowerCase().includes(searchLower)) ||
+        (product.origin && product.origin.toLowerCase().includes(searchLower)) ||
+        (product.pack_type && product.pack_type.toLowerCase().includes(searchLower))
+      ));
+    }
+
+    setFilteredProducts(filtered);
+  }, [globalSearchQuery, products, productSearchQuery]);
+
+  // Convert currency using Firebase rates
   const convertCurrency = (amount, fromCurrency, toCurrency) => {
-    if (!CURRENCIES[fromCurrency] || !CURRENCIES[toCurrency]) return amount;
+    if (!amount && amount !== 0) return 0;
     if (fromCurrency === toCurrency) return amount;
+    if (!currencyRates[fromCurrency] || !currencyRates[toCurrency]) return amount;
 
-    // Convert FROM → USD
-    let amountInUSD =
-      fromCurrency === 'USD'
-        ? amount
-        : amount / CURRENCIES[fromCurrency].rateFromUSD;
+    // Convert to USD first (base currency)
+    const amountInUSD = fromCurrency === 'USD' 
+      ? amount 
+      : amount / currencyRates[fromCurrency];
+    
+    // Convert from USD to target currency
+    return amountInUSD * currencyRates[toCurrency];
+  };
 
-    // Convert USD → TARGET
-    return amountInUSD * CURRENCIES[toCurrency].rateFromUSD;
+  // Get base price from product - Handles all price types
+  const getBasePrice = (product) => {
+    if (!product) return { value: 0, currency: 'USD', type: 'unknown', unit: 'unit' };
+
+    // Check for Ex-Mill_usd (Akil Drinks)
+    if (product["Ex-Mill_usd"] !== undefined) {
+      return {
+        value: product["Ex-Mill_usd"],
+        currency: 'USD',
+        type: 'EX-MILL',
+        unit: 'carton',
+        displayUnit: 'carton'
+      };
+    }
+
+    // Check for price_usd_per_carton (Heritage)
+    if (product.price_usd_per_carton !== undefined) {
+      return {
+        value: product.price_usd_per_carton,
+        currency: 'USD',
+        type: 'carton',
+        unit: 'carton',
+        displayUnit: 'carton'
+      };
+    }
+
+    // Check for fob_price_usd (Nut Walker)
+    if (product.fob_price_usd !== undefined) {
+      return {
+        value: product.fob_price_usd,
+        currency: 'USD',
+        type: 'FOB',
+        unit: 'carton',
+        displayUnit: 'carton'
+      };
+    }
+
+    // Check for INR prices (rice products)
+    if (product.price?.min !== undefined && product.price?.max !== undefined) {
+      const minPerKg = product.price.min / 100;
+      const maxPerKg = product.price.max / 100;
+      return {
+        min: minPerKg,
+        max: maxPerKg,
+        value: (minPerKg + maxPerKg) / 2,
+        currency: 'INR',
+        type: 'rice',
+        unit: 'kg',
+        displayUnit: 'kg'
+      };
+    }
+
+    // Check for grades with INR prices
+    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
+      const firstGrade = product.grades[0];
+      if (firstGrade.price_inr) {
+        const price = parseFloat(firstGrade.price_inr);
+        return {
+          value: price,
+          currency: 'INR',
+          type: 'rice',
+          unit: 'kg',
+          displayUnit: 'kg'
+        };
+      }
+    }
+
+    // Generic price object
+    if (product.price && typeof product.price === 'object') {
+      if (product.price.currency && product.price.value !== undefined) {
+        return {
+          value: product.price.value,
+          currency: product.price.currency,
+          type: 'fixed',
+          unit: product.price.unit || 'unit',
+          displayUnit: product.price.unit || 'unit'
+        };
+      }
+    }
+
+    // Number price - Check company/category to determine currency
+    if (typeof product.price === 'number') {
+      // Check if it's a rice product (INR)
+      if (isRiceProduct(product)) {
+        return {
+          value: product.price,
+          currency: 'INR',
+          type: 'rice',
+          unit: 'kg',
+          displayUnit: 'kg'
+        };
+      }
+      // Default to USD for non-rice products
+      return {
+        value: product.price,
+        currency: 'USD',
+        type: 'fixed',
+        unit: 'unit',
+        displayUnit: 'unit'
+      };
+    }
+
+    return {
+      value: 0,
+      currency: 'USD',
+      type: 'unknown',
+      unit: 'unit',
+      displayUnit: 'unit'
+    };
+  };
+
+  // Get product price in exact display format
+  const getProductPriceDisplay = (product) => {
+    if (!product) return 'Contact for Price';
+
+    const basePrice = getBasePrice(product);
+    
+    // If selected currency matches base currency, show without conversion
+    if (selectedCurrency === basePrice.currency) {
+      // Rice products - Show as ₹X - ₹Y / kg
+      if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+        return `₹${basePrice.min.toFixed(2)} - ₹${basePrice.max.toFixed(2)} / kg`;
+      }
+      
+      // Single rice product
+      if (basePrice.type === 'rice' && basePrice.value) {
+        return `₹${basePrice.value.toFixed(2)} / kg`;
+      }
+      
+      // EX-MILL products (Akil Drinks)
+      if (basePrice.type === 'EX-MILL') {
+        return `$${basePrice.value.toFixed(2)} EX-MILL / carton`;
+      }
+      
+      // FOB products (Nut Walker)
+      if (basePrice.type === 'FOB') {
+        return `$${basePrice.value.toFixed(2)} FOB / carton`;
+      }
+      
+      // Regular carton products (Heritage)
+      if (basePrice.type === 'carton') {
+        return `$${basePrice.value.toFixed(2)} / carton`;
+      }
+      
+      // Other products
+      if (basePrice.value) {
+        const symbol = basePrice.currency === 'INR' ? '₹' : 
+                      basePrice.currency === 'USD' ? '$' : 
+                      currencySymbols[basePrice.currency] || basePrice.currency;
+        
+        if (basePrice.unit === 'carton') {
+          return `${symbol}${basePrice.value.toFixed(2)} / carton`;
+        } else if (basePrice.unit === 'kg') {
+          return `${symbol}${basePrice.value.toFixed(2)} / kg`;
+        } else {
+          return `${symbol}${basePrice.value.toFixed(2)} / ${basePrice.unit}`;
+        }
+      }
+    } else {
+      // Convert to selected currency
+      const convertedValue = convertCurrency(basePrice.value || basePrice.min || 0, basePrice.currency, selectedCurrency);
+      const symbol = currencySymbols[selectedCurrency] || 
+                    (selectedCurrency === 'INR' ? '₹' : 
+                     selectedCurrency === 'USD' ? '$' : selectedCurrency);
+      
+      // Rice products with range
+      if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+        const convertedMin = convertCurrency(basePrice.min, basePrice.currency, selectedCurrency);
+        const convertedMax = convertCurrency(basePrice.max, basePrice.currency, selectedCurrency);
+        return `${symbol}${convertedMin.toFixed(2)} - ${symbol}${convertedMax.toFixed(2)} / kg`;
+      }
+      
+      // EX-MILL products
+      if (basePrice.type === 'EX-MILL') {
+        return `${symbol}${convertedValue.toFixed(2)} EX-MILL / carton`;
+      }
+      
+      // FOB products
+      if (basePrice.type === 'FOB') {
+        return `${symbol}${convertedValue.toFixed(2)} FOB / carton`;
+      }
+      
+      // Other products
+      return `${symbol}${convertedValue.toFixed(2)} / ${basePrice.displayUnit}`;
+    }
+
+    return 'Contact for Price';
+  };
+
+  // Get product price in selected currency (for conversion)
+  const getProductPriceInSelectedCurrency = (product) => {
+    if (!product) return { display: 'Contact for Price', value: 0, currency: selectedCurrency };
+
+    const basePrice = getBasePrice(product);
+    
+    // If selected currency is different from base currency, convert
+    if (selectedCurrency !== basePrice.currency) {
+      const convertedValue = convertCurrency(basePrice.value || basePrice.min || 0, basePrice.currency, selectedCurrency);
+      const symbol = currencySymbols[selectedCurrency] || 
+                    (selectedCurrency === 'INR' ? '₹' : 
+                     selectedCurrency === 'USD' ? '$' : selectedCurrency);
+      
+      if (basePrice.type === 'EX-MILL') {
+        return {
+          display: `${symbol}${convertedValue.toFixed(2)} EX-MILL / carton`,
+          value: convertedValue,
+          currency: selectedCurrency
+        };
+      }
+      
+      if (basePrice.type === 'FOB') {
+        return {
+          display: `${symbol}${convertedValue.toFixed(2)} FOB / carton`,
+          value: convertedValue,
+          currency: selectedCurrency
+        };
+      }
+      
+      if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+        const convertedMin = convertCurrency(basePrice.min, basePrice.currency, selectedCurrency);
+        const convertedMax = convertCurrency(basePrice.max, basePrice.currency, selectedCurrency);
+        return {
+          display: `${symbol}${convertedMin.toFixed(2)} - ${symbol}${convertedMax.toFixed(2)} / kg`,
+          min: convertedMin,
+          max: convertedMax,
+          value: (convertedMin + convertedMax) / 2,
+          currency: selectedCurrency
+        };
+      }
+      
+      return {
+        display: `${symbol}${convertedValue.toFixed(2)} / ${basePrice.displayUnit}`,
+        value: convertedValue,
+        currency: selectedCurrency
+      };
+    }
+    
+    // Same currency - return base display
+    return {
+      display: getProductPriceDisplay(product),
+      value: basePrice.value || basePrice.min || 0,
+      currency: basePrice.currency
+    };
+  };
+
+  // ============================================
+  // GET PRODUCT PRICE FOR DISPLAY
+  // ============================================
+  const getProductPrice = (product) => {
+    return getProductPriceDisplay(product);
+  };
+
+  // ============================================
+  // GET PRODUCT PRICE FOR CART
+  // ============================================
+  const getProductPriceForCart = (product) => {
+    const priceDisplay = getProductPriceDisplay(product);
+    const basePrice = getBasePrice(product);
+
+    if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+      return {
+        type: 'rice',
+        minPerKg: basePrice.min,
+        maxPerKg: basePrice.max,
+        min: basePrice.min,
+        max: basePrice.max,
+        unit: 'kg',
+        currency: 'INR',
+        display: priceDisplay
+      };
+    }
+
+    if (basePrice.value) {
+      return {
+        type: basePrice.type,
+        value: basePrice.value,
+        currency: basePrice.currency,
+        display: priceDisplay,
+        unit: basePrice.displayUnit
+      };
+    }
+
+    return {
+      type: 'unknown',
+      display: 'Contact for Price'
+    };
   };
 
   // Load brands when company is selected
@@ -162,7 +525,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
   const loadCompanyBrands = () => {
     if (!selectedCompany || !allBrands || !allProducts) return;
-
+    
     try {
       const companyProducts = Object.entries(allProducts)
         .filter(([_, productData]) =>
@@ -173,14 +536,12 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
       const brandedProducts = companyProducts.filter(p => p.brandId);
       const unbrandedProducts = companyProducts.filter(p => !p.brandId);
-
       const brandIds = [...new Set(brandedProducts.map(p => p.brandId))];
-
+      
       const brandList = brandIds
         .map(brandId => {
           const brandData = allBrands[brandId];
           if (!brandData) return null;
-
           return {
             id: brandId,
             ...brandData,
@@ -192,14 +553,12 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         })
         .filter(Boolean);
 
-      // ✅ CASE 1: Has brands → show brands
       if (brandList.length > 0) {
         setBrands(brandList);
         setViewMode('brands');
         return;
       }
 
-      // ✅ CASE 2: NO brands → show products directly
       const productsList = unbrandedProducts.map(p => ({
         ...p,
         companyId: selectedCompany.id,
@@ -207,12 +566,11 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         brandName: null,
         localImage: p.image ? getLocalImagePath(p.image) : null
       }));
-
+      
       setProducts(productsList);
       setFilteredProducts(productsList);
       setSelectedBrand(null);
       setViewMode('products');
-
     } catch (error) {
       console.error('Error loading company brands:', error);
       setBrands([]);
@@ -228,10 +586,9 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
   const loadBrandProducts = () => {
     if (!selectedBrand || !allProducts) return;
-
+    
     try {
       let productsList;
-
       productsList = Object.entries(allProducts)
         .filter(([_, productData]) =>
           productData.categoryId === categoryId &&
@@ -250,6 +607,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       setProducts(productsList);
       setFilteredProducts(productsList);
       setViewMode('products');
+      setProductSearchQuery('');
     } catch (error) {
       console.error('Error loading brand products:', error);
       setProducts([]);
@@ -260,34 +618,24 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   // Get local image path for products
   const getLocalImagePath = (imagePath) => {
     if (!imagePath) return null;
-
     if (imagePath.startsWith('http')) {
       return imagePath;
     }
-
-    // Check if it's already a proper path
     if (imagePath.startsWith('/img/') || imagePath.startsWith('img/')) {
       return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     }
-
-    // For relative paths without /img/ prefix
     return `/img/${imagePath}`;
   };
 
   // Get brand image with proper URL handling
   const getBrandImage = (brandData) => {
     if (!brandData) return null;
-
-    // Check logo field first
     if (brandData.logo) {
       return getLocalImagePath(brandData.logo);
     }
-
-    // Check image field
     if (brandData.image) {
       return getLocalImagePath(brandData.image);
     }
-
     return null;
   };
 
@@ -302,9 +650,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     const fallbackImages = {
       rice: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500&auto=format&fit=crop&q=60',
       dry_fruits: 'https://images.unsplash.com/photo-1541636410410-0c5c8a9e6a8f?w=500&auto=format&fit=crop&q=60',
-      dried_fruits: 'https://images.unsplash.com/photo-1541636410410-0c5c8a9e6a8f?w=500&auto=format&fit=crop&q=60',
       lentils: 'https://food.fnr.sndimg.com/content/dam/images/food/fullset/2016/2/15/0/HE_dried-legumes-istock-2_s4x3.jpg.rend.hgtvcom.1280.1280.85.suffix/1455572939649.webp',
-      popcorn: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&auto=format&fit=crop&q=60',
       tea: 'https://images.unsplash.com/photo-1571934811396-0ff49ca3a8a7?w=500&auto=format&fit=crop&q=60',
       beverages: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=500&auto=format&fit=crop&q=60',
       default: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=500&auto=format&fit=crop&q=60'
@@ -312,1479 +658,1574 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     return fallbackImages[categoryId] || fallbackImages.default;
   };
 
-  // Dynamic price display based on product type
-  const getProductPrice = (product) => {
-    const resolveCurrency = (baseCurrency) => {
-      return currency === 'AUTO' ? baseCurrency : currency;
-    };
-
-    // ===== AKIL DRINKS (Ex-Mill USD) =====
-    if (product["Ex-Mill_usd"] !== undefined) {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product["Ex-Mill_usd"], base, target);
-      return `${CURRENCIES[target].symbol}${value.toFixed(2)} EX-MILL`;
+  // ============================================
+  // CHECK IF PRODUCT IS RICE
+  // ============================================
+  const isRiceProduct = (product) => {
+    if (product.companyName?.toLowerCase().includes('siea')) {
+      return true;
     }
-
-    // ===== HERITAGE (price_usd_per_carton) =====
-    if (product.price_usd_per_carton !== undefined) {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product.price_usd_per_carton, base, target);
-      return `${CURRENCIES[target].symbol}${value.toFixed(2)} / carton`;
-    }
-
-    // ===== NUT WALKER (fob_price_usd) =====
-    if (product.fob_price_usd !== undefined) {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product.fob_price_usd, base, target);
-      return `${CURRENCIES[target].symbol}${value.toFixed(2)} FOB`;
-    }
-
-    // ===== SIEA RICE (INR range) =====
     if (product.price?.min !== undefined && product.price?.max !== undefined) {
-      const base = 'INR';
-      const target = resolveCurrency(base);
-      const min = convertCurrency(product.price.min, base, target);
-      const max = convertCurrency(product.price.max, base, target);
-      return `${CURRENCIES[target].symbol}${min.toFixed(0)} - ${CURRENCIES[target].symbol}${max.toFixed(0)} / ${product.price.unit}`;
+      return true;
     }
-
-    // ===== Regular price field =====
-    if (product.price !== undefined && typeof product.price === 'number') {
-      const base = 'USD'; // Assuming USD as default
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product.price, base, target);
-      return `${CURRENCIES[target].symbol}${value.toFixed(2)}`;
+    if (categoryId === 'rice' || categoryData?.name?.toLowerCase().includes('rice')) {
+      return true;
     }
-
-    return 'Contact for Price';
+    if (product.name?.toLowerCase().includes('rice') || 
+        product.name?.toLowerCase().includes('basmati') ||
+        product.name?.toLowerCase().includes('sona masoori')) {
+      return true;
+    }
+    return false;
   };
 
-  // Calculate per unit price for USD products
-  const getPerUnitPrice = (product) => {
-    // For Heritage products with price_usd_per_carton
-    if (product.price_usd_per_carton && product.packaging?.units_per_carton) {
-      const perUnitUSD = product.price_usd_per_carton / product.packaging.units_per_carton;
-      const perGramUSD = product.packaging.unit_weight_g
-        ? (perUnitUSD / product.packaging.unit_weight_g)
-        : null;
-
-      return {
-        perUnit: `$${perUnitUSD.toFixed(2)} per unit`,
-        perGram: perGramUSD ? `$${perGramUSD.toFixed(4)}/g` : null
-      };
+  // ============================================
+  // GET PACKING OPTIONS FOR PRODUCT
+  // ============================================
+  const getPackingOptions = (product) => {
+    if (!product) return [];
+    
+    const isRice = isRiceProduct(product);
+    
+    if (isRice) {
+      return ricePackingOptions.map(option => ({
+        value: option.value,
+        label: option.value,
+        price: option.price
+      }));
     }
     
-    // For Nut Walker products with fob_price_usd
-    if (product.fob_price_usd && product.packaging?.units_per_carton) {
-      const perUnitUSD = product.fob_price_usd / product.packaging.units_per_carton;
-      const perGramUSD = product.packaging.unit_weight_g
-        ? (perUnitUSD / product.packaging.unit_weight_g)
-        : null;
+    if (product.pack_type) {
+      return [
+        { value: product.pack_type, label: product.pack_type }
+      ];
+    }
+    
+    if (product.packaging) {
+      if (typeof product.packaging === 'string') {
+        return [
+          { value: product.packaging, label: product.packaging }
+        ];
+      } else if (typeof product.packaging === 'object') {
+        if (product.packaging.type) {
+          return [
+            { value: product.packaging.type, label: product.packaging.type }
+          ];
+        }
+        if (product.packaging.units_per_carton) {
+          const display = product.packaging.unit_weight_ml 
+            ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`
+            : product.packaging.unit_weight_g
+              ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`
+              : `${product.packaging.units_per_carton} units/carton`;
+          return [
+            { value: display, label: display }
+          ];
+        }
+      }
+    }
+    
+    return [];
+  };
 
+  // ============================================
+  // GET QUANTITY OPTIONS FOR PRODUCT
+  // ============================================
+  const getQuantityOptions = (product) => {
+    return getQuantityOptionsForProduct(product);
+  };
+
+  // ============================================
+  // GET QUANTITY UNIT
+  // ============================================
+  const getQuantityUnitFromProductData = (product) => {
+    return getQuantityUnit(product);
+  };
+
+  // ============================================
+  // GET RICE GRADES - ONLY from Firebase
+  // ============================================
+  const getRiceGrades = (product) => {
+    if (!product) return [];
+    
+    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
+      return product.grades.map(grade => ({
+        value: grade.grade || grade.name || "Standard",
+        price: grade.price_inr || grade.price || "95.00",
+        label: `${grade.grade || grade.name || "Standard"} - ₹${grade.price_inr || grade.price || "95"}/kg`
+      }));
+    }
+    
+    return [];
+  };
+
+  // Get packaging display
+  const getPackagingDisplay = (product) => {
+    if (product.packaging) {
+      if (typeof product.packaging === 'object') {
+        if (product.packaging.units_per_carton && product.packaging.unit_weight_ml) {
+          return `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`;
+        }
+        if (product.packaging.units_per_carton && product.packaging.unit_weight_g) {
+          return `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`;
+        }
+        if (product.packaging.units_per_carton) {
+          return `${product.packaging.units_per_carton} units/carton`;
+        }
+        if (product.packaging.type) {
+          return product.packaging.type;
+        }
+      } else if (typeof product.packaging === 'string') {
+        return product.packaging;
+      }
+    }
+    
+    if (product.pack_type) {
+      return product.pack_type;
+    }
+    
+    return "Standard Packaging";
+  };
+
+  // Get per unit price for carton products
+  const getPerUnitPrice = (product) => {
+    const basePrice = getBasePrice(product);
+    
+    if (basePrice.type !== 'rice' && basePrice.unit === 'carton' && product.packaging?.units_per_carton) {
+      const perUnitBase = basePrice.value / product.packaging.units_per_carton;
+      const perUnitConverted = convertCurrency(perUnitBase, basePrice.currency, selectedCurrency);
+      const symbol = currencySymbols[selectedCurrency] || 
+                    (selectedCurrency === 'INR' ? '₹' : 
+                     selectedCurrency === 'USD' ? '$' : selectedCurrency);
       return {
-        perUnit: `$${perUnitUSD.toFixed(2)} per unit`,
-        perGram: perGramUSD ? `$${perGramUSD.toFixed(4)}/g` : null
+        perUnit: `${symbol}${perUnitConverted.toFixed(2)} per unit`
       };
     }
     return null;
   };
 
-  // Get comprehensive product specifications
+  // Get product specifications
   const getProductSpecs = (product) => {
     const specs = [];
-
-    // Packaging Information
-    if (product.packaging) {
-      if (typeof product.packaging === 'object') {
-        if (product.packaging.units_per_carton) {
-          specs.push({
-            label: 'Units per Carton',
-            value: product.packaging.units_per_carton
-          });
-        }
-        if (product.packaging.unit_weight_g) {
-          specs.push({
-            label: 'Unit Weight',
-            value: `${product.packaging.unit_weight_g} g`
-          });
-        }
-        if (product.packaging.unit_weight_ml) {
-          specs.push({
-            label: 'Unit Volume',
-            value: `${product.packaging.unit_weight_ml} ml`
-          });
-        }
-      } else if (typeof product.packaging === 'string') {
+    const isRice = isRiceProduct(product);
+    const basePrice = getBasePrice(product);
+    
+    if (isRice) {
+      if (product.origin) {
         specs.push({
-          label: 'Packaging',
-          value: product.packaging
+          label: 'Origin',
+          value: product.origin,
+          icon: <MapPin size={18} className="me-2" style={{ color: '#10b981' }} />
+        });
+      }
+      
+      if (product.grades && product.grades.length > 0) {
+        const gradeNames = product.grades.map(g => g.grade || g.name).join(', ');
+        specs.push({
+          label: 'Available Grades',
+          value: gradeNames,
+          icon: <Layers size={18} className="me-2" style={{ color: '#10b981' }} />
+        });
+      }
+    } else {
+      if (product.packaging) {
+        if (typeof product.packaging === 'object') {
+          if (product.packaging.units_per_carton && product.packaging.unit_weight_ml) {
+            specs.push({
+              label: 'Packaging',
+              value: `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`,
+              icon: <Package size={18} className="me-2" style={{ color: '#10b981' }} />
+            });
+          } else if (product.packaging.units_per_carton && product.packaging.unit_weight_g) {
+            specs.push({
+              label: 'Packaging',
+              value: `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`,
+              icon: <Package size={18} className="me-2" style={{ color: '#10b981' }} />
+            });
+          } else if (product.packaging.units_per_carton) {
+            specs.push({
+              label: 'Packaging',
+              value: `${product.packaging.units_per_carton} units/carton`,
+              icon: <Package size={18} className="me-2" style={{ color: '#10b981' }} />
+            });
+          } else if (product.packaging.type) {
+            specs.push({
+              label: 'Packaging',
+              value: product.packaging.type,
+              icon: <Package size={18} className="me-2" style={{ color: '#10b981' }} />
+            });
+          }
+        } else if (typeof product.packaging === 'string') {
+          specs.push({
+            label: 'Packaging',
+            value: product.packaging,
+            icon: <Package size={18} className="me-2" style={{ color: '#10b981' }} />
+          });
+        }
+      }
+      
+      if (product.pack_type && !specs.some(s => s.label === 'Packaging')) {
+        specs.push({
+          label: 'Pack Type',
+          value: product.pack_type,
+          icon: <Package size={18} className="me-2" style={{ color: '#10b981' }} />
+        });
+      }
+      
+      if (product.origin) {
+        specs.push({
+          label: 'Origin',
+          value: product.origin,
+          icon: <MapPin size={18} className="me-2" style={{ color: '#10b981' }} />
+        });
+      }
+      
+      if (product.shelf_life) {
+        specs.push({
+          label: 'Shelf Life',
+          value: product.shelf_life,
+          icon: <Clock size={18} className="me-2" style={{ color: '#10b981' }} />
+        });
+      }
+      
+      if (product.hsn_code) {
+        specs.push({
+          label: 'HSN Code',
+          value: product.hsn_code,
+          icon: <Tag size={18} className="me-2" style={{ color: '#10b981' }} />
         });
       }
     }
+    
+    return specs;
+  };
 
-    // Price Information - All Types
-    if (product.price_usd_per_carton !== undefined) {
-      specs.push({
-        label: 'Price per Carton',
-        value: `$${product.price_usd_per_carton.toFixed(2)} USD`
-      });
+  // Handle company selection
+  const handleCompanySelect = (company) => {
+    setSelectedCompany(company);
+    setSelectedBrand(null);
+  };
+
+  // Handle brand selection
+  const handleBrandSelect = (brand) => {
+    setSelectedBrand(brand);
+  };
+
+  // Handle back to brands
+  const handleBackToBrands = () => {
+    setSelectedBrand(null);
+    setProducts([]);
+    setFilteredProducts([]);
+    setViewMode('brands');
+    setProductSearchQuery('');
+  };
+
+  // Handle back to companies
+  const handleBackToCompanies = () => {
+    setSelectedCompany(null);
+    setSelectedBrand(null);
+    setBrands([]);
+    setProducts([]);
+    setFilteredProducts([]);
+    setViewMode('companies');
+    setProductSearchQuery('');
+  };
+
+  // Handle back to all products
+  const handleBackToAllProducts = () => {
+    navigate('/all-products');
+  };
+
+  // Handle order now - single product
+  const handleOrderNow = (product) => {
+    const basePrice = getBasePrice(product);
+    const priceDisplay = getProductPriceDisplay(product);
+    
+    setSelectedProduct({
+      ...product,
+      quantity: 1,
+      category: categoryData?.name || categoryId,
+      company: product.companyName,
+      brand: product.brandName || 'General',
+      selectedCurrency: selectedCurrency,
+      priceDisplay: priceDisplay,
+      basePrice: basePrice,
+      currencyRates: currencyRates,
+      currencySymbols: currencySymbols
+    });
+    setIsSingleProductModalOpen(true);
+  };
+
+  // Handle add to cart with configuration
+  const handleAddToCartClick = (product) => {
+    console.log("📦 Opening add to cart config for product:", product);
+    
+    const isRice = isRiceProduct(product);
+    const basePrice = getBasePrice(product);
+    const priceDisplay = getProductPriceDisplay(product);
+    
+    const brandId = product.brandId || null;
+    const brandName = product.brandName || 'General';
+    
+    const productForConfig = {
+      id: product.id,
+      name: product.name,
+      companyName: product.companyName,
+      companyId: product.companyId,
+      brandName: brandName,
+      brandId: brandId,
+      category: categoryData?.name || categoryId,
+      categoryId: categoryId,
+      image: product.localImage || product.image || getFallbackImage(),
+      price: product.price,
+      price_usd_per_carton: product.price_usd_per_carton,
+      fob_price_usd: product.fob_price_usd,
+      "Ex-Mill_usd": product["Ex-Mill_usd"],
+      packaging: product.packaging,
+      pack_type: product.pack_type,
+      grades: product.grades,
+      origin: product.origin,
+      shelf_life: product.shelf_life,
+      hsn_code: product.hsn_code,
+      product_description: product.product_description,
+      isRice: isRice,
+      // Add currency info
+      selectedCurrency: selectedCurrency,
+      priceDisplay: priceDisplay,
+      basePrice: basePrice,
+      currencyRates: currencyRates,
+      currencySymbols: currencySymbols
+    };
+    
+    console.log("✅ Product prepared for config modal:", productForConfig);
+    setSelectedProductForConfig(productForConfig);
+    setIsAddToCartConfigModalOpen(true);
+  };
+
+  // Handle add to cart after configuration
+  const handleAddToCartWithConfig = (productWithConfig) => {
+    console.log("📦 ProductPage: Adding product to cart with configuration:", productWithConfig);
+    
+    const basePrice = productWithConfig.basePrice || getBasePrice(productWithConfig);
+    const priceDisplay = productWithConfig.priceDisplay || getProductPriceDisplay(productWithConfig);
+    
+    const enhancedProduct = {
+      id: productWithConfig.id,
+      productId: productWithConfig.id,
+      name: productWithConfig.name,
+      brandId: productWithConfig.brandId || null,
+      brandName: productWithConfig.brandName || 'General',
+      companyId: productWithConfig.companyId || null,
+      companyName: productWithConfig.companyName || '',
+      // Store price info
+      price: {
+        value: basePrice.value || basePrice.min || 0,
+        display: priceDisplay,
+        currency: selectedCurrency,
+        type: basePrice.type,
+        unit: basePrice.displayUnit,
+        baseCurrency: basePrice.currency,
+        baseValue: basePrice.value || basePrice.min || 0
+      },
+      // Also store original price fields for reference
+      price_usd_per_carton: productWithConfig.price_usd_per_carton,
+      fob_price_usd: productWithConfig.fob_price_usd,
+      "Ex-Mill_usd": productWithConfig["Ex-Mill_usd"],
+      
+      image: productWithConfig.image || getFallbackImage(),
+      category: productWithConfig.category || categoryData?.name || categoryId,
+      categoryId: categoryId,
+      quantity: 1,
+      selectedGrade: productWithConfig.selectedGrade,
+      selectedGradePrice: productWithConfig.selectedGradePrice,
+      selectedGradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
+      selectedPacking: productWithConfig.selectedPacking,
+      selectedQuantity: productWithConfig.selectedQuantity,
+      quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
+      isRice: productWithConfig.isRice || false,
+      selectedConfig: {
+        grade: productWithConfig.selectedGrade,
+        gradePrice: productWithConfig.selectedGradePrice,
+        gradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
+        packing: productWithConfig.selectedPacking,
+        quantity: productWithConfig.selectedQuantity,
+        quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
+        isRice: productWithConfig.isRice || false
+      },
+      origin: productWithConfig.origin || '',
+      packaging: productWithConfig.packaging || null,
+      pack_type: productWithConfig.pack_type || '',
+      grades: productWithConfig.grades || [],
+      shelf_life: productWithConfig.shelf_life || '',
+      firebaseProductData: {
+        ...productWithConfig,
+        selectedConfig: {
+          grade: productWithConfig.selectedGrade,
+          gradePrice: productWithConfig.selectedGradePrice,
+          gradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
+          packing: productWithConfig.selectedPacking,
+          quantity: productWithConfig.selectedQuantity,
+          quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
+          isRice: productWithConfig.isRice || false
+        }
+      },
+      // Store currency info in cart item
+      cartCurrency: selectedCurrency,
+      cartCurrencySymbol: currencySymbols[selectedCurrency] || 
+                          (selectedCurrency === 'INR' ? '₹' : 
+                           selectedCurrency === 'USD' ? '$' : selectedCurrency),
+      cartBaseCurrency: basePrice.currency,
+      cartBaseValue: basePrice.value || basePrice.min || 0,
+      cartUnit: basePrice.displayUnit,
+      cartPriceType: basePrice.type
+    };
+    
+    console.log("✅ Enhanced product ready for cart:", enhancedProduct);
+    
+    addToCart(enhancedProduct);
+    
+    setAddedProduct(enhancedProduct);
+    setShowCartSuccess(true);
+    
+    setTimeout(() => {
+      setShowCartSuccess(false);
+      setAddedProduct(null);
+    }, 3000);
+  };
+
+  // Handle cart checkout
+  const handleCartCheckout = () => {
+    if (cartItems.length === 0) {
+      alert('Your cart is empty! Add some products first.');
+      return;
     }
-
-    if (product.fob_price_usd !== undefined) {
-      specs.push({
-        label: 'FOB Price',
-        value: `$${product.fob_price_usd.toFixed(2)} USD`
-      });
+    
+    const cartProductsForCheckout = cartItems.map(item => ({
+      ...item,
+      name: item.name || `Product ${item.id}`,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image || getFallbackImage(),
+      companyName: item.companyName || 'Unknown Company',
+      brandName: item.brandName || 'General',
+      unit: item.unit || 'unit',
+      category: item.category || categoryData?.name || categoryId,
+      selectedConfig: item.selectedConfig || null,
+      selectedGrade: item.selectedGrade || null,
+      selectedGradePrice: item.selectedGradePrice || null,
+      selectedGradeDisplay: item.selectedGradeDisplay || null,
+      selectedPacking: item.selectedPacking || null,
+      selectedQuantity: item.selectedQuantity || 1,
+      quantityUnit: item.quantityUnit || getQuantityUnitFromProductData(item) || 'unit',
+      isRice: item.isRice || false,
+      cartItemId: item.cartItemId,
+      // Pass currency info to checkout
+      cartCurrency: item.cartCurrency,
+      cartCurrencySymbol: item.cartCurrencySymbol,
+      cartBaseCurrency: item.cartBaseCurrency,
+      cartBaseValue: item.cartBaseValue,
+      cartUnit: item.cartUnit,
+      cartPriceType: item.cartPriceType
+    }));
+    
+    setCheckoutProductsLocal(cartProductsForCheckout);
+    if (setCheckoutProducts) {
+      setCheckoutProducts(cartProductsForCheckout);
     }
+    setIsCheckoutModalOpen(true);
+  };
 
-    if (product["Ex-Mill_usd"] !== undefined) {
-      specs.push({
-            label: 'EXW Price',
-            value: `$${product["Ex-Mill_usd"].toFixed(2)} USD`
-          });
-        }
+  // Handle view details
+  const handleViewDetails = (product) => {
+    setDetailedProduct(product);
+    setShowDetailsModal(true);
+  };
 
-        // Origin
-        if (product.origin) {
-          specs.push({
-            label: 'Origin',
-            value: product.origin
-          });
-        }
+  // Check if product is in cart
+  const isProductInCart = (productId) => {
+    return cartItems.some(item => item.id === productId);
+  };
 
-        // HSN Code
-        if (product.hsn_code) {
-          specs.push({
-            label: 'HSN Code',
-            value: product.hsn_code
-          });
-        }
+  // Get cart quantity for product
+  const getCartQuantity = (productId) => {
+    const item = cartItems.find(item => item.id === productId);
+    return item ? item.quantity : 0;
+  };
 
-        // Shelf Life
-        if (product.shelf_life) {
-          specs.push({
-            label: 'Shelf Life',
-            value: product.shelf_life
-          });
-        }
+  // Get total cart items count
+  const getCartTotalItems = () => {
+    return cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  };
 
-        // Pack Type
-        if (product.pack_type) {
-          specs.push({
-            label: 'Pack Type',
-            value: product.pack_type
-          });
-        }
+  // Handle successful order submission
+  const handleOrderSubmitted = () => {
+    if (onNewOrderSubmitted) {
+      onNewOrderSubmitted();
+    }
+  };
 
-        // Grades (for rice products)
-        if (product.grades && product.grades.length > 0) {
-          specs.push({
-            label: 'Available Grades',
-            value: product.grades.map(g => g.grade).join(', ')
-          });
-        }
-
-        // New Product Flag
-        if (product.is_new) {
-          specs.push({
-            label: 'Status',
-            value: 'New Product'
-          });
-        }
-
-        return specs;
-      };
-
-      // Handle company selection
-      const handleCompanySelect = (company) => {
-        setSelectedCompany(company);
-        setSelectedBrand(null);
-      };
-
-      // Handle brand selection
-      const handleBrandSelect = (brand) => {
-        setSelectedBrand(brand);
-      };
-
-      // Handle back to brands
-      const handleBackToBrands = () => {
-        setSelectedBrand(null);
-        setProducts([]);
-        setFilteredProducts([]);
-        setViewMode('brands');
-      };
-
-      // Handle back to companies
-      const handleBackToCompanies = () => {
-        setSelectedCompany(null);
-        setSelectedBrand(null);
-        setBrands([]);
-        setProducts([]);
-        setFilteredProducts([]);
-        setViewMode('companies');
-      };
-
-      // Handle back to all products
-      const handleBackToAllProducts = () => {
-        navigate('/all-products');
-      };
-
-      // MODIFIED: Handle order now - ALLOWS BOTH SIGNED-IN AND NON-SIGNED-IN USERS
-      const handleOrderNow = (product) => {
-        // DIRECTLY OPEN THE BUY MODAL FOR ALL USERS
-        setSelectedProduct({
-          ...product,
-          quantity: 1,
-          category: categoryData?.name || categoryId,
-          company: product.companyName,
-          brand: product.brandName || 'General'
-        });
-        setIsBuyModalOpen(true);
-      };
-
-      // Handle view details
-      const handleViewDetails = (product) => {
-        setDetailedProduct(product);
-        setShowDetailsModal(true);
-      };
-
-      // Dynamic column classes based on item count
-      const getColumnClass = (items) => {
-        const count = items.length;
-        if (count === 1) {
-          return 'col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5';
-        } else if (count === 2) {
-          return 'col-12 col-sm-6 col-md-6 col-lg-6';
-        } else if (count === 3) {
-          return 'col-12 col-sm-6 col-md-4 col-lg-4';
-        } else {
-          return 'col-12 col-sm-6 col-md-4 col-lg-3';
-        }
-      };
-
-      // Dynamic row justification
-      const getRowJustifyClass = (items) => {
-        const count = items.length;
-        if (count === 1 || count === 2 || count === 3) {
-          return 'justify-content-center';
-        }
-        return '';
-      };
-
-      // Loading state
-      if (isLoading) {
-        return (
-          <div className="product-page">
-            <div className="container py-5">
-              <div className="text-center">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
-                <p className="mt-3">Loading products...</p>
-              </div>
+  // Loading state
+  if (isLoading || isLoadingCurrency) {
+    return (
+      <div className="product-page" style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+        color: 'white',
+        padding: '20px'
+      }}>
+        <div className="container py-5">
+          <div className="text-center">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
             </div>
+            <p className="mt-3">Loading products and currency data...</p>
           </div>
-        );
-      }
+        </div>
+      </div>
+    );
+  }
 
-      // Category not found
-      if (!categoryData) {
-        return (
-          <div className="product-page">
-            <div className="container py-5">
-              <div className="text-center">
-                <p className="h5 text-muted">Category not found: {categoryId}</p>
-                <button className="btn btn-primary mt-3" onClick={handleBackToAllProducts}>
-                  Back to All Products
-                </button>
-              </div>
-            </div>
+  // Category not found
+  if (!categoryData) {
+    return (
+      <div className="product-page" style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+        color: 'white',
+        padding: '20px'
+      }}>
+        <div className="container py-5">
+          <div className="text-center">
+            <p className="h5 text-muted">Category not found: {categoryId}</p>
+            <button className="btn btn-primary mt-3" onClick={handleBackToAllProducts}>
+              Back to All Products
+            </button>
           </div>
-        );
-      }
+        </div>
+      </div>
+    );
+  }
 
-      // Render companies grid with logos
-      const renderCompanies = () => (
-        <div className="companies-grid mt-4">
-          {companies.length === 0 ? (
-            <div className="no-products-message text-center py-5">
-              <p className="h5 text-muted">No companies available</p>
-              <p className="text-sm opacity-80 mt-2">
-                No companies offer products in this category yet.
-              </p>
-              <button
-                className="btn btn-outline-accent btn-sm mt-3"
-                onClick={handleBackToAllProducts}
+  // Render companies grid
+  const renderCompanies = () => (
+    <div className="companies-grid mt-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h3 className="h5" style={{ color: '#ffffff' }}>Companies</h3>
+        <div className="badge bg-primary bg-opacity-25 px-3 py-2 rounded-pill" style={{ color: '#ffffff' }}>
+          <strong style={{ color: '#ffffff' }}>{companies.length}</strong> company{companies.length !== 1 ? 'ies' : ''}
+        </div>
+      </div>
+      
+      {companies.length === 0 ? (
+        <div className="no-products-message text-center py-5">
+          <p className="h5" style={{ color: '#ffffff' }}>No companies available</p>
+          <p className="text-sm mt-2" style={{ color: '#cccccc' }}>
+            No companies offer products in this category yet.
+          </p>
+          <button
+            className="btn btn-outline-accent btn-sm mt-3"
+            onClick={handleBackToAllProducts}
+          >
+            Back to All Products
+          </button>
+        </div>
+      ) : (
+        <div className="row g-4">
+          {companies.map((company, index) => (
+            <div key={company.id} className="col-6 col-md-4 col-lg-3">
+              <div
+                className="service-card glass p-3 text-center h-100"
+                onClick={() => handleCompanySelect(company)}
+                style={{ cursor: 'pointer' }}
               >
-                Back to All Products
-              </button>
+                <div className="company-logo-container mb-3">
+                  {getCompanyLogo(company) ? (
+                    <img
+                      src={getCompanyLogo(company)}
+                      alt={company.name}
+                      className="company-logo rounded-circle"
+                      style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="company-logo-placeholder">
+                      <Building2 className="w-12 h-12" style={{ color: '#ffffff' }} />
+                    </div>
+                  )}
+                </div>
+                <h4 className="h6 fw-semibold mb-1" style={{ color: '#ffffff' }}>{company.name}</h4>
+                
+                {/* 🔥 MODIFIED: Removed the product count line completely */}
+                
+                {company.hasBrands && (
+                  <div className="badge bg-info bg-opacity-25 px-2 py-1 rounded-pill" style={{ color: '#ffffff' }}>
+                    <strong style={{ color: '#ffffff' }}>{company.brandCount}</strong> brand{company.brandCount !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="row g-4">
-              {companies.map((company, index) => (
-                <div key={company.id} className="col-6 col-md-4 col-lg-3" data-aos="fade-up" data-aos-delay={index % 4 * 100}>
-                  <div
-                    className="service-card glass p-3 text-center h-100"
-                    onClick={() => handleCompanySelect(company)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <div className="company-logo-container mb-3">
-                      {getCompanyLogo(company) ? (
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Render brands grid
+  const renderBrands = () => (
+    <div className="brands-grid mt-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h3 className="h5 mb-1" style={{ color: '#ffffff' }}>{selectedCompany.name}</h3>
+          <p className="text-sm" style={{ color: '#cccccc' }}>Select a brand to view products</p>
+        </div>
+        <div className="badge bg-primary bg-opacity-25 px-3 py-2 rounded-pill" style={{ color: '#ffffff' }}>
+          <strong style={{ color: '#ffffff' }}>{brands.length}</strong> brand{brands.length !== 1 ? 's' : ''} available
+        </div>
+      </div>
+      
+      {brands.length === 0 ? (
+        <div className="no-products-message text-center py-5">
+          <p className="h5" style={{ color: '#ffffff' }}>No brands available</p>
+          <p className="text-sm mt-2" style={{ color: '#cccccc' }}>
+            This company doesn't have any brands in this category.
+          </p>
+        </div>
+      ) : (
+        <div className="row g-4">
+          {brands.map(brand => {
+            const brandLogo = brand.logo || getBrandImage(brand);
+            return (
+              <div key={brand.id} className="col-6 col-md-4 col-lg-3">
+                <div
+                  className="service-card glass p-4 text-center h-100"
+                  onClick={() => handleBrandSelect(brand)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="brand-icon mb-3">
+                    {brandLogo ? (
+                      <div className="brand-logo-container">
                         <img
-                          src={getCompanyLogo(company)}
-                          alt={company.name}
-                          className="company-logo rounded-circle"
-                          style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                          src={brandLogo}
+                          alt={brand.name}
+                          className="brand-logo rounded-circle"
+                          style={{
+                            width: '80px',
+                            height: '80px',
+                            objectFit: 'fill',
+                            border: '2px solid rgba(64, 150, 226, 0.3)'
+                          }}
                           onError={(e) => {
                             e.target.style.display = 'none';
-                            const fallback = e.target.nextElementSibling || document.createElement('div');
-                            fallback.className = 'fallback-logo';
-                            fallback.innerHTML = '<Building2 className="w-12 h-12 text-muted" />';
-                            e.target.parentNode.appendChild(fallback);
                           }}
                         />
-                      ) : (
-                        <div className="company-logo-placeholder">
-                          <Building2 className="w-12 h-12 text-muted" />
-                        </div>
-                      )}
-                    </div>
-                    <h4 className="h6 fw-semibold mb-1">{company.name}</h4>
-                    <p className="text-xs text-muted mb-2">
-                      {company.productCount} product{company.productCount !== 1 ? 's' : ''}
-                    </p>
-                    {company.hasBrands && (
-                      <div className="badge bg-info bg-opacity-25 text-dark">
-                        {company.brandCount} brand{company.brandCount !== 1 ? 's' : ''}
+                      </div>
+                    ) : (
+                      <div className="brand-icon-placeholder">
+                        <Building2 className="w-12 h-12" style={{ color: '#ffffff' }} />
                       </div>
                     )}
+                  </div>
+                  <h4 className="h6 fw-semibold mb-1" style={{ color: '#ffffff' }}>{brand.name}</h4>
+                  <p className="text-xs mb-0" style={{ color: '#ffffff' }}>
+                    <strong style={{ color: '#ffffff' }}>{brand.productCount}</strong> product{brand.productCount !== 1 ? 's' : ''}
+                  </p>
+                  <div className="mt-3">
+                    <ChevronRight className="w-4 h-4" style={{ color: '#4096e2' }} />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-
-      // Render brands grid with logos
-      const renderBrands = () => (
-        <div className="brands-grid mt-4">
-          <div className="d-flex align-items-center mb-4">
-            <div>
-              <h3 className="h5 mb-1">{selectedCompany.name}</h3>
-              <p className="text-sm text-muted mb-0">Select a brand to view products</p>
-            </div>
-          </div>
-
-          {brands.length === 0 ? (
-            <div className="no-products-message text-center py-5">
-              <p className="h5 text-muted">No brands available</p>
-              <p className="text-sm opacity-80 mt-2">
-                This company doesn't have any brands in this category.
-              </p>
-            </div>
-          ) : (
-            <div className={`row g-4 ${getRowJustifyClass(brands)}`}>
-              {brands.map(brand => {
-                const brandLogo = brand.logo || getBrandImage(brand);
-
-                return (
-                  <div key={brand.id} className={getColumnClass(brands)}>
-                    <div
-                      className="service-card glass p-4 text-center h-100"
-                      onClick={() => handleBrandSelect(brand)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div className="brand-icon mb-3">
-                        {brandLogo ? (
-                          <div className="brand-logo-container">
-                            <img
-                              src={brandLogo}
-                              alt={brand.name}
-                              className="brand-logo rounded-circle"
-                              style={{
-                                width: '80px',
-                                height: '80px',
-                                objectFit: 'fill',
-                                border: '2px solid rgba(64, 150, 226, 0.3)'
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                const fallback = e.target.parentNode.querySelector('.brand-logo-placeholder') ||
-                                  document.createElement('div');
-                                fallback.className = 'brand-logo-placeholder';
-                                fallback.innerHTML = '<Building2 className="w-12 h-12 text-muted" />';
-                                if (!e.target.parentNode.querySelector('.brand-logo-placeholder')) {
-                                  e.target.parentNode.appendChild(fallback);
-                                }
-                              }}
-                            />
-                            {!brandLogo && (
-                              <div className="brand-logo-placeholder">
-                                <Building2 className="w-12 h-12 text-muted" />
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="brand-icon-placeholder">
-                            <Building2 className="w-12 h-12 text-muted" />
-                          </div>
-                        )}
-                      </div>
-                      <h4 className="h6 fw-semibold mb-1">{brand.name}</h4>
-                      <p className="text-xs text-muted mb-0">
-                        {brand.productCount} product{brand.productCount !== 1 ? 's' : ''}
-                      </p>
-                      <div className="mt-3">
-                        <ChevronRight className="w-4 h-4 text-accent" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
-
-      // Render products grid
-      const renderProducts = () => {
-        // Show search results message
-        const hasSearchQuery = globalSearchQuery.trim() !== '';
-        const searchResultsCount = filteredProducts.length;
-        
-        return (
-          <div className="products-grid mt-4 position-relative">
-            
-            {/* Currency Selector and Search Results Info */}
-            <div className="currency-bar mb-4">
-              <div className="d-flex justify-content-between align-items-center">
-                <select
-                  className="form-select form-select-sm currency-dropdown"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  style={{ width: 'auto' }}
-                >
-                  <option value="AUTO">Currency</option>
-                  {Object.keys(CURRENCIES).map(code => (
-                    <option key={code} value={code}>
-                      {code} ({CURRENCIES[code].symbol})
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Search Results Info */}
-                {hasSearchQuery && (
-                  <div className="search-results-info ms-3">
-                    <span className="text-accent">
-                      Found {searchResultsCount} product{searchResultsCount !== 1 ? 's' : ''} for "{globalSearchQuery}"
-                    </span>
-                    {searchResultsCount === 0 && (
-                      <button 
-                        className="btn btn-sm btn-outline-accent ms-2"
-                        onClick={() => onGlobalSearchClear && onGlobalSearchClear()}
-                      >
-                        Clear Search
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
-            </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
-            {filteredProducts.length === 0 ? (
-              <div className="no-products-message text-center py-5">
-                {hasSearchQuery ? (
-                  <>
-                    <p className="h5 text-muted">No products found</p>
-                    <p className="text-sm opacity-80 mt-2">
-                      No products match your search for "{globalSearchQuery}".
-                    </p>
-                    <button
-                      className="btn btn-outline-accent btn-sm mt-3"
-                      onClick={() => onGlobalSearchClear && onGlobalSearchClear()}
-                    >
-                      Clear Search
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="h5 text-muted">No products available</p>
-                    <p className="text-sm opacity-80 mt-2">
-                      {selectedBrand
-                        ? `${selectedBrand.name} doesn't have any products listed yet in ${categoryData.name}.`
-                        : `${selectedCompany.name} doesn't have any products listed yet in ${categoryData.name}.`}
-                    </p>
+  // Render products grid
+  const renderProducts = () => {
+    const hasSearchQuery = globalSearchQuery.trim() !== '' || productSearchQuery.trim() !== '';
+    const searchResultsCount = filteredProducts.length;
+    const cartTotalItemsCount = getCartTotalItems();
 
-                    <button
-                      className="btn btn-outline-accent btn-sm mt-3"
-                      onClick={handleBackToBrands}
-                    >
-                      Back to Brands
-                    </button>
-                  </>
-                )}
-              </div>
+    return (
+      <div className="products-full-screen mt-4">
+        <div className="products-header" style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'center',
+          marginBottom: '24px',
+          gap: '16px'
+        }}>
+          <div style={{ flex: '1 1 auto' }}>
+            {selectedBrand ? (
+              <h3 className="h4 mb-1" style={{ color: '#ffffff' }}>{selectedBrand.name} Products</h3>
+            ) : selectedCompany ? (
+              <h3 className="h4 mb-1" style={{ color: '#ffffff' }}>{selectedCompany.name} Products</h3>
             ) : (
-              <div className={`row g-4 ${getRowJustifyClass(filteredProducts)}`}>
-                {filteredProducts.map(product => {
-                  const perUnitPriceData = getPerUnitPrice(product);
-                  const productImage = product.localImage ||
-                    product.image ||
-                    getLocalImagePath(product.image) ||
-                    getFallbackImage();
-
-                  return (
-                    <div key={product.id} className={getColumnClass(filteredProducts)}>
-                      <div
-                        className="product-card glass p-3 h-100 d-flex flex-column"
-                        data-aos="fade-up"
-                      >
-                        {/* Product Image */}
-                        <div className="product-image-container mb-3 flex-shrink-0">
-                          <img
-                            src={productImage}
-                            alt={product.name}
-                            className="product-image w-100"
-                            style={{
-                              height: filteredProducts.length === 1 ? '200px' : '150px',
-                              objectFit: 'contain',
-                              borderRadius: '8px'
-                            }}
-                            onError={(e) => {
-                              e.target.src = getFallbackImage();
-                            }}
-                          />
-                        </div>
-
-                        {/* Product Info */}
-                        <div className="product-info flex-grow-1 d-flex flex-column">
-                          <h4
-                            className={`fw-semibold mb-2 line-clamp-2 ${filteredProducts.length === 1 ? 'h5' : 'h6'
-                              }`}
-                          >
-                            {product.name}
-                          </h4>
-
-                          {/* Product Description */}
-                          {product.product_description && (
-                            <p className="text-xs text-muted mb-2 line-clamp-2">
-                              {product.product_description}
-                            </p>
-                          )}
-
-                          {/* Price Display */}
-                          <p className="product-price fw-bold text-accent mb-2">
-                            {getProductPrice(product)}
-                          </p>
-
-                          {perUnitPriceData && (
-                            <small className="text-success d-block mb-2">
-                              {perUnitPriceData.perUnit}
-                              {perUnitPriceData.perGram && ` (${perUnitPriceData.perGram})`}
-                            </small>
-                          )}
-
-                          {/* Product Specs */}
-                          <div className="product-specs text-xs text-muted mb-3 flex-grow-1">
-                            {/* Packaging */}
-                            {product.packaging && (
-                              <div className="packaging-info mb-2">
-                                <small className="d-block">
-                                  <strong>Packaging:</strong>{' '}
-                                  {typeof product.packaging === 'string'
-                                    ? product.packaging
-                                    : product.packaging.units_per_carton && product.packaging.unit_weight_g
-                                      ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`
-                                      : product.packaging.units_per_carton && product.packaging.unit_weight_ml
-                                        ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`
-                                        : 'Contact for details'}
-                                </small>
-                              </div>
-                            )}
-
-                            {/* Origin */}
-                            {product.origin && (
-                              <small className="d-block mb-1">
-                                <strong>Origin:</strong> {product.origin}
-                              </small>
-                            )}
-
-                            {/* Grades (Rice) */}
-                            {product.grades && product.grades.length > 0 && (
-                              <div className="grades-info mt-2">
-                                <small className="text-primary d-block mb-1">
-                                  <strong>Grades Available:</strong>
-                                </small>
-                                <div className="d-flex flex-wrap gap-1">
-                                  {product.grades.slice(0, 3).map((grade, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="badge bg-info bg-opacity-25 text-dark"
-                                    >
-                                      {grade.grade}
-                                    </span>
-                                  ))}
-                                  {product.grades.length > 3 && (
-                                    <span className="badge bg-secondary bg-opacity-25">
-                                      +{product.grades.length - 3} more
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Shelf Life */}
-                            {product.shelf_life && (
-                              <small className="d-block mt-2">
-                                <strong>Shelf Life:</strong> {product.shelf_life}
-                              </small>
-                            )}
-
-                            {/* Pack Type */}
-                            {product.pack_type && (
-                              <small className="d-block mt-1">
-                                <strong>Pack Type:</strong> {product.pack_type}
-                              </small>
-                            )}
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="product-actions d-flex gap-2 mt-auto">
-                            <button
-                              className="btn btn-outline-primary btn-sm flex-grow-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleViewDetails(product);
-                              }}
-                            >
-                              View Details
-                            </button>
-                            <button
-                              className="btn btn-success btn-sm flex-grow-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOrderNow(product);
-                              }}
-                            >
-                              Order Now
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <h3 className="h4 mb-1" style={{ color: '#ffffff' }}>{categoryData.name} Products</h3>
+            )}
+            {hasSearchQuery && (
+              <p className="text-sm mb-0" style={{ color: '#cccccc' }}>
+                Showing <strong style={{ color: '#ffffff' }}>{searchResultsCount}</strong> product{searchResultsCount !== 1 ? 's' : ''}
+              </p>
+            )}
+            {!hasSearchQuery && (
+              <p className="text-sm mb-0" style={{ color: '#cccccc' }}>
+                <strong style={{ color: '#ffffff' }}>{filteredProducts.length}</strong> product{filteredProducts.length !== 1 ? 's' : ''} available
+              </p>
             )}
           </div>
-        );
-      };
-
-      return (
-        <div className="product-page">
-          {/* Main Content */}
-          <div className="product-main-content">
-            {/* Back Button */}
-            <button
-              className="back-button"
-              style={{ top: isMobile ? '120px' : '100px' }}
-              onClick={
-                viewMode === 'products'
-                  ? (selectedBrand ? handleBackToBrands : handleBackToCompanies)
-                  : viewMode === 'brands'
-                    ? handleBackToCompanies
-                    : handleBackToAllProducts
-
-              }
-              title={
-                viewMode === 'products' ? 'Back to Brands' :
-                  viewMode === 'brands' ? 'Back to Companies' :
-                    'Back to All Products'
-              }
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-
-            {/* Header */}
-            <div className="product-header" style={{ marginTop: isMobile ? '140px' : '120px' }}>
-              <h1 className="h2 fw-bold text-center accent mb-4">{categoryData.name || categoryId}</h1>
-              {categoryData.description && (
-                <p className="lead text-center mb-5 px-3" style={{ color: '#4096e2ff' }}>
-                  {categoryData.description}
-                </p>
-              )}
+          
+          <div className="products-actions" style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+            justifyContent: isMobile ? 'flex-start' : 'flex-end'
+          }}>
+            {cartTotalItemsCount > 0 && (
+              <button
+                className="btn btn-success d-flex align-items-center gap-2"
+                onClick={handleCartCheckout}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  whiteSpace: 'nowrap',
+                  flex: isMobile ? '1 1 auto' : '0 0 auto'
+                }}
+              >
+                <ShoppingBag size={18} />
+                <span>Checkout Cart <strong>({cartTotalItemsCount})</strong></span>
+              </button>
+            )}
+            
+            <div className="currency-dropdown-container" style={{
+              flex: isMobile ? '1 1 auto' : '0 0 auto'
+            }}>
+              <select
+                className="form-select currency-dropdown"
+                value={selectedCurrency}
+                onChange={(e) => setSelectedCurrency(e.target.value)}
+                style={{
+                  background: 'rgba(31, 41, 55, 0.8)',
+                  border: '1px solid rgba(64, 150, 226, 0.3)',
+                  color: '#e6e6e6',
+                  width: isMobile ? '100%' : '200px',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  fontSize: '0.95rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {availableCurrencies.map((currency) => (
+                  <option key={currency.code} value={currency.code}>
+                    {currency.symbol} {currency.code}
+                  </option>
+                ))}
+              </select>
             </div>
-
-            {/* Render current view */}
-            {viewMode === 'companies' && renderCompanies()}
-            {viewMode === 'brands' && renderBrands()}
-            {viewMode === 'products' && renderProducts()}
           </div>
-
-          {/* Buy Modal - MODIFIED: Always show for both signed-in and non-signed-in users */}
-          <BuyModal
-            isOpen={isBuyModalOpen}
-            onClose={() => {
-              setIsBuyModalOpen(false);
-              setSelectedProduct(null);
-              if (onNewOrderSubmitted) {
-                onNewOrderSubmitted();
-              }
-            }}
-            product={selectedProduct}
-            profile={profile || null} // Pass profile if signed in, null if not
-          />
-
-          {/* Details Modal */}
-          {showDetailsModal && detailedProduct && (
-            <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h5 className="modal-title">{detailedProduct.name}</h5>
-                  <button className="close-btn" onClick={() => setShowDetailsModal(false)}>
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="modal-body">
-                  <div className="row">
-                    <div className="col-md-6">
+        </div>
+        
+        {showCartSuccess && addedProduct && (
+          <div className="cart-success-message" style={{
+            position: 'fixed',
+            top: '100px',
+            right: '20px',
+            background: '#10b981',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            animation: 'slideInRight 0.3s ease'
+          }}>
+            <Check size={20} />
+            <div>
+              <strong>{addedProduct.name}</strong> added to cart!
+              <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
+                {getCartQuantity(addedProduct.id)} item(s) in cart
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {filteredProducts.length === 0 ? (
+          <div className="no-products-message text-center py-5">
+            {hasSearchQuery ? (
+              <>
+                <p className="h5" style={{ color: '#ffffff' }}>No products found</p>
+                <p className="text-sm mt-2" style={{ color: '#cccccc' }}>
+                  No products match your search.
+                </p>
+                <button
+                  className="btn btn-outline-accent btn-sm mt-3"
+                  onClick={() => {
+                    if (productSearchQuery) setProductSearchQuery('');
+                    if (onGlobalSearchClear) onGlobalSearchClear();
+                  }}
+                >
+                  Clear Search
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="h5" style={{ color: '#ffffff' }}>No products available</p>
+                <p className="text-sm mt-2" style={{ color: '#cccccc' }}>
+                  {selectedBrand
+                    ? `${selectedBrand.name} doesn't have any products listed yet.`
+                    : `${selectedCompany.name} doesn't have any products listed yet.`}
+                </p>
+                <button
+                  className="btn btn-outline-accent btn-sm mt-3"
+                  onClick={handleBackToBrands}
+                >
+                  Back to Brands
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="row g-4">
+            {filteredProducts.map(product => {
+              const perUnitPriceData = getPerUnitPrice(product);
+              const productImage = product.localImage ||
+                product.image ||
+                getLocalImagePath(product.image) ||
+                getFallbackImage();
+              const inCart = isProductInCart(product.id);
+              const cartQuantity = getCartQuantity(product.id);
+              const isRice = isRiceProduct(product);
+              const priceDisplay = getProductPriceDisplay(product);
+              const basePrice = getBasePrice(product);
+              
+              return (
+                <div key={product.id} className="col-12 col-sm-6 col-md-4 col-lg-3">
+                  <div className="product-card glass p-3 h-100 d-flex flex-column">
+                    <div className="product-image-container mb-3 flex-shrink-0 position-relative">
                       <img
-                        src={detailedProduct.localImage || getLocalImagePath(detailedProduct.image) || getFallbackImage()}
-                        alt={detailedProduct.name}
-                        className="img-fluid rounded"
-                        style={{ maxHeight: '300px', objectFit: 'contain', width: '100%' }}
+                        src={productImage}
+                        alt={product.name}
+                        className="product-image w-100"
+                        style={{
+                          height: '150px',
+                          objectFit: 'contain',
+                          borderRadius: '8px'
+                        }}
+                        onError={(e) => {
+                          e.target.src = getFallbackImage();
+                        }}
                       />
+                      {inCart && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          background: '#10b981',
+                          color: 'white',
+                          borderRadius: '50%',
+                          width: '30px',
+                          height: '30px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.8rem',
+                          fontWeight: 'bold',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                        }}>
+                          {cartQuantity}
+                        </div>
+                      )}
                     </div>
-                    <div className="col-md-6">
-                      {/* Brand and Company Info */}
-                      <div className="mb-3">
-                        <h6 className="text-muted">
-                          {detailedProduct.brandName && detailedProduct.brandName !== 'General'
-                            ? `${detailedProduct.brandName} • ${detailedProduct.companyName}`
-                            : detailedProduct.companyName}
-                        </h6>
-                      </div>
-
-                      {/* Product Description */}
-                      {detailedProduct.product_description && (
-                        <div className="mb-4">
-                          <p className="text-sm">{detailedProduct.product_description}</p>
-                        </div>
+                    
+                    <div className="product-info flex-grow-1 d-flex flex-column">
+                      <h4 className="h6 fw-semibold mb-2 line-clamp-2" style={{ color: '#ffffff' }}>
+                        {product.name}
+                      </h4>
+                      
+                      {product.brandName && product.brandName !== 'General' && (
+                        <p className="text-xs mb-1" style={{ color: '#10b981' }}>
+                          Brand: <strong style={{ color: '#10b981' }}>{product.brandName}</strong>
+                        </p>
                       )}
-
-                      {/* Price Info */}
-                      <div className="mb-4">
-                        <h6 className="text-accent fw-bold">
-                          {getProductPrice(detailedProduct)}
-                        </h6>
-                        {getPerUnitPrice(detailedProduct) && (
-                          <small className="text-success">
-                            {getPerUnitPrice(detailedProduct).perUnit}
-                            {getPerUnitPrice(detailedProduct).perGram &&
-                              ` (${getPerUnitPrice(detailedProduct).perGram})`}
-                          </small>
-                        )}
-                      </div>
-
-                      {/* Comprehensive Product Specifications */}
-                      <div className="mb-4">
-                        <h6>Product Specifications</h6>
-                        <div className="product-specs-container">
-                          {(() => {
-                            const specs = getProductSpecs(detailedProduct);
-                            if (specs.length === 0) {
-                              return (
-                                <div className="text-center py-3">
-                                  <p className="text-muted mb-0">No specifications available</p>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div className="specs-grid">
-                                {specs.map((item, index) => (
-                                  <div key={index} className="spec-row">
-                                    <span className="spec-label">{item.label}</span>
-                                    <span className="spec-value">{item.value}</span>
+                      
+                      <p className="product-price fw-bold mb-2" style={{ color: '#4096e2', fontSize: '1.1rem' }}>
+                        {priceDisplay}
+                      </p>
+                      
+                      {isRice && (
+                        <div className="product-details mb-2 small">
+                          {product.origin && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
+                              <MapPin size={12} className="me-1" style={{ color: '#4096e2' }} />
+                              <span>Origin: <strong style={{ color: '#ffffff' }}>{product.origin}</strong></span>
+                            </div>
+                          )}
+                          {product.grades && product.grades.length > 0 && (
+                            <div className="mb-1">
+                              <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
+                                <Layers size={12} className="me-1" style={{ color: '#4096e2' }} />
+                                <span>Grades Available:</span>
+                              </div>
+                              <div className="ms-3" style={{ color: '#ffffff' }}>
+                                {product.grades.map((grade, idx) => (
+                                  <div key={idx} style={{ color: '#ffffff', marginBottom: '2px' }}>
+                                    {grade.grade || grade.name || "Standard"} 
+                                    {grade.price_inr && ` - ₹${grade.price_inr}`}
                                   </div>
                                 ))}
                               </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
-
-                      {/* Grades Table for Rice Products */}
-                      {detailedProduct.grades && detailedProduct.grades.length > 0 && (
-                        <div className="mb-4">
-                          <h6>Available Grades & Prices</h6>
-                          <div className="table-responsive">
-                            <table className="table table-sm table-bordered">
-                              <thead>
-                                <tr>
-                                  <th>Grade</th>
-                                  <th>Price (₹ per 100 qtls)</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {detailedProduct.grades.map((grade, idx) => (
-                                  <tr key={idx}>
-                                    <td>{grade.grade}</td>
-                                    <td className="fw-bold">₹{grade.price_inr * 100}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                            </div>
+                          )}
                         </div>
                       )}
+                      
+                      {!isRice && (
+                        <div className="product-details mb-2 small">
+                          {product.packaging && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
+                              <Package size={12} className="me-1" style={{ color: '#4096e2' }} />
+                              <span>
+                                Packaging: <strong style={{ color: '#ffffff' }}>
+                                  {typeof product.packaging === 'object' 
+                                    ? (product.packaging.units_per_carton && product.packaging.unit_weight_ml
+                                      ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`
+                                      : product.packaging.units_per_carton && product.packaging.unit_weight_g
+                                        ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`
+                                        : product.packaging.units_per_carton
+                                          ? `${product.packaging.units_per_carton} units/carton`
+                                          : product.packaging.type || 'Standard')
+                                    : product.packaging}
+                                </strong>
+                              </span>
+                            </div>
+                          )}
+                          
+                          {perUnitPriceData && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#10b981' }}>
+                              <Tag size={12} className="me-1" />
+                              <span>{perUnitPriceData.perUnit}</span>
+                            </div>
+                          )}
+                          
+                          {product.origin && !product.packaging && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
+                              <MapPin size={12} className="me-1" style={{ color: '#4096e2' }} />
+                              <span>Origin: <strong style={{ color: '#ffffff' }}>{product.origin}</strong></span>
+                            </div>
+                          )}
+                          
+                          {product.pack_type && !product.packaging && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
+                              <Package size={12} className="me-1" style={{ color: '#4096e2' }} />
+                              <span>Pack Type: <strong style={{ color: '#ffffff' }}>{product.pack_type}</strong></span>
+                            </div>
+                          )}
+                          
+                          {product.shelf_life && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
+                              <Clock size={12} className="me-1" style={{ color: '#4096e2' }} />
+                              <span>Shelf Life: <strong style={{ color: '#ffffff' }}>{product.shelf_life}</strong></span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="product-actions d-flex flex-column gap-2 mt-auto">
+                        <button
+                          className="btn btn-outline-primary btn-sm w-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(product);
+                          }}
+                          title="View Details"
+                          style={{ 
+                            color: '#ffffff', 
+                            borderColor: '#4096e2',
+                            backgroundColor: 'transparent',
+                            padding: '8px 12px',
+                            fontWeight: '500',
+                            width: '100%'
+                          }}
+                        >
+                          View Details
+                        </button>
+                        
+                        <div className="d-flex gap-2 w-100">
+                          <button
+                            className="btn btn-info btn-sm flex-grow-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCartClick(product);
+                            }}
+                            style={{
+                              background: inCart ? '#059669' : '#0dcaf0',
+                              borderColor: inCart ? '#059669' : '#0dcaf0',
+                              color: 'white',
+                              padding: '8px 12px',
+                              fontWeight: '500'
+                            }}
+                            title={inCart ? `${cartQuantity} item(s) in cart` : 'Add to Cart'}
+                          >
+                            <ShoppingCart className="w-4 h-4 me-1" />
+                            {inCart ? `In Cart (${cartQuantity})` : 'Add to Cart'}
+                          </button>
+                          
+                          <button
+                            className="btn btn-success btn-sm flex-grow-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOrderNow(product);
+                            }}
+                            title="Order Now"
+                            style={{
+                              background: '#10b981',
+                              borderColor: '#10b981',
+                              color: 'white',
+                              padding: '8px 12px',
+                              fontWeight: '500'
+                            }}
+                          >
+                            Order Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
-                      {/* Detailed Packaging Information */}
-                      {detailedProduct.packaging && typeof detailedProduct.packaging === 'object' && (
-                        <div className="mb-4">
-                          <h6>Packaging Details</h6>
-                          <div className="row">
-                            {detailedProduct.packaging.units_per_carton && (
-                              <div className="col-6 mb-3">
-                                <div className="info-box">
-                                  <div>
-                                    <small className="text-muted">Units per Carton</small>
-                                    <p className="mb-0 fw-bold">{detailedProduct.packaging.units_per_carton}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {detailedProduct.packaging.unit_weight_g && (
-                              <div className="col-6 mb-3">
-                                <div className="info-box">
-                                  <div>
-                                    <small className="text-muted">Unit Weight</small>
-                                    <p className="mb-0 fw-bold">{detailedProduct.packaging.unit_weight_g}g</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {detailedProduct.packaging.unit_weight_ml && (
-                              <div className="col-6 mb-3">
-                                <div className="info-box">
-                                  <div>
-                                    <small className="text-muted">Unit Volume</small>
-                                    <p className="mb-0 fw-bold">{detailedProduct.packaging.unit_weight_ml}ml</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+  return (
+    <div className="product-page" style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      color: '#e6e6e6',
+      position: 'relative'
+    }}>
+      <button
+        className="back-button"
+        style={{
+          position: 'fixed',
+          left: '20px',
+          top: isMobile ? '120px' : '100px',
+          zIndex: 100,
+          background: '#0f3460',
+          border: '1px solid #4096e2ff',
+          borderRadius: '50%',
+          width: '40px',
+          height: '40px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          color: '#e6e6e6'
+        }}
+        onClick={
+          viewMode === 'products'
+            ? (selectedBrand ? handleBackToBrands : handleBackToCompanies)
+            : viewMode === 'brands'
+              ? handleBackToCompanies
+              : handleBackToAllProducts
+        }
+      >
+        <ArrowLeft className="w-6 h-6" />
+      </button>
+
+      <div className="product-header" style={{
+        marginTop: isMobile ? '140px' : '120px',
+        textAlign: 'center',
+        padding: '0 20px'
+      }}>
+        <h1 className="h2 fw-bold text-center mb-4" style={{ color: '#4096e2' }}>{categoryData.name || categoryId}</h1>
+        {categoryData.description && (
+          <p className="lead text-center mb-5 px-3" style={{ color: '#4096e2ff' }}>
+            {categoryData.description}
+          </p>
+        )}
+      </div>
+
+      <div className="container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px' }}>
+        {viewMode === 'companies' && renderCompanies()}
+        {viewMode === 'brands' && renderBrands()}
+        {viewMode === 'products' && renderProducts()}
+      </div>
+
+      <SingleProductBuyModal
+        isOpen={isSingleProductModalOpen}
+        onClose={() => {
+          setIsSingleProductModalOpen(false);
+          setSelectedProduct(null);
+          if (onNewOrderSubmitted) {
+            onNewOrderSubmitted();
+          }
+        }}
+        product={selectedProduct}
+        profile={profile || null}
+        onOrderSubmitted={handleOrderSubmitted}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency={selectedCurrency}
+      />
+
+      <AddToCartConfigModal
+        isOpen={isAddToCartConfigModalOpen}
+        onClose={() => {
+          setIsAddToCartConfigModalOpen(false);
+          setSelectedProductForConfig(null);
+        }}
+        product={selectedProductForConfig}
+        onAddToCart={handleAddToCartWithConfig}
+        getRiceGrades={getRiceGrades}
+        getPackingOptions={getPackingOptions}
+        getQuantityOptions={getQuantityOptions}
+        isRiceProduct={isRiceProduct}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency={selectedCurrency}
+      />
+
+      <CheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => {
+          setIsCheckoutModalOpen(false);
+          setCheckoutProductsLocal([]);
+        }}
+        products={checkoutProducts}
+        profile={profile || null}
+        onOrderSubmitted={handleOrderSubmitted}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency={selectedCurrency}
+      />
+
+      {showDetailsModal && detailedProduct && (
+        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1050,
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+            background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+            color: '#1e293b',
+            borderRadius: '28px',
+            border: '1px solid rgba(16, 185, 129, 0.2)',
+            maxWidth: '1000px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 30px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(16, 185, 129, 0.1) inset',
+            animation: 'modalFadeIn 0.3s ease'
+          }}>
+            <div className="modal-header" style={{
+              padding: '28px 32px',
+              borderBottom: '1px solid rgba(16, 185, 129, 0.15)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%)'
+            }}>
+              <div>
+                <h5 className="modal-title" style={{ 
+                  color: '#0f172a', 
+                  fontSize: '2rem', 
+                  fontWeight: '700',
+                  marginBottom: '6px',
+                  letterSpacing: '-0.02em'
+                }}>
+                  {detailedProduct.name}
+                </h5>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Building2 size={18} style={{ color: '#10b981' }} />
+                  <span style={{ color: '#475569', fontSize: '1rem', fontWeight: '500' }}>
+                    {detailedProduct.brandName && detailedProduct.brandName !== 'General'
+                      ? `${detailedProduct.brandName} • ${detailedProduct.companyName}`
+                      : detailedProduct.companyName}
+                  </span>
+                </div>
+              </div>
+              <button className="close-btn" onClick={() => setShowDetailsModal(false)} style={{
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                color: '#0f172a',
+                cursor: 'pointer',
+                padding: '8px',
+                borderRadius: '50%',
+                width: '42px',
+                height: '42px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
+              }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ padding: '32px' }}>
+              <div className="row g-5">
+                <div className="col-md-5">
+                  <div style={{
+                    background: '#ffffff',
+                    borderRadius: '24px',
+                    padding: '24px',
+                    border: '1px solid rgba(16, 185, 129, 0.15)',
+                    boxShadow: '0 15px 35px rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <img
+                      src={detailedProduct.localImage || getLocalImagePath(detailedProduct.image) || getFallbackImage()}
+                      alt={detailedProduct.name}
+                      className="img-fluid rounded"
+                      style={{ 
+                        maxHeight: '350px', 
+                        objectFit: 'contain', 
+                        width: '100%',
+                        filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.1))'
+                      }}
+                    />
+                    
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '12px', 
+                      marginTop: '24px',
+                      justifyContent: 'center',
+                      flexWrap: 'wrap'
+                    }}>
+                      {detailedProduct.origin && (
+                        <div style={{
+                          background: 'rgba(16, 185, 129, 0.08)',
+                          padding: '8px 16px',
+                          borderRadius: '40px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: '1px solid rgba(16, 185, 129, 0.2)'
+                        }}>
+                          <MapPin size={16} style={{ color: '#10b981' }} />
+                          <span style={{ color: '#1e293b', fontSize: '0.95rem', fontWeight: '500' }}>{detailedProduct.origin}</span>
+                        </div>
+                      )}
+                      {detailedProduct.shelf_life && (
+                        <div style={{
+                          background: 'rgba(16, 185, 129, 0.08)',
+                          padding: '8px 16px',
+                          borderRadius: '40px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: '1px solid rgba(16, 185, 129, 0.2)'
+                        }}>
+                          <Clock size={16} style={{ color: '#10b981' }} />
+                          <span style={{ color: '#1e293b', fontSize: '0.95rem', fontWeight: '500' }}>{detailedProduct.shelf_life}</span>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setShowDetailsModal(false)}>
-                    Close
-                  </button>
-                  <button className="btn btn-success" onClick={() => {
-                    setShowDetailsModal(false);
-                    handleOrderNow(detailedProduct);
+                
+                <div className="col-md-7">
+                  {detailedProduct.product_description && (
+                    <div style={{
+                      background: 'rgba(16, 185, 129, 0.04)',
+                      padding: '24px',
+                      borderRadius: '20px',
+                      marginBottom: '28px',
+                      border: '1px solid rgba(16, 185, 129, 0.1)'
+                    }}>
+                      <p style={{ 
+                        color: '#0f172a', 
+                        lineHeight: '1.7', 
+                        fontSize: '1.05rem',
+                        margin: 0,
+                        fontStyle: 'italic',
+                        fontWeight: '400'
+                      }}>
+                        "{detailedProduct.product_description}"
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                    padding: '24px 28px',
+                    borderRadius: '20px',
+                    marginBottom: '32px',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    boxShadow: '0 8px 20px rgba(16, 185, 129, 0.1)'
                   }}>
-                    Order Now
-                  </button>
+                    <div style={{ fontSize: '0.95rem', color: '#047857', marginBottom: '8px', fontWeight: '500', letterSpacing: '0.5px' }}>
+                      PRICE ({selectedCurrency})
+                    </div>
+                    <div style={{ 
+                      color: '#0f172a', 
+                      fontSize: '2.4rem', 
+                      fontWeight: '700',
+                      lineHeight: '1.2'
+                    }}>
+                      {getProductPrice(detailedProduct)}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h6 style={{ 
+                      color: '#10b981', 
+                      fontSize: '1.25rem', 
+                      marginBottom: '20px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      letterSpacing: '-0.3px'
+                    }}>
+                      <Award size={22} />
+                      Product Specifications
+                    </h6>
+                    
+                    <div className="specs-grid" style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '14px' 
+                    }}>
+                      {(() => {
+                        const specs = getProductSpecs(detailedProduct);
+                        if (specs.length === 0) {
+                          return (
+                            <div style={{
+                              textAlign: 'center',
+                              padding: '30px',
+                              background: '#f8fafc',
+                              borderRadius: '16px',
+                              border: '1px dashed rgba(16, 185, 129, 0.3)'
+                            }}>
+                              <p style={{ color: '#64748b', margin: 0 }}>No specifications available</p>
+                            </div>
+                          );
+                        }
+                        return specs.map((item, index) => (
+                          <div key={index} className="spec-row" style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '16px 20px',
+                            background: '#ffffff',
+                            borderRadius: '16px',
+                            border: '1px solid rgba(16, 185, 129, 0.15)',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)'
+                          }}>
+                            <span className="spec-label" style={{ 
+                              color: '#475569',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              fontSize: '1rem',
+                              fontWeight: '500'
+                            }}>
+                              {item.icon}
+                              {item.label}:
+                            </span>
+                            <span className="spec-value" style={{ 
+                              color: '#0f172a',
+                              fontWeight: '600',
+                              fontSize: '1rem',
+                              background: '#f1f5f9',
+                              padding: '6px 16px',
+                              borderRadius: '30px',
+                              border: '1px solid #e2e8f0'
+                            }}>
+                              {item.value || '—'}
+                            </span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+            
+            <div className="modal-footer" style={{
+              padding: '24px 32px 32px',
+              borderTop: '1px solid rgba(16, 185, 129, 0.15)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '16px',
+              background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.02) 0%, transparent 100%)'
+            }}>
+              <button 
+                className="btn" 
+                onClick={() => setShowDetailsModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: '2px solid #e2e8f0',
+                  color: '#475569',
+                  padding: '12px 28px',
+                  borderRadius: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '1rem',
+                  fontWeight: '600'
+                }}
+              >
+                Close
+              </button>
+              
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  handleAddToCartClick(detailedProduct);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '12px 28px',
+                  borderRadius: '14px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s ease',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  boxShadow: '0 8px 20px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                <ShoppingCart size={18} />
+                Add to Cart
+              </button>
+              
+              <button 
+                className="btn" 
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  handleOrderNow(detailedProduct);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '12px 28px',
+                  borderRadius: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  boxShadow: '0 8px 20px rgba(245, 158, 11, 0.25)'
+                }}
+              >
+                Order Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* CSS Styles */}
-          <style>{`
-            .product-page {
-              min-height: 100vh;
-              background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-              color: #e6e6e6;
+      <style>
+        {`
+          @keyframes modalFadeIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95) translateY(10px);
             }
-            
-            .product-main-content {
-              padding: 20px;
+            to {
+              opacity: 1;
+              transform: scale(1) translateY(0);
             }
-            
-            .back-button {
-              position: fixed;
-              left: 20px;
-              top: 100px;
-              z-index: 100;
-              background: #0f3460;
-              border: 1px solid #4096e2ff;
-              border-radius: 50%;
-              width: 40px;
-              height: 40px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              cursor: pointer;
-              transition: all 0.3s ease;
-              color: #e6e6e6;
+          }
+          
+          .spec-row:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(16, 185, 129, 0.1) !important;
+            border-color: rgba(16, 185, 129, 0.3) !important;
+          }
+          
+          .close-btn:hover {
+            background: rgba(16, 185, 129, 0.2) !important;
+            transform: rotate(90deg);
+          }
+          
+          button:hover {
+            transform: translateY(-2px);
+          }
+
+          @keyframes slideInRight {
+            from {
+              transform: translateX(100%);
+              opacity: 0;
             }
-            
-            .back-button:hover {
-              background: #4096e2ff;
-              transform: translateX(-2px);
+            to {
+              transform: translateX(0);
+              opacity: 1;
             }
-            
-            .product-header {
-              margin-top: 120px;
-              text-align: center;
-            }
-            
-            .accent {
-              color: #4096e2ff;
-            }
-            
-            /* Currency selector */
-            .currency-bar {
-              max-width: 1200px;
-              margin: 0 auto 20px;
-            }
-            
-            .currency-dropdown {
-              background: rgba(31, 41, 55, 0.8);
-              border: 1px solid rgba(64, 150, 226, 0.3);
-              color: #e6e6e6;
-              width: 200px;
-            }
-            
-            /* Search results info */
-            .search-results-info {
-              font-size: 0.9rem;
-              color: #4096e2ff;
-            }
-            
-            /* Brand logo styles */
-            .brand-logo-container {
-              position: relative;
-              width: 80px;
-              height: 80px;
-              margin: 0 auto;
-            }
-            
-            .brand-logo {
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-              border-radius: 50%;
-              border: 2px solid rgba(64, 150, 226, 0.3);
-            }
-            
-            .brand-logo-placeholder {
-              position: absolute;
-              top: 0;
-              left: 0;
-              width: 100%;
-              height: 100%;
-              border-radius: 50%;
-              border: 2px dashed rgba(64, 150, 226, 0.3);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: rgba(64, 150, 226, 0.1);
-            }
-            
-            .brand-icon-placeholder {
-              width: 80px;
-              height: 80px;
-              border-radius: 50%;
-              border: 2px dashed rgba(64, 150, 226, 0.3);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: rgba(64, 150, 226, 0.1);
-              margin: 0 auto;
-            }
-            
-            /* Product Card Styles */
-            .product-card {
-              display: flex;
+          }
+
+          @media (max-width: 768px) {
+            .products-header {
               flex-direction: column;
-              height: 100%;
-              border-radius: 12px;
-              overflow: hidden;
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-              transition: transform 0.3s ease, box-shadow 0.3s ease;
-              background: rgba(31, 41, 55, 0.8);
-              border: 1px solid rgba(64, 150, 226, 0.2);
             }
             
-            .product-card:hover {
-              transform: translateY(-5px);
-              box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-              border-color: rgba(64, 150, 226, 0.4);
-            }
-            
-            .product-image-container {
-              overflow: hidden;
-              border-radius: 8px;
-            }
-            
-            .product-image {
+            .products-actions {
               width: 100%;
-              height: 100%;
-              object-fit: cover;
-              transition: transform 0.5s ease;
+              flex-direction: row;
+              justify-content: space-between;
             }
             
-            .product-card:hover .product-image {
-              transform: scale(1.05);
-            }
-            
-            .product-info {
-              display: flex;
-              flex-direction: column;
+            .currency-dropdown-container {
               flex: 1;
             }
             
-            .product-price {
-              font-size: 1.1rem;
-              color: #10b981;
+            .currency-dropdown {
+              width: 100% !important;
             }
-            
-            .product-specs {
-              font-size: 0.8rem;
-              color: #a0aec0;
-            }
-            
-            .packaging-info {
-              background: rgba(64, 150, 226, 0.1);
-              padding: 8px;
-              border-radius: 6px;
-              border-left: 3px solid #4096e2ff;
-            }
-            
-            .grades-info {
-              padding: 8px;
-              background: rgba(59, 130, 246, 0.1);
-              border-radius: 6px;
-            }
-            
-            .badge {
-              font-size: 0.7rem;
-              padding: 4px 8px;
-            }
-            
-            .bg-info {
-              background-color: rgba(59, 130, 246, 0.2) !important;
-              border: 1px solid rgba(59, 130, 246, 0.3);
-              color: #93c5fd !important;
-            }
-            
-            .bg-secondary {
-              background-color: rgba(107, 114, 128, 0.2) !important;
-              border: 1px solid rgba(107, 114, 128, 0.3);
-              color: #cbd5e0 !important;
-            }
-            
-            .product-actions {
-              display: flex;
-              gap: 8px;
-              margin-top: auto;
-            }
-            
-            .btn-outline-primary {
-              border-color: #4096e2ff;
-              color: #4096e2ff;
-              background: transparent;
-            }
-            
-            .btn-outline-primary:hover {
-              background-color: #4096e2ff;
-              color: #1a1a2e;
-            }
-            
-            .btn-success {
-              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-              border: none;
-              color: white;
-            }
-            
-            .btn-success:hover {
-              background: linear-gradient(135deg, #059669 0%, #047857 100%);
-            }
-            
-            .btn-secondary {
-              background: rgba(107, 114, 128, 0.3);
-              border: 1px solid rgba(107, 114, 128, 0.5);
-              color: #e6e6e6;
-            }
-            
-            .btn-secondary:hover {
-              background: rgba(107, 114, 128, 0.5);
-            }
-            
-            /* Service Card Styles */
-            .service-card {
-              border: 1px solid rgba(64, 150, 226, 0.2);
-              border-radius: 12px;
-              transition: all 0.3s ease;
-              background: rgba(31, 41, 55, 0.8);
-            }
-            
-            .service-card:hover {
-              border-color: #4096e2ff;
-              transform: translateY(-2px);
-              background: rgba(31, 41, 55, 1);
-            }
-            
-            /* Company logo styles */
-            .company-logo-container {
-              width: 80px;
-              height: 80px;
-              margin: 0 auto;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              position: relative;
-            }
-            
-            .company-logo {
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-              border-radius: 50%;
-              border: 2px solid rgba(64, 150, 226, 0.3);
-            }
-            
-            .company-logo-placeholder {
-              width: 80px;
-              height: 80px;
-              border-radius: 50%;
-              border: 2px dashed rgba(64, 150, 226, 0.3);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: rgba(64, 150, 226, 0.1);
-            }
-            
-            .fallback-logo {
-              position: absolute;
-              top: 0;
-              left: 0;
-              width: 100%;
-              height: 100%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: rgba(64, 150, 226, 0.1);
-              border-radius: 50%;
-              border: 2px dashed rgba(64, 150, 226, 0.3);
-            }
-            
-            /* Modal styles */
-            .modal-overlay {
-              position: fixed;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              background: rgba(0, 0, 0, 0.85);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              z-index: 1050;
-              padding: 20px;
-            }
-            
-            .modal-content {
-              background: linear-gradient(135deg, #1e293b 0%, #1a202c 100%);
-              border-radius: 16px;
-              max-width: 900px;
-              width: 100%;
-              max-height: 90vh;
-              overflow-y: auto;
-              box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7);
-              border: 2px solid rgba(64, 150, 226, 0.4);
-              color: #f8fafc;
-              animation: modalSlideIn 0.3s ease-out;
-            }
-            
-            @keyframes modalSlideIn {
-              from {
-                opacity: 0;
-                transform: translateY(-20px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
-            
-            .modal-header {
-              padding: 1.5rem 2rem;
-              border-bottom: 2px solid rgba(64, 150, 226, 0.3);
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              background: rgba(30, 41, 59, 0.95);
-              border-radius: 16px 16px 0 0;
-            }
-            
-            .modal-title {
-              margin: 0;
-              font-weight: 700;
-              font-size: 1.5rem;
-              color: #f1f5f9;
-              letter-spacing: 0.5px;
-            }
-            
-            .close-btn {
-              background: rgba(64, 150, 226, 0.2);
-              border: 2px solid rgba(64, 150, 226, 0.4);
-              font-size: 1.5rem;
-              cursor: pointer;
-              color: #e6e6e6;
-              padding: 8px;
-              width: 40px;
-              height: 40px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              border-radius: 50%;
-              transition: all 0.3s ease;
-            }
-            
-            .close-btn:hover {
-              background: rgba(64, 150, 226, 0.4);
-              color: #ffffff;
-              transform: rotate(90deg);
-              border-color: #4096e2ff;
-            }
-            
-            .modal-body {
-              padding: 2rem;
-              background: rgba(26, 32, 44, 0.9);
-            }
-            
-            .modal-body h6 {
-              color: #dbeafe;
-              font-weight: 600;
-              margin-bottom: 1rem;
-              font-size: 1.1rem;
-              border-bottom: 2px solid rgba(64, 150, 226, 0.2);
-              padding-bottom: 0.5rem;
-            }
-            
-            .modal-footer {
-              padding: 1.5rem 2rem;
-              border-top: 2px solid rgba(64, 150, 226, 0.3);
-              display: flex;
-              justify-content: flex-end;
-              gap: 1rem;
-              background: rgba(30, 41, 59, 0.95);
-              border-radius: 0 0 16px 16px;
-            }
-            
-            .info-box {
-              padding: 12px;
-              background: rgba(64, 150, 226, 0.15);
-              border-radius: 10px;
-              margin-bottom: 10px;
-              border-left: 4px solid #4096e2ff;
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-              transition: transform 0.2s ease;
-            }
-            
-            .info-box:hover {
-              transform: translateY(-2px);
-              background: rgba(64, 150, 226, 0.2);
-            }
-            
-            .info-box small {
-              color: #94a3b8 !important;
-              font-size: 0.85rem;
-              display: block;
-              margin-bottom: 5px;
-              font-weight: 500;
-            }
-            
-            .info-box p {
-              color: #f1f5f9 !important;
-              font-size: 1.1rem;
-              margin: 0;
-            }
-            
-            .text-muted {
-              color: #cbd5e0 !important;
-            }
-            
-            .text-primary {
-              color: #60a5fa !important;
-            }
-            
-            .text-success {
-              color: #34d399 !important;
-            }
-            
-            .text-accent {
-              color: #60a5fa !important;
-            }
-            
-            /* Table styles */
-            .table {
-              color: #f1f5f9 !important;
-              background: rgba(30, 41, 59, 0.8);
-              border-radius: 10px;
-              overflow: hidden;
-              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            }
-            
-            .table-bordered {
-              border: 2px solid rgba(64, 150, 226, 0.3);
-            }
-            
-            .table-bordered th,
-            .table-bordered td {
-              border: 1px solid rgba(64, 150, 226, 0.2);
-              padding: 12px;
-            }
-            
-            .table thead th {
-              border-bottom: 3px solid rgba(64, 150, 226, 0.4);
-              background: rgba(64, 150, 226, 0.2);
-              color: #dbeafe !important;
-              font-weight: 600;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              font-size: 0.9rem;
-            }
-            
-            .table tbody tr:hover {
-              background: rgba(64, 150, 226, 0.1);
-            }
-            
-            .table tbody td {
-              font-weight: 500;
-            }
-            
-            /* Product Specifications Container */
-            .product-specs-container {
-              background: rgba(30, 41, 59, 0.8);
-              border-radius: 12px;
-              padding: 20px;
-              border: 2px solid rgba(64, 150, 226, 0.2);
-              box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
-            }
-            
-            .specs-grid {
-              display: grid;
-              grid-template-columns: 1fr;
-              gap: 12px;
-            }
-            
-            .spec-row {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              padding: 12px 0;
-              border-bottom: 1px solid rgba(64, 150, 226, 0.15);
-            }
-            
-            .spec-row:last-child {
-              border-bottom: none;
-            }
-            
-            .spec-label {
-              font-weight: 600;
-              color: #cbd5e0;
-              font-size: 0.95rem;
-              min-width: 180px;
-            }
-            
-            .spec-value {
-              color: #f8fafc !important;
-              font-weight: 500;
-              font-size: 0.95rem;
-              text-align: right;
-              max-width: 60%;
-              word-break: break-word;
-              background: rgba(64, 150, 226, 0.1);
-              padding: 6px 12px;
-              border-radius: 6px;
-              border-left: 3px solid #4096e2ff;
-            }
-            
-            /* Glass effect */
-            .glass {
-              background: rgba(31, 41, 55, 0.85);
-              backdrop-filter: blur(12px);
-              -webkit-backdrop-filter: blur(12px);
-              border: 1px solid rgba(64, 150, 226, 0.15);
-            }
-            
-            /* No products message */
-            .no-products-message {
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              align-items: center;
-              min-height: 300px;
-            }
-            
-            .btn-outline-accent {
-              border-color: #4096e2ff;
-              color: #4096e2ff;
-              background: transparent;
-            }
-            
-            .btn-outline-accent:hover {
-              background-color: #4096e2ff;
-              color: #1a1a2e;
-            }
-            
-            /* Line clamp for text */
-            .line-clamp-2 {
-              display: -webkit-box;
-              -webkit-line-clamp: 2;
-              -webkit-box-orient: vertical;
-              overflow: hidden;
-            }
-            
-            /* Button styles inside modal */
-            .modal-footer .btn {
-              padding: 10px 24px;
-              font-weight: 600;
-              font-size: 1rem;
-              border-radius: 10px;
-              transition: all 0.3s ease;
-              min-width: 120px;
-            }
-            
-            .modal-footer .btn-secondary {
-              background: linear-gradient(135deg, #475569 0%, #334155 100%);
-              border: none;
-              color: #f1f5f9;
-            }
-            
-            .modal-footer .btn-secondary:hover {
-              background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
-              transform: translateY(-2px);
-              box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-            }
-            
-            .modal-footer .btn-success {
-              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-              border: none;
-              color: white;
-              box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-            }
-            
-            .modal-footer .btn-success:hover {
-              background: linear-gradient(135deg, #059669 0%, #047857 100%);
-              transform: translateY(-2px);
-              box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-            }
-          `}</style>
-        </div>
-      );
-    };
+          }
 
-    export default ProductPage;
+          @media (max-width: 480px) {
+            .products-actions {
+              flex-direction: column;
+            }
+            
+            .products-actions button,
+            .products-actions .currency-dropdown-container {
+              width: 100%;
+            }
+            
+            .currency-dropdown {
+              width: 100% !important;
+            }
+          }
+        `}
+      </style>
+    </div>
+  );
+};
+
+export default ProductPage;

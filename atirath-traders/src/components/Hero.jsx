@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const Hero = () => {
   const [currentTitleIndex, setCurrentTitleIndex] = useState(0);
@@ -6,12 +6,32 @@ const Hero = () => {
   const [isScrolling, setIsScrolling] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const videoRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const animationIdRef = useRef(null);
   const scrollPositionRef = useRef(0);
 
-  const titles = [
+  // ================================
+  // VIDEO PLAYBACK SPEED CONTROL
+  // ================================
+  // Change this value to adjust video speed
+  const VIDEO_PLAYBACK_SPEED = 0.5; // ← ADJUST THIS VALUE
+  
+  // Available speed options:
+  // 0.25 = Very Slow (25% speed)
+  // 0.5  = Slow (50% speed) ← Current setting
+  // 0.75 = Slightly Slow (75% speed)
+  // 1.0  = Normal Speed (Default)
+  // 1.25 = Slightly Fast (125% speed)
+  // 1.5  = Fast (150% speed)
+  // 1.75 = Very Fast (175% speed)
+  // 2.0  = Maximum Speed (200% speed)
+  // ================================
+
+  // Memoize titles to prevent unnecessary re-renders
+  const titles = useMemo(() => [
     {
       title: "Diverse Businesses, One Vision",
       subtitle: "Leading innovation across multiple industries"
@@ -24,14 +44,14 @@ const Hero = () => {
       title: "Global Reach, Local Impact",
       subtitle: "Serving customers across 42 countries"
     }
-  ];
+  ], []);
 
-  // Company data with detailed information
-  const companyData = [
-    { 
+  // Memoize company data
+  const companyData = useMemo(() => [
+    {
       id: 1,
       name: "Siea - Sai Import and Export Agro", 
-      logo: "/img/Trusted/Siea.png",
+      logo: "/img/Trusted/Siea.webp",
       description: "Specializes in rice products including both Basmati and Non-Basmati varieties. One of the leading rice import and export companies with global operations.",
       products: "Basmati Rice, Non-Basmati Rice, Rice Products",
       location: "Delhi, India",
@@ -47,7 +67,7 @@ const Hero = () => {
     { 
       id: 2,
       name: "Atirath Industries", 
-      logo: "/img/Trusted/Atirath_Industries.png",
+      logo: "/img/Trusted/Atirath_Industries.webp",
       description: "Comprehensive import and export trading company dealing in agricultural commodities across India and international markets.",
       products: "Rice, Pulses, Vegetables, Grains, Spices, Edible Oils",
       location: "Hyderabad, Telangana, India",
@@ -64,7 +84,7 @@ const Hero = () => {
     { 
       id: 3,
       name: "Frout Root (Dubai Company)", 
-      logo: "/img/Trusted/Dubai.png",
+      logo: "/img/Trusted/Dubai.webp",
       description: "Dubai-based agricultural products company specializing in rice distribution across Middle Eastern markets.",
       products: "Rice Products, Grains, Food Commodities",
       location: "Dubai, UAE",
@@ -79,7 +99,7 @@ const Hero = () => {
     { 
       id: 4,
       name: "ET Logo - Exclusive Trader", 
-      logo: "/img/Trusted/ET_Logo.png",
+      logo: "/img/Trusted/ET_Logo.webp",
       description: "UK-based exclusive trading company dealing in premium agricultural and food products across European markets.",
       products: "All Agricultural Products, Exclusive Commodities, Specialty Foods",
       location: "London, United Kingdom",
@@ -94,7 +114,7 @@ const Hero = () => {
     { 
       id: 5,
       name: "Al-Jazeel Company", 
-      logo: "/img/Trusted/Oman.png",
+      logo: "/img/Trusted/Oman.webp",
       description: "Oman's leading import and export company specializing in meat, fruits, vegetables, and rice products.",
       products: "Meat Products, Fresh Fruits, Vegetables, Rice, Dairy",
       location: "Muscat, Oman",
@@ -109,7 +129,7 @@ const Hero = () => {
     { 
       id: 6,
       name: "Royalone Appliances", 
-      logo: "/img/Trusted/Royalone.jpg",
+      logo: "/img/Trusted/Royalone.webp",
       description: "Australian manufacturer and distributor of premium HVAC products including air conditioners and heaters.",
       products: "Air Conditioners, Heaters, HVAC Systems, Cooling Solutions",
       location: "Sydney, Australia",
@@ -124,7 +144,7 @@ const Hero = () => {
     { 
       id: 7,
       name: "Suguna Foods", 
-      logo: "/img/Trusted/Sugana.png",
+      logo: "/img/Trusted/Sugana.webp",
       description: "Hyderabad-based dairy products company specializing in milk-based sweets, cool drinks, and dairy products.",
       products: "Milk Products, Sweets, Milk-based Cool Drinks, Dairy Items",
       location: "Hyderabad, Telangana, India",
@@ -139,7 +159,7 @@ const Hero = () => {
     { 
       id: 8,
       name: "Tayo General Trading", 
-      logo: "/img/Trusted/Tyago.png",
+      logo: "/img/Trusted/Tyago.webp",
       description: "USA-based agricultural products import and export company with global reach in agro commodities.",
       products: "All Agricultural Products, Food Commodities, Agro Products",
       location: "New York, USA",
@@ -154,7 +174,7 @@ const Hero = () => {
     { 
       id: 9,
       name: "Metas Corporation", 
-      logo: "/img/Trusted/Metas.jpg",
+      logo: "/img/Trusted/Metas.webp",
       description: "Diversified corporation with interests in multiple sectors including agriculture, technology, and trading.",
       products: "Multiple Sectors - Agriculture, Technology, Trading",
       location: "Global Operations",
@@ -169,7 +189,7 @@ const Hero = () => {
     { 
       id: 10,
       name: "Heritage", 
-      logo: "/img/Trusted/Heritage.png",
+      logo: "/img/Trusted/Heritage.webp",
       description: "Thailand-based global import and export company specializing in agricultural commodities, with a strong focus on rice, spices, and tropical fruits. Operating worldwide with a legacy of quality and reliability.",
       products: "Rice, Spices, Tropical Fruits, Agricultural Commodities, Food Products",
       location: "Bangkok, Thailand (Global Operations)",
@@ -186,7 +206,7 @@ const Hero = () => {
     { 
       id: 11,
       name: "Akil Drinks", 
-      logo: "/img/Trusted/Akil.jpeg",
+      logo: "/img/Trusted/Akil.webp",
       description: "Global import and export company specializing in beverages and drinks with operations worldwide. Based in Thailand with branches across multiple countries, focusing on quality beverage products distribution.",
       products: "Beverages, Soft Drinks, Juices, Energy Drinks, Alcoholic Beverages, Water Products",
       location: "Bangkok, Thailand (Global Operations)",
@@ -200,12 +220,12 @@ const Hero = () => {
         website: "https://akildrinks.com"
       }
     }
-  ];
+  ], []);
 
   // Initialize with all logos
   useEffect(() => {
     setScrollingLogos([...companyData]);
-  }, []);
+  }, [companyData]);
 
   // Title rotation effect
   useEffect(() => {
@@ -215,28 +235,96 @@ const Hero = () => {
     return () => clearInterval(interval);
   }, [titles.length]);
 
-  // Handle video play
+  // Handle video load and play - optimized
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch(error => {
-        console.log('Video autoplay failed:', error);
-      });
-    }
-  }, []);
+    const video = videoRef.current;
+    if (!video) return;
 
-  // Infinite RTL scrolling animation for logos
+    const handleLoadedData = () => {
+      setIsVideoLoaded(true);
+      
+      // ================================
+      // SET VIDEO PLAYBACK SPEED HERE
+      // ================================
+      video.playbackRate = VIDEO_PLAYBACK_SPEED; // ← This sets the speed
+      // ================================
+      
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log('Video autoplay prevented:', error);
+        });
+      }
+    };
+
+    const handleError = () => {
+      setVideoError(true);
+      console.error('Failed to load video');
+    };
+
+    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('error', handleError);
+
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData);
+      video.removeEventListener('error', handleError);
+    };
+  }, [VIDEO_PLAYBACK_SPEED]);
+
+  // Fix: Set video speed whenever video is available
+  useEffect(() => {
+    const setVideoSpeed = () => {
+      if (videoRef.current) {
+        videoRef.current.playbackRate = VIDEO_PLAYBACK_SPEED;
+      }
+    };
+
+    // Set speed immediately if video is already loaded
+    if (isVideoLoaded) {
+      setVideoSpeed();
+    }
+
+    // Also set speed on timeupdate to ensure it persists
+    const video = videoRef.current;
+    if (video) {
+      video.addEventListener('timeupdate', setVideoSpeed);
+      video.addEventListener('play', setVideoSpeed);
+    }
+
+    return () => {
+      if (video) {
+        video.removeEventListener('timeupdate', setVideoSpeed);
+        video.removeEventListener('play', setVideoSpeed);
+      }
+    };
+  }, [VIDEO_PLAYBACK_SPEED, isVideoLoaded]);
+
+  // Prevent background scroll when popup is open
+  useEffect(() => {
+    if (showPopup) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showPopup]);
+
+  // Infinite RTL scrolling animation for logos - optimized
   useEffect(() => {
     if (!scrollContainerRef.current || scrollingLogos.length === 0) return;
 
     const container = scrollContainerRef.current;
-    const scrollSpeed = 1;
-    let lastTimestamp = 0;
+    let animationFrameId;
+    let lastTime = 0;
+    const scrollSpeed = 0.5;
 
-    const scrollLogos = (timestamp) => {
-      if (!lastTimestamp) lastTimestamp = timestamp;
+    const animate = (currentTime) => {
+      if (!lastTime) lastTime = currentTime;
       
       if (isScrolling) {
-        const deltaTime = timestamp - lastTimestamp;
+        const deltaTime = currentTime - lastTime;
         const deltaScroll = (deltaTime * scrollSpeed) / 16;
         
         scrollPositionRef.current += deltaScroll;
@@ -247,72 +335,118 @@ const Hero = () => {
           scrollPositionRef.current = 0;
         }
         
-        container.style.transform = `translateX(-${scrollPositionRef.current}px)`;
+        container.style.transform = `translate3d(-${scrollPositionRef.current}px, 0, 0)`;
       }
       
-      lastTimestamp = timestamp;
-      animationIdRef.current = requestAnimationFrame(scrollLogos);
+      lastTime = currentTime;
+      animationFrameId = requestAnimationFrame(animate);
     };
 
-    animationIdRef.current = requestAnimationFrame(scrollLogos);
+    animationFrameId = requestAnimationFrame(animate);
 
     return () => {
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
     };
   }, [isScrolling, scrollingLogos]);
 
-  // Handle logo click
-  const handleLogoClick = (company) => {
+  // Memoized event handlers
+  const handleLogoClick = useCallback((company) => {
     setSelectedCompany(company);
     setShowPopup(true);
     setIsScrolling(false);
-  };
+  }, []);
 
-  // Close popup
-  const closePopup = () => {
+  const closePopup = useCallback(() => {
     setShowPopup(false);
     setSelectedCompany(null);
     setIsScrolling(true);
-  };
+  }, []);
 
-  // Pause scroll on hover
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
     setIsScrolling(false);
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setIsScrolling(true);
-  };
+  }, []);
 
-  // Refresh logos with all companies
-  const refreshLogos = () => {
+  const refreshLogos = useCallback(() => {
     setScrollingLogos([...companyData]);
-  };
+  }, [companyData]);
 
-  // Shuffle logos randomly
-  const shuffleLogos = () => {
+  const shuffleLogos = useCallback(() => {
     const shuffled = [...companyData].sort(() => 0.5 - Math.random());
     setScrollingLogos(shuffled);
-  };
+  }, [companyData]);
+
+  // Fallback video component
+  const VideoFallback = () => (
+    <div className="video-fallback" style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: 'white',
+      fontSize: '1.5rem'
+    }}>
+      Loading experience...
+    </div>
+  );
 
   return (
     <section id="home" className="position-relative overflow-hidden" style={{ paddingTop: '80px' }}>
       <div className="slideshow-container">
-        {/* Single Video Background */}
+        {/* Optimized Video Background */}
         <div className="slide active">
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="slide-video"
-          >
-            <source src="/img/Agriculture_products.mp4" type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
+          {!videoError ? (
+            <>
+              {/* Low-quality placeholder image first */}
+              {!isVideoLoaded && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                  zIndex: 1
+                }} />
+              )}
+              
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="slide-video"
+                preload="metadata"
+                style={{
+                  opacity: isVideoLoaded ? 1 : 0,
+                  transition: 'opacity 0.5s ease'
+                }}
+                // Set speed directly in the video element too
+                onLoadedData={(e) => {
+                  e.target.playbackRate = VIDEO_PLAYBACK_SPEED;
+                }}
+                onPlay={(e) => {
+                  e.target.playbackRate = VIDEO_PLAYBACK_SPEED;
+                }}
+              >
+                <source src="/img/Agriculture_products.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </>
+          ) : (
+            <VideoFallback />
+          )}
           
           <div className="slide-overlay">
             <div className="slide-content">
@@ -460,30 +594,25 @@ const Hero = () => {
               marginLeft: '2rem'
             }}
           >
-            {/* First set of logos */}
+            {/* Logo sets */}
             {scrollingLogos.map((company, index) => (
               <LogoItem 
                 key={`first-${company.id}-${index}`} 
                 company={company} 
-                index={index}
                 onClick={() => handleLogoClick(company)}
               />
             ))}
-            {/* Second set (duplicate for seamless loop) */}
             {scrollingLogos.map((company, index) => (
               <LogoItem 
                 key={`second-${company.id}-${index}`} 
                 company={company} 
-                index={index}
                 onClick={() => handleLogoClick(company)}
               />
             ))}
-            {/* Third set (for extra smoothness) */}
             {scrollingLogos.map((company, index) => (
               <LogoItem 
                 key={`third-${company.id}-${index}`} 
                 company={company} 
-                index={index}
                 onClick={() => handleLogoClick(company)}
               />
             ))}
@@ -499,17 +628,75 @@ const Hero = () => {
       <style jsx>{`
         .slideshow-container {
           height: 100vh;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .slide-video {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          min-width: 100%;
+          min-height: 100%;
+          width: auto;
+          height: auto;
+          transform: translate(-50%, -50%);
+          object-fit: cover;
+          transform: translate3d(-50%, -50%, 0);
+          backface-visibility: hidden;
+          perspective: 1000;
         }
         
         .scrolling-logos-section {
           transition: opacity 0.3s ease;
+          transform: translate3d(0, 0, 0);
+          backface-visibility: hidden;
         }
         
         .scrolling-logos-section:hover {
           opacity: 0.95;
         }
         
+        .title-container {
+          transform: translate3d(0, 0, 0);
+          backface-visibility: hidden;
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.8s ease forwards;
+          transform: translate3d(0, 0, 0);
+          will-change: opacity, transform;
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .animate-fadeIn,
+          .scrolling-logos-container,
+          .slide-video {
+            animation: none;
+            transition: none;
+          }
+          
+          .scrolling-logos-container {
+            animation: none !important;
+          }
+        }
+        
         @media (max-width: 768px) {
+          .slideshow-container {
+            height: 70vh;
+          }
+          
           .scrolling-logos-section {
             height: 120px;
             bottom: 10px;
@@ -529,9 +716,17 @@ const Hero = () => {
             font-size: 0.9rem !important;
             padding: 0.3rem 0.9rem !important;
           }
+          
+          .slide-video {
+            transform: translate3d(-50%, -50%, 0) scale(1.1);
+          }
         }
         
         @media (max-width: 480px) {
+          .slideshow-container {
+            height: 60vh;
+          }
+          
           .scrolling-logos-section {
             height: 110px;
             padding: 0 1rem;
@@ -902,8 +1097,14 @@ const CompanyPopup = ({ company, onClose }) => {
   );
 };
 
-// LogoItem Component
-const LogoItem = ({ company, index, onClick }) => {
+// Optimized LogoItem Component with React.memo
+const LogoItem = React.memo(({ company, onClick }) => {
+  const [imgError, setImgError] = useState(false);
+
+  const handleImageError = useCallback(() => {
+    setImgError(true);
+  }, []);
+
   return (
     <div
       className="logo-item"
@@ -921,7 +1122,9 @@ const LogoItem = ({ company, index, onClick }) => {
         border: '1px solid rgba(255, 255, 255, 0.1)',
         padding: '0.5rem',
         margin: '0 0 3rem 0',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        transform: 'translate3d(0, 0, 0)',
+        backfaceVisibility: 'hidden'
       }}
       onClick={onClick}
       onMouseEnter={(e) => {
@@ -935,26 +1138,37 @@ const LogoItem = ({ company, index, onClick }) => {
         e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
       }}
     >
-      <img
-        src={company.logo}
-        alt={`${company.name} logo`}
-        style={{
+      {!imgError ? (
+        <img
+          src={company.logo}
+          alt={`${company.name} logo`}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            borderRadius: '0.25rem',
+            filter: 'brightness(1.1) contrast(1.1)'
+          }}
+          loading="lazy"
+          onError={handleImageError}
+        />
+      ) : (
+        <div style={{
           width: '100%',
           height: '100%',
-          objectFit: 'contain',
-          borderRadius: '0.25rem',
-          filter: 'brightness(1.1) contrast(1.1)'
-        }}
-        onError={(e) => {
-          console.error(`Failed to load logo: ${company.name}`);
-          e.target.style.display = 'none';
-          e.target.parentElement.innerHTML = `
-            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.7rem; text-align: center; padding: 0.5rem;">
-              ${company.name}
-            </div>
-          `;
-        }}
-      />
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: '0.7rem',
+          textAlign: 'center',
+          padding: '0.5rem',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        }}>
+          {company.name}
+        </div>
+      )}
+      
       {/* Company name tooltip */}
       <div 
         className="logo-tooltip"
@@ -979,34 +1193,10 @@ const LogoItem = ({ company, index, onClick }) => {
       >
         Click for details
       </div>
-      <style jsx>{`
-        .logo-item:hover .logo-tooltip {
-          opacity: 1;
-        }
-        
-        @media (max-width: 768px) {
-          .logo-item {
-            width: 100px !important;
-            height: 65px !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .logo-item {
-            width: 80px !important;
-            height: 55px !important;
-            padding: 0.3rem !important;
-          }
-          
-          .logo-tooltip {
-            font-size: 0.6rem !important;
-            padding: 0.15rem 0.3rem !important;
-            bottom: -25px !important;
-          }
-        }
-      `}</style>
     </div>
   );
-};
+});
 
-export default Hero;
+LogoItem.displayName = 'LogoItem';
+
+export default React.memo(Hero);

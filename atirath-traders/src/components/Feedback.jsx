@@ -9,6 +9,9 @@ const Feedback = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ✅ WhatsApp number from environment variable
+  const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER;
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -21,7 +24,6 @@ const Feedback = () => {
     setIsSubmitting(true);
     
     // Prepare WhatsApp message
-    const whatsappNumber = '+919247485871'; // Your WhatsApp number
     const currentDate = new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -108,21 +110,23 @@ const Feedback = () => {
                   </a>
                 </div>
                 
+                {/* ✅ Phone - Using environment variable */}
                 <div className="contact-item mb-3">
                   <div className="contact-label fw-semibold mb-1">Phone:</div>
-                  <a href="tel:+917396007479" 
+                  <a href={`tel:${whatsappNumber}`} 
                      className="contact-value text-decoration-none">
-                    +91 7396007479
+                    {whatsappNumber}
                   </a>
                 </div>
 
+                {/* ✅ WhatsApp - Using environment variable */}
                 <div className="contact-item mb-3">
                   <div className="contact-label fw-semibold mb-1">WhatsApp:</div>
-                  <a href="https://wa.me/919247485871" 
+                  <a href={`https://wa.me/${whatsappNumber}`} 
                      className="contact-value text-decoration-none"
                      target="_blank" 
                      rel="noopener noreferrer">
-                    +91 9247485871
+                    {whatsappNumber}
                   </a>
                 </div>
                 
@@ -223,8 +227,6 @@ const Feedback = () => {
                       </>
                     )}
                   </button>
-                  
-                  
                 </div>
               </form>
             </div>
@@ -232,7 +234,7 @@ const Feedback = () => {
         </div>
       </div>
 
-      {/* Success Popup */}
+      {/* Success Popup - Using environment variable */}
       {showPopup && (
         <div className="feedback-popup-overlay">
           <div className="feedback-popup-content">
@@ -249,7 +251,7 @@ const Feedback = () => {
             <div className="popup-instructions mt-3">
               <p className="small mb-2"><strong>If WhatsApp didn't open:</strong></p>
               <a 
-                href={`https://wa.me/919247485871`} 
+                href={`https://wa.me/${whatsappNumber}`}
                 className="btn btn-whatsapp-direct"
                 target="_blank" 
                 rel="noopener noreferrer"

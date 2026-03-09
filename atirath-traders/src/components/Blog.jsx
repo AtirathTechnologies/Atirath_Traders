@@ -10,7 +10,7 @@ const Blog = ({ id }) => {
       title: "The Future of Agriculture in India",
       excerpt: "Exploring the latest trends and technologies shaping Indian agriculture and how Atirath Traders is leading the way in modern farming solutions.",
       category: "Agriculture",
-      image: "https://media.beehiiv.com/cdn-cgi/image/fit=scale-down,format=auto,onerror=redirect,quality=80/uploads/asset/file/f16c4b5c-d439-4b1f-b81c-8ab426673378/f3b719e9-e3c6-4851-8d64-8f7e7dfaac88_1792x1024.jpg?t=1716722272",
+      image: "/img/Blog/agriculture.webp",
       fullContent: `
         <h2>The Future of Agriculture in India: A Technological Revolution</h2>
         <p>Indian agriculture is undergoing a significant transformation, driven by technological advancements and changing market dynamics. At Atirath Traders, we are at the forefront of this revolution, bringing innovative solutions to farmers across the nation.</p>
@@ -36,7 +36,7 @@ const Blog = ({ id }) => {
       title: "Sustainable Farming Practices",
       excerpt: "How modern farming techniques are helping preserve our environment while increasing productivity and ensuring food security for future generations.",
       category: "Sustainability",
-      image: "https://images.unsplash.com/photo-1574943320219-553eb213f72d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/Blog/farming.webp",
       fullContent: `
         <h2>Sustainable Farming Practices for a Greener Future</h2>
         <p>Sustainable agriculture is no longer an option but a necessity. At Atirath Traders, we believe in farming practices that protect the environment while ensuring food security.</p>
@@ -62,7 +62,7 @@ const Blog = ({ id }) => {
       title: "Market Trends in Agri-Commodities",
       excerpt: "Analysis of current market trends and future predictions for agricultural commodities in the Indian and global markets.",
       category: "Market",
-      image: "https://media.istockphoto.com/id/952101188/photo/eco-friendly-sustainable-growth-concept.jpg?s=612x612&w=0&k=20&c=6yUoOGmbxWA3OxCPOUeU8qJIfCsbJaq76nv4Ru8zRJA=",
+      image: "/img/Blog/commidties.webp",
       fullContent: `
         <h2>Market Trends in Agri-Commodities: 2024 Outlook</h2>
         <p>The agricultural commodities market is experiencing dynamic changes driven by global demand, climate factors, and technological advancements.</p>
@@ -88,7 +88,7 @@ const Blog = ({ id }) => {
       title: "Innovations in Crop Protection",
       excerpt: "Latest advancements in crop protection technologies and how they're revolutionizing pest management in agriculture.",
       category: "Technology",
-      image: "https://images.unsplash.com/photo-1560493676-04071c5f467b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+      image: "/img/Blog/crop.webp",
       fullContent: `
         <h2>Innovations in Crop Protection: A New Era</h2>
         <p>Crop protection has evolved significantly from traditional methods to sophisticated technological solutions that are both effective and environmentally friendly.</p>
@@ -114,7 +114,7 @@ const Blog = ({ id }) => {
       title: "Organic Farming: Benefits and Challenges",
       excerpt: "Understanding the growing demand for organic produce and the challenges farmers face in transitioning to organic methods.",
       category: "Organic",
-      image: "https://www.unicropbiochem.com/assets/images/blogs/174722684419webp.webp",
+      image: "/img/Blog/organic.webp",
       fullContent: `
         <h2>Organic Farming: Navigating Benefits and Challenges</h2>
         <p>The organic farming movement is gaining momentum worldwide, but the transition from conventional to organic practices presents unique challenges and opportunities.</p>
@@ -140,7 +140,7 @@ const Blog = ({ id }) => {
       title: "Water Management in Agriculture",
       excerpt: "Effective water management strategies that help conserve water while maintaining optimal crop yields in various farming conditions.",
       category: "Sustainability",
-      image: "https://media.licdn.com/dms/image/v2/C4E12AQEzpBM71SOZKQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1632557249992?e=2147483647&v=beta&t=SSmbzanuwqXLsIASuNw3_iCCc9zz8OThEGStmgj0P2o",
+      image: "/img/Blog/water.webp",
       fullContent: `
         <h2>Smart Water Management: The Future of Agricultural Irrigation</h2>
         <p>With water scarcity becoming a critical issue, efficient water management in agriculture is more important than ever. Atirath Traders is pioneering smart water solutions for Indian farmers.</p>

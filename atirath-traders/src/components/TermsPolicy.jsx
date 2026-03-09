@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom';
 const TermsPolicy = () => {
   const navigate = useNavigate();
 
+  // ✅ WhatsApp number from environment variable
+  const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER;
+
   const handleBackClick = () => {
     navigate(-1);
   };
@@ -154,8 +157,26 @@ const TermsPolicy = () => {
                 <div className="mb-5">
                   <h3 className="h5 fw-semibold text-accent mb-3">13. Contact Information</h3>
                   <p className="mb-1">ATIRATH TRADERS INDIA PVT.LTD</p>
-                  <p className="mb-1">Email: info@atirathtradersltd.com</p>
-                  <p className="mb-1">Phone: +91 7396007479</p>
+                  <p className="mb-1">
+                    Email: <a href="mailto:info@atirathtradersltd.com" className="contact-link email-link">
+                      info@atirathtradersltd.com
+                    </a>
+                  </p>
+                  <p className="mb-1">
+                    {/* ✅ Phone - Using environment variable with clickable link */}
+                    Phone: <a href={`tel:${whatsappNumber}`} className="contact-link phone-link">
+                      {whatsappNumber}
+                    </a>
+                  </p>
+                  <p className="mb-1">
+                    {/* ✅ WhatsApp - Using environment variable with clickable link */}
+                    WhatsApp: <a href={`https://wa.me/${whatsappNumber}`} 
+                               className="contact-link whatsapp-link"
+                               target="_blank" 
+                               rel="noopener noreferrer">
+                      {whatsappNumber}
+                    </a>
+                  </p>
                   <p>Address: Flat No:45, Jai Hind Silicon valley, Madhapur Hyderabad, Telangana, 500081</p>
                 </div>
 
@@ -175,6 +196,131 @@ const TermsPolicy = () => {
           </div>
         </div>
       </div>
+
+      {/* Styles */}
+      <style jsx>{`
+        .terms-policy-page {
+          background: linear-gradient(135deg, #0a0f1a 0%, #1a1f2e 100%);
+          color: #fff;
+          min-height: 100vh;
+          position: relative;
+        }
+        
+        .glass {
+          background: rgba(25, 35, 56, 0.8);
+          border: 1px solid rgba(143, 179, 226, 0.2);
+          backdrop-filter: blur(10px);
+          border-radius: 1rem;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .text-accent {
+          color: #8FB3E2;
+        }
+        
+        .back-button {
+          position: fixed;
+          left: 20px;
+          background: rgba(143, 179, 226, 0.1);
+          border: 1px solid #8FB3E2;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #8FB3E2;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          z-index: 100;
+        }
+        
+        .back-button:hover {
+          background: rgba(143, 179, 226, 0.2);
+          transform: translateX(-3px);
+        }
+        
+        .terms-content ul {
+          color: rgba(255, 255, 255, 0.8);
+          line-height: 1.8;
+          padding-left: 20px;
+        }
+        
+        .terms-content ul li {
+          margin-bottom: 8px;
+        }
+        
+        .terms-content p {
+          color: rgba(255, 255, 255, 0.8);
+          line-height: 1.8;
+        }
+        
+        .text-muted {
+          color: rgba(255, 255, 255, 0.5) !important;
+        }
+        
+        /* Contact Links Styling */
+        .contact-link {
+          text-decoration: none;
+          transition: all 0.3s ease;
+        }
+        
+        .email-link {
+          color: #8FB3E2;
+        }
+        
+        .email-link:hover {
+          color: #ffffff !important;
+          text-decoration: underline !important;
+        }
+        
+        .phone-link {
+          color: #8FB3E2;
+        }
+        
+        .phone-link:hover {
+          color: #ffffff !important;
+          text-decoration: underline !important;
+        }
+        
+        .whatsapp-link {
+          color: #25D366;
+          font-weight: 500;
+        }
+        
+        .whatsapp-link:hover {
+          color: #ffffff !important;
+          text-decoration: underline !important;
+        }
+        
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+          .back-button {
+            top: 80px !important;
+            left: 10px;
+            width: 35px;
+            height: 35px;
+          }
+          
+          .glass {
+            padding: 1.5rem !important;
+          }
+          
+          h1.h2 {
+            font-size: 1.75rem;
+          }
+        }
+        
+        @media (max-width: 576px) {
+          .glass {
+            padding: 1rem !important;
+          }
+          
+          .terms-content ul {
+            padding-left: 15px;
+          }
+        }
+      `}</style>
     </section>
   );
 };

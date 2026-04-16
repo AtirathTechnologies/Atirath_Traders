@@ -1,4 +1,4 @@
-// firebase.js - Complete Updated Version with Currency Functions
+// firebase.js - Complete Updated Version with All Fixes
 import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import {
@@ -63,20 +63,14 @@ if (!getApps().length) {
    CURRENCY FUNCTIONS - Fetch only from existing database
 ========================================================================== */
 
-/**
- * Get all currency rates from Firebase
- * @returns {Object} Currency rates object
- */
 export const getCurrencyRates = async () => {
   try {
     const ratesRef = ref(database, 'currency/rates');
     const snapshot = await get(ratesRef);
     
     if (snapshot.exists()) {
-      console.log('💰 Currency rates loaded from Firebase:', snapshot.val());
       return snapshot.val();
     } else {
-      console.log('⚠️ No currency rates found in Firebase');
       return {};
     }
   } catch (error) {
@@ -85,20 +79,14 @@ export const getCurrencyRates = async () => {
   }
 };
 
-/**
- * Get all currency symbols from Firebase
- * @returns {Object} Currency symbols object
- */
 export const getCurrencySymbols = async () => {
   try {
     const symbolsRef = ref(database, 'currency/symbols');
     const snapshot = await get(symbolsRef);
     
     if (snapshot.exists()) {
-      console.log('💰 Currency symbols loaded from Firebase:', snapshot.val());
       return snapshot.val();
     } else {
-      console.log('⚠️ No currency symbols found in Firebase');
       return {};
     }
   } catch (error) {
@@ -107,17 +95,12 @@ export const getCurrencySymbols = async () => {
   }
 };
 
-/**
- * Get all currency data in one call
- * @returns {Object} Object containing rates and symbols
- */
 export const getCurrencyData = async () => {
   try {
     const [rates, symbols] = await Promise.all([
       getCurrencyRates(),
       getCurrencySymbols()
     ]);
-    
     return { rates, symbols };
   } catch (error) {
     console.error('❌ Error fetching currency data:', error);
@@ -174,18 +157,11 @@ const getNextVendorNumber = async () => {
 };
 
 /* ==========================================================================
-   HISTORY FUNCTIONS - Track all admin actions
+   HISTORY FUNCTIONS
 ========================================================================== */
 
-/**
- * Log an action to Firebase history
- * @param {Object} actionData - Action data to log
- * @returns {Object} Result with success status
- */
 export const logHistoryAction = async (actionData) => {
   try {
-    console.log('📝 Logging history action:', actionData);
-    
     const historyRef = push(ref(database, "history"));
     const timestamp = new Date().toISOString();
     
@@ -197,35 +173,19 @@ export const logHistoryAction = async (actionData) => {
     };
     
     await set(historyRef, historyEntry);
-    console.log('✅ History logged successfully with ID:', historyRef.key);
-    
-    return { 
-      success: true, 
-      id: historyRef.key 
-    };
+    return { success: true, id: historyRef.key };
   } catch (err) {
     console.error("❌ logHistoryAction error:", err);
-    return { 
-      success: false, 
-      error: err.message 
-    };
+    return { success: false, error: err.message };
   }
 };
 
-/**
- * Get all history entries
- * @param {Object} options - Filter options (limit, entity, action, user)
- * @returns {Array} Array of history entries
- */
 export const getAllHistory = async (options = {}) => {
   try {
-    console.log('🔄 getAllHistory called with options:', options);
-    
     const historyRef = ref(database, "history");
     const snapshot = await get(historyRef);
     
     if (!snapshot.exists()) {
-      console.log('❌ No history found');
       return [];
     }
 
@@ -235,7 +195,6 @@ export const getAllHistory = async (options = {}) => {
       ...data[key]
     }));
 
-    // Apply filters
     if (options.entity) {
       historyArray = historyArray.filter(h => h.entity === options.entity);
     }
@@ -266,12 +225,10 @@ export const getAllHistory = async (options = {}) => {
       );
     }
 
-    // Sort by timestamp (newest first)
     historyArray.sort((a, b) => 
       new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
     );
 
-    console.log('✅ Retrieved', historyArray.length, 'history entries');
     return historyArray;
   } catch (err) {
     console.error("❌ getAllHistory error:", err);
@@ -279,16 +236,8 @@ export const getAllHistory = async (options = {}) => {
   }
 };
 
-/**
- * Get history for a specific entity (user, product, order)
- * @param {string} entityType - Entity type (user, product, order)
- * @param {string} entityId - Entity ID
- * @returns {Array} Array of history entries
- */
 export const getEntityHistory = async (entityType, entityId) => {
   try {
-    console.log('🔄 getEntityHistory called for:', entityType, entityId);
-    
     const historyRef = ref(database, "history");
     const snapshot = await get(historyRef);
     
@@ -305,7 +254,6 @@ export const getEntityHistory = async (entityType, entityId) => {
       .filter(h => h.entity === entityType && h.entityId === entityId)
       .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
-    console.log('✅ Retrieved', historyArray.length, 'history entries for entity');
     return historyArray;
   } catch (err) {
     console.error("❌ getEntityHistory error:", err);
@@ -313,15 +261,8 @@ export const getEntityHistory = async (entityType, entityId) => {
   }
 };
 
-/**
- * Clear old history entries (optional - for cleanup)
- * @param {number} daysToKeep - Number of days to keep history
- * @returns {Object} Result with count of deleted entries
- */
 export const clearOldHistory = async (daysToKeep = 90) => {
   try {
-    console.log('🔄 clearOldHistory called, keeping last', daysToKeep, 'days');
-    
     const historyRef = ref(database, "history");
     const snapshot = await get(historyRef);
     
@@ -343,7 +284,6 @@ export const clearOldHistory = async (daysToKeep = 90) => {
       }
     }
     
-    console.log('✅ Cleared', deletedCount, 'old history entries');
     return { success: true, deletedCount };
   } catch (err) {
     console.error("❌ clearOldHistory error:", err);
@@ -355,34 +295,24 @@ export const clearOldHistory = async (daysToKeep = 90) => {
    ADMIN FUNCTIONS
 ========================================================================== */
 
-/**
- * Check if a user is an admin by UID or email
- * @param {string} uid - User UID
- * @param {string} email - User email (optional)
- * @returns {boolean} True if user is admin
- */
 export const checkIsAdmin = async (uid, email = null) => {
   console.log('🔄 checkIsAdmin called for uid:', uid, 'email:', email);
   
   try {
-    // First check if there's an admin node in the database
     const adminRef = ref(database, 'admin');
     const adminSnap = await get(adminRef);
     
     if (adminSnap.exists()) {
       const adminData = adminSnap.val();
       
-      // Check all admin entries
       for (const key in adminData) {
         const admin = adminData[key];
         
-        // Match by UID (most secure)
         if (admin.uid === uid) {
           console.log('✅ Admin found by UID:', uid);
           return true;
         }
         
-        // Match by email as fallback
         if (email && admin.email === email) {
           console.log('✅ Admin found by email:', email);
           return true;
@@ -399,19 +329,12 @@ export const checkIsAdmin = async (uid, email = null) => {
   }
 };
 
-/**
- * Get all admin users
- * @returns {Array} Array of admin objects
- */
 export const getAllAdmins = async () => {
   try {
-    console.log('🔄 getAllAdmins called');
-    
     const adminRef = ref(database, 'admin');
     const adminSnap = await get(adminRef);
     
     if (!adminSnap.exists()) {
-      console.log('❌ No admins found');
       return [];
     }
 
@@ -424,7 +347,6 @@ export const getAllAdmins = async () => {
       new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
 
-    console.log('✅ Retrieved', adminsArray.length, 'admins');
     return adminsArray;
   } catch (err) {
     console.error("❌ getAllAdmins error:", err);
@@ -432,16 +354,8 @@ export const getAllAdmins = async () => {
   }
 };
 
-/**
- * Add a new admin user
- * @param {Object} adminData - Admin data
- * @returns {Object} Result with success status
- */
 export const addAdmin = async (adminData) => {
   try {
-    console.log('🔄 addAdmin called for email:', adminData.email);
-    
-    // Get next admin number
     const adminRef = ref(database, 'admin');
     const adminSnap = await get(adminRef);
     
@@ -476,35 +390,18 @@ export const addAdmin = async (adminData) => {
     };
     
     await set(ref(database, `admin/${adminKey}`), adminProfile);
-    console.log('✅ Admin added successfully:', adminKey);
     
-    return { 
-      success: true, 
-      adminKey, 
-      adminNumber 
-    };
+    return { success: true, adminKey, adminNumber };
     
   } catch (err) {
     console.error("❌ addAdmin error:", err);
-    return { 
-      success: false, 
-      error: err.message 
-    };
+    return { success: false, error: err.message };
   }
 };
 
-/**
- * Remove an admin user
- * @param {string} adminKey - Admin key (admin-1, admin-2, etc.)
- * @returns {boolean} Success status
- */
 export const removeAdmin = async (adminKey) => {
   try {
-    console.log('🔄 removeAdmin called for adminKey:', adminKey);
-    
     await remove(ref(database, `admin/${adminKey}`));
-    console.log('✅ Admin removed successfully:', adminKey);
-    
     return true;
   } catch (err) {
     console.error("❌ removeAdmin error:", err);
@@ -516,16 +413,10 @@ export const removeAdmin = async (adminKey) => {
    USER FUNCTIONS (Regular Users - users collection)
 ========================================================================== */
 
-/**
- * Store regular user profile (not vendor)
- * @param {Object} userData - User data object
- * @returns {Object} Result with success status and user details
- */
 export const storeUserProfile = async (userData) => {
   console.log('🚀 START storeUserProfile (Regular User):', new Date().toISOString());
   
   try {
-    // Get next user number
     const userNumber = await getNextUserNumber();
     const userKey = `user-${userNumber}`;
     
@@ -554,40 +445,25 @@ export const storeUserProfile = async (userData) => {
       orderCount: userData.orderCount || 0,
       totalSpent: userData.totalSpent || 0,
       lastOrderDate: null,
-      userType: 'user' // Regular user
-    };
-
-    // Store ONLY in users collection
-    await set(ref(database, `users/${userKey}`), profile);
-    console.log('✅ Successfully wrote to users/' + userKey);
-
-    return { 
-      success: true, 
-      userKey, 
-      userNumber,
       userType: 'user'
     };
 
+    await set(ref(database, `users/${userKey}`), profile);
+    console.log('✅ Successfully wrote to users/' + userKey);
+
+    return { success: true, userKey, userNumber, userType: 'user' };
+
   } catch (err) {
     console.error("❌ storeUserProfile error:", err);
-    return { 
-      success: false, 
-      error: err.message
-    };
+    return { success: false, error: err.message };
   }
 };
 
-/**
- * Get a single user profile by UID
- * @param {string} uid - User UID
- * @returns {Object|null} User data or null if not found
- */
 export const getUserProfile = async (uid) => {
   console.log('🔄 getUserProfile called for uid:', uid);
   
   try {
     // First check in users collection
-    console.log('🔍 Searching in users collection...');
     const usersRef = ref(database, 'users');
     const usersSnap = await get(usersRef);
     
@@ -606,7 +482,6 @@ export const getUserProfile = async (uid) => {
     }
     
     // If not found in users, check in vendors collection
-    console.log('🔍 Searching in vendors collection...');
     const vendorsRef = ref(database, 'vendors');
     const vendorsSnap = await get(vendorsRef);
     
@@ -617,7 +492,6 @@ export const getUserProfile = async (uid) => {
           console.log('✅ Found vendor with key:', key);
           return {
             ...vendors[key],
-            userKey: key,
             vendorKey: key,
             userType: 'vendor'
           };
@@ -634,17 +508,59 @@ export const getUserProfile = async (uid) => {
   }
 };
 
-/**
- * Get all regular users (not vendors)
- * @returns {Array} Array of user objects
- */
+export const getUserProfileByEmail = async (email) => {
+  console.log('🔄 getUserProfileByEmail called for email:', email);
+  
+  try {
+    // First check in users collection
+    const usersRef = ref(database, 'users');
+    const usersSnap = await get(usersRef);
+    
+    if (usersSnap.exists()) {
+      const users = usersSnap.val();
+      for (const key in users) {
+        if (users[key].email === email) {
+          console.log('✅ Found user by email with key:', key);
+          return {
+            ...users[key],
+            userKey: key,
+            userType: 'user'
+          };
+        }
+      }
+    }
+    
+    // If not found in users, check in vendors collection
+    const vendorsRef = ref(database, 'vendors');
+    const vendorsSnap = await get(vendorsRef);
+    
+    if (vendorsSnap.exists()) {
+      const vendors = vendorsSnap.val();
+      for (const key in vendors) {
+        if (vendors[key].email === email) {
+          console.log('✅ Found vendor by email with key:', key);
+          return {
+            ...vendors[key],
+            vendorKey: key,
+            userType: 'vendor'
+          };
+        }
+      }
+    }
+    
+    console.log('❌ No user found with email:', email);
+    return null;
+    
+  } catch (err) {
+    console.error("❌ getUserProfileByEmail error:", err);
+    return null;
+  }
+};
+
 export const getAllUsers = async () => {
   try {
-    console.log('🔄 getAllUsers called');
-    
     const snap = await get(ref(database, "users"));
     if (!snap.exists()) {
-      console.log('❌ No users found');
       return [];
     }
 
@@ -657,7 +573,6 @@ export const getAllUsers = async () => {
       new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
 
-    console.log('✅ Retrieved', usersArray.length, 'users from users collection');
     return usersArray;
   } catch (err) {
     console.error("❌ getAllUsers error:", err);
@@ -665,12 +580,6 @@ export const getAllUsers = async () => {
   }
 };
 
-/**
- * Update user profile by UID
- * @param {string} authUid - User UID
- * @param {Object} newData - Updated user data
- * @returns {boolean} Success status
- */
 export const updateUserProfile = async (authUid, newData) => {
   console.log('🔄 updateUserProfile called for uid:', authUid);
   
@@ -729,9 +638,6 @@ export const updateUserProfile = async (authUid, newData) => {
       return false;
     }
     
-    console.log('✅ Found user with key:', userKey, 'isVendor:', isVendor);
-    
-    // Update appropriate collection
     const collectionPath = isVendor ? 'vendors' : 'users';
     await update(ref(database, `${collectionPath}/${userKey}`), updateData);
     
@@ -744,21 +650,14 @@ export const updateUserProfile = async (authUid, newData) => {
   }
 };
 
-/**
- * Update last login timestamp for user
- * @param {string} uid - User UID
- */
 export const updateLastLogin = async (uid) => {
   try {
-    console.log('🕒 Updating lastLogin for uid:', uid);
-    
     const lastLoginTime = new Date().toISOString();
     const updateData = {
       lastLogin: lastLoginTime,
       updatedAt: lastLoginTime
     };
     
-    // Find user in users collection
     const usersRef = ref(database, "users");
     const usersSnap = await get(usersRef);
     
@@ -776,7 +675,6 @@ export const updateLastLogin = async (uid) => {
       }
     }
     
-    // If not found in users, check vendors
     if (!userKey) {
       const vendorsRef = ref(database, "vendors");
       const vendorsSnap = await get(vendorsRef);
@@ -796,9 +694,7 @@ export const updateLastLogin = async (uid) => {
     if (userKey) {
       const collectionPath = isVendor ? 'vendors' : 'users';
       await update(ref(database, `${collectionPath}/${userKey}`), updateData);
-      console.log('✅ lastLogin updated successfully');
-    } else {
-      console.log('⚠️ No user found to update lastLogin');
+      console.log('✅ lastLogin updated for:', userKey);
     }
     
   } catch (err) {
@@ -806,16 +702,8 @@ export const updateLastLogin = async (uid) => {
   }
 };
 
-/**
- * Delete user by UID
- * @param {string} uid - User UID
- * @returns {boolean} Success status
- */
 export const deleteUser = async (uid) => {
   try {
-    console.log('🔄 deleteUser called for uid:', uid);
-    
-    // Find user in users collection
     const usersRef = ref(database, "users");
     const usersSnap = await get(usersRef);
     
@@ -833,7 +721,6 @@ export const deleteUser = async (uid) => {
       }
     }
     
-    // If not found in users, check vendors
     if (!userKey) {
       const vendorsRef = ref(database, "vendors");
       const vendorsSnap = await get(vendorsRef);
@@ -851,17 +738,12 @@ export const deleteUser = async (uid) => {
     }
     
     if (!userKey) {
-      console.log('❌ No user found with uid:', uid);
       return false;
     }
     
-    console.log('✅ Found user to delete with key:', userKey, 'isVendor:', isVendor);
-    
-    // Delete from appropriate collection
     const collectionPath = isVendor ? 'vendors' : 'users';
     await remove(ref(database, `${collectionPath}/${userKey}`));
     
-    console.log('✅ User deleted successfully');
     return true;
   } catch (err) {
     console.error("❌ deleteUser error:", err);
@@ -870,24 +752,16 @@ export const deleteUser = async (uid) => {
 };
 
 /* ==========================================================================
-   VENDOR FUNCTIONS (Vendors - vendors collection)
+   VENDOR FUNCTIONS
 ========================================================================== */
 
-/**
- * Store vendor profile
- * @param {Object} vendorData - Vendor data object
- * @returns {Object} Result with success status and vendor details
- */
 export const storeVendorProfile = async (vendorData) => {
   console.log('🚀 START storeVendorProfile:', new Date().toISOString());
   
   try {
-    // Get next vendor number
     const vendorNumber = await getNextVendorNumber();
     const vendorKey = `vendor-${vendorNumber}`;
     
-    console.log('📊 Generated vendorKey:', vendorKey, 'vendorNumber:', vendorNumber);
-
     const profile = {
       uid: vendorData.uid || '',
       name: vendorData.name || '',
@@ -922,36 +796,21 @@ export const storeVendorProfile = async (vendorData) => {
       registeredAt: new Date().toISOString()
     };
 
-    // Store ONLY in vendors collection
     await set(ref(database, `vendors/${vendorKey}`), profile);
     console.log('✅ Successfully wrote to vendors/' + vendorKey);
 
-    return { 
-      success: true, 
-      vendorKey, 
-      vendorNumber
-    };
+    return { success: true, vendorKey, vendorNumber };
 
   } catch (err) {
     console.error("❌ storeVendorProfile error:", err);
-    return { 
-      success: false, 
-      error: err.message
-    };
+    return { success: false, error: err.message };
   }
 };
 
-/**
- * Get all vendors
- * @returns {Array} Array of vendor objects
- */
 export const getAllVendors = async () => {
   try {
-    console.log('🔄 getAllVendors called');
-    
     const snap = await get(ref(database, "vendors"));
     if (!snap.exists()) {
-      console.log('❌ No vendors found');
       return [];
     }
 
@@ -964,7 +823,6 @@ export const getAllVendors = async () => {
       new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
 
-    console.log('✅ Retrieved', vendorsArray.length, 'vendors from vendors collection');
     return vendorsArray;
   } catch (err) {
     console.error("❌ getAllVendors error:", err);
@@ -972,22 +830,13 @@ export const getAllVendors = async () => {
   }
 };
 
-/**
- * Get vendor profile by vendorKey or UID
- * @param {string} vendorId - Vendor key or UID
- * @returns {Object|null} Vendor data or null if not found
- */
 export const getVendorProfile = async (vendorId) => {
-  console.log('🔄 getVendorProfile called for vendorId:', vendorId);
-  
   try {
-    // First try direct lookup by vendorKey
     if (vendorId.startsWith('vendor-')) {
       const vendorRef = ref(database, `vendors/${vendorId}`);
       const vendorSnap = await get(vendorRef);
       
       if (vendorSnap.exists()) {
-        console.log('✅ Found vendor by key:', vendorId);
         return {
           ...vendorSnap.val(),
           userType: 'vendor'
@@ -995,7 +844,6 @@ export const getVendorProfile = async (vendorId) => {
       }
     }
     
-    // Search by UID
     const vendorsRef = ref(database, "vendors");
     const vendorsSnap = await get(vendorsRef);
     
@@ -1003,7 +851,6 @@ export const getVendorProfile = async (vendorId) => {
       const vendors = vendorsSnap.val();
       for (const key in vendors) {
         if (vendors[key].uid === vendorId) {
-          console.log('✅ Found vendor with key:', key);
           return {
             ...vendors[key],
             vendorKey: key,
@@ -1013,29 +860,18 @@ export const getVendorProfile = async (vendorId) => {
       }
     }
     
-    console.log('❌ No vendor found with vendorId:', vendorId);
     return null;
-    
   } catch (err) {
     console.error("❌ getVendorProfile error:", err);
     return null;
   }
 };
 
-/**
- * Update vendor status (approve/reject/pending)
- * @param {string} vendorKey - Vendor key (vendor-1, vendor-2, etc.)
- * @param {Object} statusData - Status update data
- * @returns {boolean} Success status
- */
 export const updateVendorStatus = async (vendorKey, statusData) => {
   try {
-    console.log('🔄 updateVendorStatus called for vendorKey:', vendorKey);
-    
     const updates = {};
     const timestamp = new Date().toISOString();
     
-    // Update vendor status in vendors collection
     updates[`vendors/${vendorKey}/vendorStatus`] = statusData.status;
     updates[`vendors/${vendorKey}/vendorApproved`] = statusData.status === 'approved';
     updates[`vendors/${vendorKey}/vendorApprovedAt`] = statusData.status === 'approved' ? timestamp : null;
@@ -1046,29 +882,17 @@ export const updateVendorStatus = async (vendorKey, statusData) => {
     
     await update(ref(database), updates);
     
-    console.log('✅ Vendor status updated successfully:', vendorKey, 'to', statusData.status);
     return true;
-    
   } catch (err) {
     console.error("❌ updateVendorStatus error:", err);
     return false;
   }
 };
 
-/**
- * Search vendors by status (pending, approved, rejected)
- * @param {string} status - Vendor status
- * @returns {Array} Array of vendors with specified status
- */
 export const getVendorsByStatus = async (status) => {
   try {
-    console.log('🔄 getVendorsByStatus called for status:', status);
-    
     const vendors = await getAllVendors();
-    const filteredVendors = vendors.filter(vendor => vendor.vendorStatus === status);
-    
-    console.log('✅ Found', filteredVendors.length, 'vendors with status:', status);
-    return filteredVendors;
+    return vendors.filter(vendor => vendor.vendorStatus === status);
   } catch (err) {
     console.error("❌ getVendorsByStatus error:", err);
     throw err;
@@ -1079,11 +903,6 @@ export const getVendorsByStatus = async (status) => {
    COMBINED FUNCTIONS (Users + Vendors)
 ========================================================================== */
 
-/**
- * Store user or vendor profile based on userType
- * @param {Object} userData - User/vendor data
- * @returns {Object} Result with success status
- */
 export const storeUserOrVendorProfile = async (userData) => {
   const isVendor = userData.userType === 'vendor';
   
@@ -1094,25 +913,17 @@ export const storeUserOrVendorProfile = async (userData) => {
   }
 };
 
-/**
- * Get all accounts (users + vendors combined)
- * @returns {Array} Array of all account objects
- */
 export const getAllAccounts = async () => {
   try {
-    console.log('🔄 getAllAccounts called');
-    
     const [users, vendors] = await Promise.all([
       getAllUsers(),
       getAllVendors()
     ]);
     
-    // Combine and sort by creation date (newest first)
     const allAccounts = [...users, ...vendors].sort((a, b) =>
       new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
     
-    console.log('✅ Retrieved total accounts:', allAccounts.length);
     return allAccounts;
   } catch (err) {
     console.error("❌ getAllAccounts error:", err);
@@ -1120,14 +931,8 @@ export const getAllAccounts = async () => {
   }
 };
 
-/**
- * Get user counts by type
- * @returns {Object} Counts of users and vendors
- */
 export const getUserCounts = async () => {
   try {
-    console.log('🔄 getUserCounts called');
-    
     const [users, vendors] = await Promise.all([
       getAllUsers(),
       getAllVendors()
@@ -1153,7 +958,6 @@ export const getUserCounts = async () => {
       }).length
     };
     
-    console.log('✅ User counts:', counts);
     return counts;
   } catch (err) {
     console.error("❌ getUserCounts error:", err);
@@ -1161,15 +965,8 @@ export const getUserCounts = async () => {
   }
 };
 
-/**
- * Search users/vendors by email, name, or phone
- * @param {string} searchTerm - Search term
- * @returns {Array} Array of matching accounts
- */
 export const searchAccounts = async (searchTerm) => {
   try {
-    console.log('🔄 searchAccounts called for term:', searchTerm);
-    
     const allAccounts = await getAllAccounts();
     const searchLower = searchTerm.toLowerCase();
     
@@ -1181,7 +978,6 @@ export const searchAccounts = async (searchTerm) => {
       );
     });
     
-    console.log('✅ Found', results.length, 'matching accounts');
     return results;
   } catch (err) {
     console.error("❌ searchAccounts error:", err);
@@ -1193,10 +989,6 @@ export const searchAccounts = async (searchTerm) => {
    CART FUNCTIONS
 ========================================================================== */
 
-/**
- * Generate or retrieve guest cart ID
- * @returns {string} Guest cart ID
- */
 export const getGuestCartId = () => {
   let guestCartId = localStorage.getItem('guestCartId');
   
@@ -1204,7 +996,6 @@ export const getGuestCartId = () => {
     guestCartId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('guestCartId', guestCartId);
     
-    // Initialize empty cart in database
     const initializeGuestCart = async () => {
       try {
         const cartRef = ref(database, `carts/${guestCartId}`);
@@ -1227,20 +1018,10 @@ export const getGuestCartId = () => {
   return guestCartId;
 };
 
-/**
- * Get user cart ID
- * @param {string} userId - User UID
- * @returns {string} User cart ID
- */
 export const getUserCartId = (userId) => {
   return `user_${userId}`;
 };
 
-/**
- * Get current cart ID based on auth state
- * @param {Object|null} user - Firebase user object or null
- * @returns {string} Cart ID
- */
 export const getCurrentCartId = (user = null) => {
   if (user && user.uid) {
     return getUserCartId(user.uid);
@@ -1248,11 +1029,6 @@ export const getCurrentCartId = (user = null) => {
   return getGuestCartId();
 };
 
-/**
- * Load cart from Firebase
- * @param {Object|null} user - Firebase user object or null
- * @returns {Object} Cart data
- */
 export const loadCartFromFirebase = async (user = null) => {
   try {
     const cartId = getCurrentCartId(user);
@@ -1262,7 +1038,6 @@ export const loadCartFromFirebase = async (user = null) => {
     if (snapshot.exists()) {
       const cartData = snapshot.val();
       
-      // Mark items as synced
       const itemsWithSync = (cartData.items || []).map(item => ({
         ...item,
         synced: true,
@@ -1276,7 +1051,6 @@ export const loadCartFromFirebase = async (user = null) => {
         isGuest: cartData.isGuest || false
       };
     } else {
-      // Create empty cart if it doesn't exist
       const cartData = {
         items: [],
         createdAt: new Date().toISOString(),
@@ -1290,7 +1064,6 @@ export const loadCartFromFirebase = async (user = null) => {
     }
   } catch (error) {
     console.error('Error loading cart from Firebase:', error);
-    // Fallback to localStorage
     const localCart = localStorage.getItem('cart_backup');
     if (localCart) {
       return { items: JSON.parse(localCart), cartId: null, isGuest: true };
@@ -1299,12 +1072,6 @@ export const loadCartFromFirebase = async (user = null) => {
   }
 };
 
-/**
- * Save cart to Firebase
- * @param {Array} items - Cart items
- * @param {Object|null} user - Firebase user object or null
- * @returns {Object} Save result
- */
 export const saveCartToFirebase = async (items, user = null) => {
   try {
     const cartId = getCurrentCartId(user);
@@ -1324,7 +1091,6 @@ export const saveCartToFirebase = async (items, user = null) => {
       userId: user ? user.uid : null
     };
     
-    // Only add createdAt for new carts
     const snapshot = await get(cartRef);
     if (!snapshot.exists()) {
       cartData.createdAt = new Date().toISOString();
@@ -1332,35 +1098,17 @@ export const saveCartToFirebase = async (items, user = null) => {
     
     await set(cartRef, cartData);
     
-    // Save backup to localStorage
     localStorage.setItem('cart_backup', JSON.stringify(items));
     localStorage.setItem('last_cart_sync', new Date().toISOString());
     
-    return {
-      success: true,
-      cartId,
-      updatedAt: cartData.updatedAt
-    };
+    return { success: true, cartId, updatedAt: cartData.updatedAt };
   } catch (error) {
     console.error('Error saving cart to Firebase:', error);
-    
-    // Fallback to localStorage
     localStorage.setItem('cart_backup', JSON.stringify(items));
-    
-    return {
-      success: false,
-      error: error.message,
-      usedLocalStorage: true
-    };
+    return { success: false, error: error.message, usedLocalStorage: true };
   }
 };
 
-/**
- * Merge guest cart with user cart after login
- * @param {string} guestCartId - Guest cart ID
- * @param {string} userId - User UID
- * @returns {Object} Merge result
- */
 export const mergeGuestCartWithUser = async (guestCartId, userId) => {
   try {
     const guestCartRef = ref(database, `carts/${guestCartId}`);
@@ -1374,33 +1122,26 @@ export const mergeGuestCartWithUser = async (guestCartId, userId) => {
     
     let mergedItems = [];
     
-    // Get guest cart items
     if (guestSnap.exists()) {
       const guestCart = guestSnap.val();
       mergedItems = guestCart.items || [];
     }
     
-    // Get user cart items and merge
     if (userSnap.exists()) {
       const userCart = userSnap.val();
       const userItems = userCart.items || [];
       
-      // Merge items by product ID
       const itemMap = new Map();
       
-      // Add user items to map
       userItems.forEach(item => {
         itemMap.set(item.id, { ...item });
       });
       
-      // Merge guest items
       mergedItems.forEach(guestItem => {
         const existingItem = itemMap.get(guestItem.id);
         if (existingItem) {
-          // Update quantity
           existingItem.quantity = (existingItem.quantity || 1) + (guestItem.quantity || 1);
         } else {
-          // Add new item
           itemMap.set(guestItem.id, { ...guestItem });
         }
       });
@@ -1408,7 +1149,6 @@ export const mergeGuestCartWithUser = async (guestCartId, userId) => {
       mergedItems = Array.from(itemMap.values());
     }
     
-    // Save merged cart to user
     const mergedCartData = {
       items: mergedItems,
       updatedAt: new Date().toISOString(),
@@ -1418,7 +1158,6 @@ export const mergeGuestCartWithUser = async (guestCartId, userId) => {
       mergedAt: new Date().toISOString()
     };
     
-    // Check if user cart exists to preserve createdAt
     if (userSnap.exists()) {
       const userCart = userSnap.val();
       mergedCartData.createdAt = userCart.createdAt || new Date().toISOString();
@@ -1427,33 +1166,16 @@ export const mergeGuestCartWithUser = async (guestCartId, userId) => {
     }
     
     await set(userCartRef, mergedCartData);
-    
-    // Clear guest cart
     await set(guestCartRef, null);
-    
-    // Clear guest cart ID from localStorage
     localStorage.removeItem('guestCartId');
     
-    return {
-      success: true,
-      mergedItems,
-      cartId: userCartId
-    };
+    return { success: true, mergedItems, cartId: userCartId };
   } catch (error) {
     console.error('Error merging carts:', error);
-    return {
-      success: false,
-      error: error.message
-    };
+    return { success: false, error: error.message };
   }
 };
 
-/**
- * Listen to cart changes in real-time
- * @param {Object|null} user - Firebase user object or null
- * @param {Function} callback - Callback function
- * @returns {Function} Unsubscribe function
- */
 export const listenToCart = (user, callback) => {
   try {
     const cartId = getCurrentCartId(user);
@@ -1486,15 +1208,10 @@ export const listenToCart = (user, callback) => {
     });
   } catch (error) {
     console.error('Error setting up cart listener:', error);
-    return () => {}; // Return empty unsubscribe function
+    return () => {};
   }
 };
 
-/**
- * Clear cart from Firebase
- * @param {Object|null} user - Firebase user object or null
- * @returns {Object} Clear result
- */
 export const clearCartFromFirebase = async (user = null) => {
   try {
     const cartId = getCurrentCartId(user);
@@ -1508,9 +1225,7 @@ export const clearCartFromFirebase = async (user = null) => {
       userId: user ? user.uid : null
     });
     
-    // Clear localStorage backup
     localStorage.removeItem('cart_backup');
-    
     return { success: true, cartId };
   } catch (error) {
     console.error('Error clearing cart from Firebase:', error);
@@ -1522,15 +1237,8 @@ export const clearCartFromFirebase = async (user = null) => {
    QUOTE FUNCTIONS
 ========================================================================== */
 
-/**
- * Submit a quote
- * @param {Object} data - Quote data
- * @returns {string} Quote ID
- */
 export const submitQuote = async (data) => {
   try {
-    console.log('🔄 submitQuote called with data:', data);
-    
     const quoteRef = push(ref(database, "quotes"));
     const quoteData = {
       ...data,
@@ -1539,10 +1247,7 @@ export const submitQuote = async (data) => {
       createdAt: new Date().toISOString()
     };
     
-    console.log('📤 Storing quote data:', quoteData);
     await set(quoteRef, quoteData);
-    
-    console.log('✅ Quote submitted successfully with ID:', quoteRef.key);
     return quoteRef.key;
   } catch (err) {
     console.error("❌ submitQuote error:", err);
@@ -1554,24 +1259,12 @@ export const submitQuote = async (data) => {
    AUTH FUNCTIONS
 ========================================================================== */
 
-/**
- * Reset password for email
- * @param {string} email - User email
- * @returns {Object} Result with success status
- */
 export const resetPassword = async (email) => {
   try {
-    console.log('🔄 resetPassword called for email:', email);
     await sendPasswordResetEmail(auth, email);
-    console.log('✅ Password reset email sent successfully');
     return { success: true, message: 'Password reset email sent successfully' };
   } catch (error) {
-    console.error('❌ resetPassword error:', error);
-    return { 
-      success: false, 
-      error: error.message,
-      code: error.code 
-    };
+    return { success: false, error: error.message, code: error.code };
   }
 };
 
@@ -1580,12 +1273,9 @@ export const resetPassword = async (email) => {
 ========================================================================== */
 
 export {
-  // Core Firebase instances
   app,
   auth,
   database,
-
-  // Database helpers
   ref,
   get,
   set,
@@ -1593,8 +1283,6 @@ export {
   remove,
   push,
   onValue,
-
-  // Auth helpers
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -1603,51 +1291,37 @@ export {
   sendPasswordResetEmail
 };
 
-// Default export with all functions
 export default { 
   app, 
   auth, 
   database,
-  
-  // Currency functions - ONLY FETCH from existing database
   getCurrencyRates,
   getCurrencySymbols,
   getCurrencyData,
-  
-  // History functions
   logHistoryAction,
   getAllHistory,
   getEntityHistory,
   clearOldHistory,
-  
-  // Admin functions
   checkIsAdmin,
   getAllAdmins,
   addAdmin,
   removeAdmin,
-  
-  // User functions
   storeUserProfile,
   getUserProfile,
+  getUserProfileByEmail,
   getAllUsers,
   updateUserProfile,
   updateLastLogin,
   deleteUser,
-  
-  // Vendor functions
   storeVendorProfile,
   getVendorProfile,
   getAllVendors,
   updateVendorStatus,
   getVendorsByStatus,
-  
-  // Combined functions
   storeUserOrVendorProfile,
   getAllAccounts,
   getUserCounts,
   searchAccounts,
-  
-  // Cart functions
   getGuestCartId,
   getUserCartId,
   getCurrentCartId,
@@ -1656,8 +1330,6 @@ export default {
   mergeGuestCartWithUser,
   listenToCart,
   clearCartFromFirebase,
-  
-  // Other functions
   submitQuote,
   resetPassword
 };

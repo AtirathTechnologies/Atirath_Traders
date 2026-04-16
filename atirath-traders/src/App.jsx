@@ -19,7 +19,8 @@ import TermsPolicy from './components/TermsPolicy';
 import TransportPage from './components/TransportPage';
 import CartPage from './components/CartPage';
 import MyOrders from './components/MyOrders';
-import { SignIn, SignUp } from './components/AuthPages';
+import SignIn from './components/SignIn';
+import SignUp from './components/SignUp';
 import IndianAgriRSSFeed from './components/IndianAgriRSSFeed';
 import {
   auth,
@@ -30,6 +31,7 @@ import {
   onAuthStateChanged,
   signOut,
   getUserProfile,
+  getUserProfileByEmail,
   updateUserProfile,
   updateLastLogin,
   storeUserProfile,
@@ -47,6 +49,38 @@ import Products from './admin/pages/Products';
 import Orders from './admin/pages/Orders';
 import History from './admin/pages/History';
 import { CartProvider } from './components/CartContext';
+
+/* --------------------------------------------------------------------
+   Loading Component - Hidden but prevents flash
+   -------------------------------------------------------------------- */
+const InitialLoader = () => (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#1e1e28',
+    zIndex: 99999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  }}>
+    <div style={{
+      width: '40px',
+      height: '40px',
+      border: '3px solid rgba(143, 179, 226, 0.3)',
+      borderTopColor: '#8FB3E2',
+      borderRadius: '50%',
+      animation: 'spin 1s linear infinite'
+    }} />
+    <style>{`
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    `}</style>
+  </div>
+);
 
 /* --------------------------------------------------------------------
    Dedicated page components
@@ -203,10 +237,11 @@ const RouterWrapper = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [viewedOrders, setViewedOrders] = useState(new Set());
   
-  /* ---------- Loading States ---------- */
-  const [initialAuthCheckDone, setInitialAuthCheckDone] = useState(false);
+  /* ---------- Admin States ---------- */
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [adminCheckDone, setAdminCheckDone] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [shouldRedirectToAdmin, setShouldRedirectToAdmin] = useState(false);
   
   /* ---------- AOS ---------- */
   useEffect(() => {
@@ -253,19 +288,120 @@ const RouterWrapper = () => {
     }
   };
   
-  /* ---------- Firebase auth listener with immediate admin redirect ---------- */
+  /* ---------- Check if user is admin ---------- */
+  const checkAdminStatus = async (user) => {
+    if (!user) return false;
+    
+    try {
+      const adminStatus = await checkIsAdmin(user.uid, user.email);
+      console.log('👑 Admin status check:', adminStatus);
+      return adminStatus;
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+  };
+  
+  /* ---------- Fetch full user profile ---------- */
+  const fetchFullUserProfile = async (user) => {
+    if (!user) return null;
+    
+    try {
+      // Try to get profile by UID first
+      let userDB = await getUserProfile(user.uid);
+      
+      // If not found by UID, try by email
+      if (!userDB && user.email) {
+        console.log('⚠️ User not found by UID, trying by email...');
+        userDB = await getUserProfileByEmail(user.email);
+      }
+      
+      if (userDB) {
+        console.log('📊 User data from Firebase:', userDB);
+        
+        const completeUserData = {
+          uid: user.uid,
+          name: userDB.name || user.displayName || 'User',
+          email: userDB.email || user.email || '',
+          phone: userDB.phone || '',
+          countryCode: userDB.countryCode || '+91',
+          country: userDB.country || 'India',
+          state: userDB.state || '',
+          city: userDB.city || '',
+          pincode: userDB.pincode || '',
+          location: userDB.location || '',
+          photoURL: userDB.photoURL || user.photoURL || '',
+          createdAt: userDB.createdAt || user.metadata.creationTime || new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          userKey: userDB.userKey || '',
+          userNumber: userDB.userNumber || null,
+          accountStatus: userDB.accountStatus || 'active',
+          emailVerified: userDB.emailVerified || false,
+          phoneVerified: userDB.phoneVerified || false,
+          orderCount: userDB.orderCount || 0,
+          totalSpent: userDB.totalSpent || 0,
+          lastOrderDate: userDB.lastOrderDate || null,
+          userType: userDB.userType || 'user',
+          ...(userDB.userType === 'vendor' && {
+            gstNo: userDB.gstNo || '',
+            registeredBy: userDB.registeredBy || '',
+            vendorStatus: userDB.vendorStatus || 'pending',
+            vendorApproved: userDB.vendorApproved || false
+          })
+        };
+        
+        return completeUserData;
+      } else {
+        // Create new user profile if doesn't exist
+        console.log('📝 Creating new user profile...');
+        const newUserData = {
+          uid: user.uid,
+          name: user.displayName || 'User',
+          email: user.email || '',
+          phone: '',
+          countryCode: '+91',
+          country: 'India',
+          state: '',
+          city: '',
+          pincode: '',
+          location: '',
+          photoURL: user.photoURL || '',
+          createdAt: user.metadata.creationTime || new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          accountStatus: 'active',
+          emailVerified: user.emailVerified || false,
+          phoneVerified: false,
+          orderCount: 0,
+          totalSpent: 0,
+          lastOrderDate: null,
+          userType: 'user'
+        };
+        
+        await storeUserProfile(newUserData);
+        console.log('✅ New user profile created');
+        
+        return newUserData;
+      }
+    } catch (error) {
+      console.error('❌ Error fetching user profile:', error);
+      return null;
+    }
+  };
+  
+  /* ---------- Firebase auth listener ---------- */
   useEffect(() => {
     console.log('🔐 Setting up Firebase auth listener...');
     let isMounted = true;
-  
+    let redirectTimeout;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('🔄 Auth state changed:', user ? 'User logged in' : 'User logged out');
       
       if (!isMounted) return;
       
-      if (user) {
-        try {
-          // First set basic user data immediately
+      try {
+        if (user) {
+          // Set basic user data immediately
           const basicUserData = {
             uid: user.uid,
             name: user.displayName || 'User',
@@ -276,15 +412,25 @@ const RouterWrapper = () => {
           setCurrentUser(basicUserData);
           setIsAuthenticated(true);
           
-          // Check admin status IMMEDIATELY
-          const adminStatus = await checkIsAdmin(user.uid, user.email);
+          // Check admin status
+          const adminStatus = await checkAdminStatus(user);
           setIsAdminUser(adminStatus);
           setAdminCheckDone(true);
           
-          // If admin and not on admin page, redirect IMMEDIATELY
-          if (adminStatus && !location.pathname.startsWith('/admin') && showAuthForm === null) {
-            console.log('👑 Admin detected, redirecting to admin panel immediately');
-            navigate('/admin', { replace: true });
+          // CRITICAL: Set redirect flag for admin users
+          if (adminStatus) {
+            console.log('👑 Admin detected - setting redirect flag');
+            setShouldRedirectToAdmin(true);
+            
+            // If not on admin page, redirect after a tiny delay
+            if (!location.pathname.startsWith('/admin')) {
+              console.log('👑 Redirecting to admin panel');
+              redirectTimeout = setTimeout(() => {
+                if (isMounted) {
+                  window.location.href = '/admin';
+                }
+              }, 50);
+            }
           }
           
           // Migrate guest cart in background
@@ -294,107 +440,32 @@ const RouterWrapper = () => {
           setTimeout(async () => {
             if (!isMounted) return;
             
-            try {
-              let userData = await getUserProfile(user.uid);
-              
-              if (userData) {
-                const completeUserData = {
-                  uid: user.uid,
-                  name: userData.name || user.displayName || 'User',
-                  email: userData.email || user.email || '',
-                  phone: userData.phone || '',
-                  countryCode: userData.countryCode || '+91',
-                  country: userData.country || 'India',
-                  state: userData.state || '',
-                  city: userData.city || '',
-                  pincode: userData.pincode || '',
-                  location: userData.location || '',
-                  photoURL: userData.photoURL || user.photoURL || '',
-                  createdAt: userData.createdAt || user.metadata.creationTime || new Date().toISOString(),
-                  lastLogin: new Date().toISOString(),
-                  userKey: userData.userKey || '',
-                  userNumber: userData.userNumber || null,
-                  accountStatus: userData.accountStatus || 'active',
-                  emailVerified: userData.emailVerified || false,
-                  phoneVerified: userData.phoneVerified || false,
-                  orderCount: userData.orderCount || 0,
-                  totalSpent: userData.totalSpent || 0,
-                  lastOrderDate: userData.lastOrderDate || null,
-                  userType: userData.userType || 'user',
-                  ...(userData.userType === 'vendor' && {
-                    gstNo: userData.gstNo || '',
-                    registeredBy: userData.registeredBy || '',
-                    vendorStatus: userData.vendorStatus || 'pending',
-                    vendorApproved: userData.vendorApproved || false
-                  })
-                };
-                
-                if (isMounted) {
-                  setCurrentUser(completeUserData);
-                  await updateLastLogin(user.uid);
-                }
-                
-                console.log('✅ Background user data updated');
-              } else {
-                // Create new user profile if doesn't exist
-                const newUserData = {
-                  uid: user.uid,
-                  name: user.displayName || 'User',
-                  email: user.email || '',
-                  phone: '',
-                  countryCode: '+91',
-                  country: 'India',
-                  state: '',
-                  city: '',
-                  pincode: '',
-                  location: '',
-                  photoURL: user.photoURL || '',
-                  createdAt: user.metadata.creationTime || new Date().toISOString(),
-                  lastLogin: new Date().toISOString(),
-                  accountStatus: 'active',
-                  emailVerified: user.emailVerified || false,
-                  phoneVerified: false,
-                  orderCount: 0,
-                  totalSpent: 0,
-                  lastOrderDate: null,
-                  userType: 'user'
-                };
-                
-                await storeUserProfile(newUserData);
-                console.log('✅ New user profile created in background');
-              }
-            } catch (error) {
-              console.error('❌ Error in background profile fetch:', error);
-            } finally {
-              if (isMounted) {
-                setInitialAuthCheckDone(true);
-              }
+            const fullProfile = await fetchFullUserProfile(user);
+            if (fullProfile && isMounted) {
+              setCurrentUser(fullProfile);
+              await updateLastLogin(user.uid);
+              console.log('✅ Full user profile loaded');
             }
           }, 100);
           
-        } catch (error) {
-          console.error('❌ Error in auth listener:', error);
-          if (isMounted) {
-            setCurrentUser({
-              uid: user.uid,
-              name: user.displayName || 'User',
-              email: user.email || '',
-            });
-            setIsAuthenticated(true);
-            setAdminCheckDone(true);
-            setInitialAuthCheckDone(true);
-          }
-        }
-      } else {
-        console.log('👤 User signed out');
-        if (isMounted) {
+        } else {
+          console.log('👤 User signed out');
           setIsAuthenticated(false);
           setCurrentUser(null);
           setIsAdminUser(false);
           setNewOrdersCount(0);
           setViewedOrders(new Set());
           setAdminCheckDone(true);
-          setInitialAuthCheckDone(true);
+          setShouldRedirectToAdmin(false);
+        }
+      } catch (error) {
+        console.error('❌ Error in auth listener:', error);
+      } finally {
+        // Mark initial load as complete
+        if (isMounted) {
+          setTimeout(() => {
+            setInitialLoadComplete(true);
+          }, 100);
         }
       }
     });
@@ -402,27 +473,43 @@ const RouterWrapper = () => {
     return () => {
       console.log('🔒 Cleaning up auth listener');
       isMounted = false;
+      if (redirectTimeout) clearTimeout(redirectTimeout);
       unsubscribe();
     };
-  }, [navigate, location.pathname, showAuthForm]);
+  }, [location.pathname]);
   
-  /* ---------- Handle initial route based on admin status ---------- */
+  /* ---------- Check localStorage for admin status on initial load ---------- */
   useEffect(() => {
-    // Only run after admin check is done
-    if (!adminCheckDone) return;
+    const checkLocalStorage = async () => {
+      const lastUser = localStorage.getItem('lastUser');
+      if (lastUser) {
+        try {
+          const userData = JSON.parse(lastUser);
+          if (userData.isAdmin) {
+            console.log('📦 Found admin in localStorage, redirecting');
+            window.location.href = '/admin';
+          }
+        } catch (e) {
+          console.error('Error parsing lastUser:', e);
+        }
+      }
+    };
     
-    // Don't redirect if auth form is open
-    if (showAuthForm) return;
-    
-    // If we're already on admin route, no need to redirect
-    if (location.pathname.startsWith('/admin')) return;
-    
-    // If user is admin and on home page, redirect immediately
-    if (isAdminUser && location.pathname === '/') {
-      console.log('👑 Admin on home page, redirecting to admin panel');
-      navigate('/admin', { replace: true });
+    checkLocalStorage();
+  }, []);
+  
+  /* ---------- Store last user in localStorage ---------- */
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('lastUser', JSON.stringify({
+        uid: currentUser.uid,
+        email: currentUser.email,
+        isAdmin: isAdminUser
+      }));
+    } else {
+      localStorage.removeItem('lastUser');
     }
-  }, [adminCheckDone, isAdminUser, location.pathname, showAuthForm, navigate]);
+  }, [currentUser, isAdminUser]);
   
   /* ---------- Fetch user's orders count ---------- */
   const fetchUserOrdersCount = async (userId, email) => {
@@ -464,7 +551,7 @@ const RouterWrapper = () => {
   
   /* ---------- Update orders count when user changes ---------- */
   useEffect(() => {
-    if (currentUser && !isAdminUser) { // Only fetch orders for non-admin users
+    if (currentUser && !isAdminUser) {
       fetchUserOrdersCount(currentUser.uid, currentUser.email);
       
       const intervalId = setInterval(() => {
@@ -511,6 +598,7 @@ const RouterWrapper = () => {
         return false;
       }
       
+      // Fetch updated profile
       const updatedData = await getUserProfile(currentUser.uid);
       
       if (updatedData) {
@@ -616,28 +704,47 @@ const RouterWrapper = () => {
     try {
       console.log('🔐 Handling sign in for user:', userData.email);
       
+      // Set immediate user data
       const immediateUserData = {
         uid: userData.uid,
         name: userData.name || 'User',
         email: userData.email || '',
+        photoURL: userData.photoURL || '',
       };
       
       setIsAuthenticated(true);
       setCurrentUser(immediateUserData);
       
-      // Check admin status immediately
-      const adminStatus = await checkIsAdmin(userData.uid, userData.email);
+      // Check admin status
+      const adminStatus = await checkAdminStatus(userData.uid, userData.email);
       setIsAdminUser(adminStatus);
       
       closeAuth();
       
       if (adminStatus) {
         console.log('👑 Admin signed in, redirecting to admin panel immediately');
-        navigate('/admin', { replace: true });
+        localStorage.setItem('lastUser', JSON.stringify({
+          uid: userData.uid,
+          email: userData.email,
+          isAdmin: true
+        }));
+        window.location.href = '/admin';
       } else {
         alert(`🎉 Welcome back, ${immediateUserData.name}!`);
         goTo('/');
         migrateGuestCartOnLogin(userData.uid).catch(console.error);
+        
+        // Fetch full profile in background
+        setTimeout(async () => {
+          const fullProfile = await fetchFullUserProfile({ 
+            uid: userData.uid, 
+            email: userData.email,
+            displayName: userData.name 
+          });
+          if (fullProfile) {
+            setCurrentUser(fullProfile);
+          }
+        }, 500);
       }
       
       console.log('✅ Sign in completed successfully');
@@ -671,6 +778,8 @@ const RouterWrapper = () => {
         setNewOrdersCount(0);
         setViewedOrders(new Set());
         setAdminCheckDone(true);
+        setShouldRedirectToAdmin(false);
+        localStorage.removeItem('lastUser');
         alert('Signed out successfully.');
         goTo('/');
       } catch (e) {
@@ -793,14 +902,23 @@ const RouterWrapper = () => {
     );
   };
   
-  // Show loading only if initial auth check not done
-  if (!initialAuthCheckDone) {
-    return (
-      <div className="initial-loading-screen">
-        <div className="loading-spinner"></div>
-        <p>Loading...</p>
-      </div>
-    );
+  // CRITICAL: Show loader until we know if user is admin
+  if (!initialLoadComplete) {
+    return <InitialLoader />;
+  }
+  
+  // If admin and not on admin page, redirect
+  if (shouldRedirectToAdmin && !location.pathname.startsWith('/admin')) {
+    console.log('🚀 Redirecting admin to admin panel');
+    window.location.href = '/admin';
+    return <InitialLoader />;
+  }
+  
+  // If on admin page but not admin, redirect to home
+  if (location.pathname.startsWith('/admin') && !isAdminUser && isAuthenticated) {
+    console.log('⛔ Non-admin on admin page, redirecting');
+    window.location.href = '/';
+    return <InitialLoader />;
   }
   
   const showRSS = location.pathname === '/' && !showAuthForm && !isAdminUser;
@@ -815,7 +933,7 @@ const RouterWrapper = () => {
     } : null,
     showAuthForm,
     path: location.pathname,
-    initialAuthCheckDone
+    initialLoadComplete
   });
   
   return (

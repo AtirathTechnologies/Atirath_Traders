@@ -1,6 +1,7 @@
 // components/AddToCartConfigModal.jsx
 import React, { useState, useEffect } from 'react';
 import { X, ShoppingCart } from 'lucide-react';
+import '../styles/form.css';   // ← make sure to import the CSS
 
 const AddToCartConfigModal = ({ 
   isOpen, 
@@ -10,92 +11,182 @@ const AddToCartConfigModal = ({
   getRiceGrades,
   getPackingOptions,
   getQuantityOptions,
-  isRiceProduct
+  getPackingCost,
+  getQuantityUnit,
+  isRiceProduct,
+  currencyRates,
+  currencySymbols,
+  selectedCurrency
 }) => {
   const [selectedGrade, setSelectedGrade] = useState('');
-  const [selectedGradePrice, setSelectedGradePrice] = useState('');
+  const [selectedGradePrice, setSelectedGradePrice] = useState(0);
   const [selectedGradeDisplay, setSelectedGradeDisplay] = useState('');
   const [selectedPacking, setSelectedPacking] = useState('');
   const [selectedQuantity, setSelectedQuantity] = useState('');
+  const [selectedQuantityLabel, setSelectedQuantityLabel] = useState('');
   const [quantityUnit, setQuantityUnit] = useState('');
   const [isRice, setIsRice] = useState(false);
   const [grades, setGrades] = useState([]);
   const [packingOptions, setPackingOptions] = useState([]);
   const [quantityOptions, setQuantityOptions] = useState([]);
   const [validationError, setValidationError] = useState('');
+  
+  const [basePackPrice, setBasePackPrice] = useState(0);
+  const [packingCostPerKg, setPackingCostPerKg] = useState(0);
+  const [totalPackingCost, setTotalPackingCost] = useState(0);
+  const [grandTotal, setGrandTotal] = useState(0);
+
+  // Prevent body scroll
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => document.body.style.overflow = 'unset';
+  }, [isOpen]);
+
+  const getBasePackPriceFromFirebase = (product, quantityKg) => {
+    if (!product || !quantityKg) return 0;
+    const qtyNum = parseFloat(quantityKg);
+    if (isNaN(qtyNum)) return 0;
+
+    if (product.meta?.baseExMillPrices && typeof product.meta.baseExMillPrices === 'object') {
+      const exactMatch = product.meta.baseExMillPrices[qtyNum.toString()] ||
+                         product.meta.baseExMillPrices[`${qtyNum}kg`];
+      if (exactMatch) return parseFloat(exactMatch);
+      for (let key of Object.keys(product.meta.baseExMillPrices)) {
+        const keyNum = parseFloat(key);
+        if (keyNum === qtyNum) return parseFloat(product.meta.baseExMillPrices[key]);
+      }
+    }
+    if (product.price_range?.unit === 'per_pack' && qtyNum === 5) {
+      return product.price_range.min;
+    }
+    if (product.price?.perPack?.[qtyNum]) return product.price.perPack[qtyNum];
+    return 0;
+  };
+
+  const getSimpleProductPrice = (product) => {
+    if (!product) return { value: 0, display: 'Contact for Price' };
+    let priceValue = 0;
+    let currency = 'USD';
+    let unit = 'carton';
+    
+    if (product.price_usd_per_carton) {
+      priceValue = parseFloat(product.price_usd_per_carton);
+      currency = 'USD';
+      unit = 'carton';
+    } else if (product.fob_price_usd) {
+      priceValue = parseFloat(product.fob_price_usd);
+      currency = 'USD';
+      unit = 'carton';
+    } else if (product["Ex-Mill_usd"]) {
+      priceValue = parseFloat(product["Ex-Mill_usd"]);
+      currency = 'USD';
+      unit = 'carton';
+    } else if (product.pricing?.basePrice) {
+      priceValue = parseFloat(product.pricing.basePrice);
+      currency = product.pricing.currency || 'USD';
+      unit = product.pricing.unit || 'carton';
+    } else if (product.price && typeof product.price === 'number') {
+      priceValue = product.price;
+      currency = product.currency || 'USD';
+      unit = 'unit';
+    } else if (product.price?.value) {
+      priceValue = product.price.value;
+      currency = product.price.currency || 'USD';
+      unit = product.price.unit || 'unit';
+    }
+    
+    const symbol = currency === 'USD' ? '$' : (currency === 'INR' ? '₹' : currency);
+    const display = `${symbol}${priceValue.toFixed(2)} / ${unit}`;
+    return { value: priceValue, display, currency, unit };
+  };
 
   useEffect(() => {
-    if (product) {
-      console.log("🔧 Config modal received product:", product);
-      
-      const riceCheck = isRiceProduct ? isRiceProduct(product) : false;
-      setIsRice(riceCheck);
-      
-      // Get grades from Firebase only
-      if (riceCheck && getRiceGrades) {
+    if (!product) return;
+    
+    const riceCheck = isRiceProduct ? isRiceProduct(product) : false;
+    setIsRice(riceCheck);
+    
+    const packOptions = getPackingOptions ? getPackingOptions(product) : [];
+    setPackingOptions(packOptions);
+    if (packOptions.length > 0) setSelectedPacking(packOptions[0].value);
+    
+    const qtyOptions = getQuantityOptions ? getQuantityOptions(product) : [];
+    setQuantityOptions(qtyOptions);
+    if (qtyOptions.length > 0) {
+      const firstQty = qtyOptions[0];
+      setSelectedQuantity(firstQty.value);
+      setSelectedQuantityLabel(firstQty.label);
+      setQuantityUnit(firstQty.unit || (riceCheck ? 'kg' : 'unit'));
+    }
+    
+    if (riceCheck) {
+      if (getRiceGrades) {
         const productGrades = getRiceGrades(product);
-        console.log("📊 Available grades from Firebase:", productGrades);
         setGrades(productGrades);
         if (productGrades.length > 0) {
           setSelectedGrade(productGrades[0].value);
-          setSelectedGradePrice(productGrades[0].price);
+          setSelectedGradePrice(parseFloat(productGrades[0].price) || 0);
           setSelectedGradeDisplay(productGrades[0].label || productGrades[0].value);
+        } else {
+          setGrades([]);
+          setSelectedGrade('');
+          setSelectedGradePrice(0);
+          setSelectedGradeDisplay('');
         }
       }
-      
-      // Get packing options from Firebase only
-      const packOptions = getPackingOptions ? getPackingOptions(product) : [];
-      console.log("📦 Packing options from Firebase:", packOptions);
-      setPackingOptions(packOptions);
-      if (packOptions.length > 0) {
-        setSelectedPacking(packOptions[0].value);
-      }
-      
-      // Get quantity options from Firebase only
-      const qtyOptions = getQuantityOptions ? getQuantityOptions(product) : [];
-      console.log("⚖️ Quantity options from Firebase:", qtyOptions);
-      setQuantityOptions(qtyOptions);
-      if (qtyOptions.length > 0) {
-        setSelectedQuantity(qtyOptions[0].value);
-        setQuantityUnit(qtyOptions[0].unit || 'kg');
-      }
-      
-      setValidationError('');
     }
+    
+    setValidationError('');
   }, [product, getRiceGrades, getPackingOptions, getQuantityOptions, isRiceProduct]);
+
+  useEffect(() => {
+    if (!isRice) return;
+    const qtyNum = parseFloat(selectedQuantity);
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      setBasePackPrice(0);
+      setPackingCostPerKg(0);
+      setTotalPackingCost(0);
+      setGrandTotal(0);
+      return;
+    }
+    
+    const packPrice = getBasePackPriceFromFirebase(product, qtyNum);
+    setBasePackPrice(packPrice);
+    
+    let packingPerKg = 0;
+    if (selectedPacking && selectedQuantity && getPackingCost) {
+      const cost = getPackingCost(product, selectedPacking, selectedQuantity);
+      packingPerKg = parseFloat(cost) || 0;
+    }
+    setPackingCostPerKg(packingPerKg);
+    
+    const packingTotal = packingPerKg * qtyNum;
+    setTotalPackingCost(packingTotal);
+    setGrandTotal(packPrice + packingTotal);
+  }, [selectedQuantity, selectedPacking, isRice, product, getPackingCost]);
 
   const handleGradeChange = (e) => {
     const gradeValue = e.target.value;
-    
     const selectedGradeObj = grades.find(g => g.value === gradeValue);
     if (selectedGradeObj) {
       setSelectedGrade(selectedGradeObj.value);
-      setSelectedGradePrice(selectedGradeObj.price);
+      setSelectedGradePrice(parseFloat(selectedGradeObj.price) || 0);
       setSelectedGradeDisplay(selectedGradeObj.label || selectedGradeObj.value);
-      console.log("📊 Selected grade:", {
-        value: selectedGradeObj.value,
-        price: selectedGradeObj.price,
-        display: selectedGradeObj.label || selectedGradeObj.value
-      });
     }
   };
 
-  const handlePackingChange = (e) => {
-    setSelectedPacking(e.target.value);
-    console.log("📦 Selected packing:", e.target.value);
-  };
-
+  const handlePackingChange = (e) => setSelectedPacking(e.target.value);
   const handleQuantityChange = (e) => {
     const qtyValue = e.target.value;
     setSelectedQuantity(qtyValue);
-    
     const selectedQtyObj = quantityOptions.find(q => q.value === qtyValue);
     if (selectedQtyObj) {
-      setQuantityUnit(selectedQtyObj.unit || 'kg');
-      console.log("⚖️ Selected quantity:", {
-        value: qtyValue,
-        unit: selectedQtyObj.unit
-      });
+      setSelectedQuantityLabel(selectedQtyObj.label);
+      setQuantityUnit(selectedQtyObj.unit || (isRice ? 'kg' : 'unit'));
     }
   };
 
@@ -104,69 +195,116 @@ const AddToCartConfigModal = ({
       setValidationError('Please select a packing option');
       return;
     }
-    
     if (!selectedQuantity) {
       setValidationError('Please select a quantity');
       return;
     }
-    
-    if (isRice && !selectedGrade) {
+    if (isRice && grades.length > 0 && !selectedGrade) {
       setValidationError('Please select a grade');
       return;
     }
     
-    console.log("📦 Preparing to add to cart with config:", {
-      product: product?.name,
-      brand: product?.brandName,
-      grade: selectedGrade,
-      gradeDisplay: selectedGradeDisplay,
-      gradePrice: selectedGradePrice,
-      packing: selectedPacking,
-      quantity: selectedQuantity,
-      quantityUnit: quantityUnit,
-      isRice: isRice
+    let productWithConfig;
+    
+    if (isRice) {
+      productWithConfig = {
+        id: product.id,
+        name: product.name,
+        brandId: product.brandId || null,
+        brandName: product.brandName || 'General',
+        companyId: product.companyId || null,
+        companyName: product.companyName || '',
+        image: product.image,
+        category: product.category,
+        categoryId: product.categoryId,
+        origin: product.origin,
+        
+        price: {
+          value: basePackPrice,
+          packPrice: basePackPrice,
+          quantity: parseFloat(selectedQuantity),
+          unit: 'pack',
+          currency: 'INR',
+          display: `₹${basePackPrice.toFixed(2)} / ${selectedQuantityLabel}`
+        },
+        
+        packingPricePerKg: packingCostPerKg,
+        totalPackingCost: totalPackingCost,
+        
+        selectedGrade,
+        selectedGradePrice,
+        selectedGradeDisplay,
+        selectedPacking,
+        selectedQuantity,
+        selectedQuantityLabel,
+        quantityUnit,
+        isRice: true,
+        
+        selectedConfig: {
+          grade: selectedGrade,
+          gradePrice: selectedGradePrice,
+          gradeDisplay: selectedGradeDisplay,
+          packing: selectedPacking,
+          quantity: selectedQuantity,
+          quantityLabel: selectedQuantityLabel,
+          quantityUnit,
+          packingPricePerKg: packingCostPerKg,
+          totalPackingCost,
+          isRice: true
+        },
+        
+        cartCurrency: 'INR',
+        cartCurrencySymbol: '₹',
+        cartBaseCurrency: 'INR',
+        cartBaseValue: basePackPrice
+      };
+    } else {
+      const { value, display, currency, unit } = getSimpleProductPrice(product);
+      productWithConfig = {
+        id: product.id,
+        name: product.name,
+        brandId: product.brandId || null,
+        brandName: product.brandName || 'General',
+        companyId: product.companyId || null,
+        companyName: product.companyName || '',
+        image: product.image,
+        category: product.category,
+        categoryId: product.categoryId,
+        origin: product.origin,
+        
+        price: {
+          value: value,
+          display: display,
+          currency: currency,
+          unit: unit
+        },
+        
+        selectedPacking,
+        selectedQuantity,
+        selectedQuantityLabel,
+        quantityUnit,
+        isRice: false,
+        
+        selectedConfig: {
+          packing: selectedPacking,
+          quantity: selectedQuantity,
+          quantityLabel: selectedQuantityLabel,
+          quantityUnit,
+          isRice: false
+        },
+        
+        cartCurrency: currency,
+        cartCurrencySymbol: currency === 'USD' ? '$' : (currency === 'INR' ? '₹' : currency),
+        cartBaseCurrency: currency,
+        cartBaseValue: value
+      };
+    }
+    
+    console.log("✅ Adding to cart with separate product price and packing cost:", {
+      productPrice: productWithConfig.price.value,
+      packingCost: productWithConfig.totalPackingCost,
+      total: productWithConfig.price.value + (productWithConfig.totalPackingCost || 0)
     });
-    
-    const productWithConfig = {
-      id: product.id,
-      name: product.name,
-      brandId: product.brandId || null,
-      brandName: product.brandName || 'General',
-      companyId: product.companyId || null,
-      companyName: product.companyName || '',
-      price: product.price,
-      price_usd_per_carton: product.price_usd_per_carton,
-      fob_price_usd: product.fob_price_usd,
-      "Ex-Mill_usd": product["Ex-Mill_usd"],
-      image: product.image,
-      category: product.category,
-      categoryId: product.categoryId,
-      origin: product.origin,
-      packaging: product.packaging,
-      pack_type: product.pack_type,
-      grades: product.grades,
-      shelf_life: product.shelf_life,
-      hsn_code: product.hsn_code,
-      product_description: product.product_description,
-      selectedGrade: selectedGrade,
-      selectedGradePrice: selectedGradePrice,
-      selectedGradeDisplay: selectedGradeDisplay,
-      selectedPacking: selectedPacking,
-      selectedQuantity: selectedQuantity,
-      quantityUnit: quantityUnit,
-      isRice: isRice,
-      selectedConfig: {
-        grade: selectedGrade,
-        gradePrice: selectedGradePrice,
-        gradeDisplay: selectedGradeDisplay,
-        packing: selectedPacking,
-        quantity: selectedQuantity,
-        quantityUnit: quantityUnit,
-        isRice: isRice
-      }
-    };
-    
-    console.log("✅ Product with configuration ready:", productWithConfig);
     
     onAddToCart(productWithConfig);
     onClose();
@@ -200,9 +338,7 @@ const AddToCartConfigModal = ({
               <h4 className="config-product-name">{product.name}</h4>
               <p className="config-product-company">{product.companyName}</p>
               {product.brandName && product.brandName !== 'General' && (
-                <p className="config-product-brand" style={{ color: '#10b981', fontWeight: 'bold' }}>
-                  Brand: {product.brandName}
-                </p>
+                <p className="config-product-brand config-product-brand-special">Brand: {product.brandName}</p>
               )}
               {product.origin && (
                 <p className="config-product-origin">Origin: {product.origin}</p>
@@ -211,48 +347,28 @@ const AddToCartConfigModal = ({
           </div>
           
           <div className="config-options">
-            {isRice && (
+            {isRice && grades.length > 0 && (
               <div className="config-option-group">
                 <label className="config-option-label">
                   Select Grade <span className="required-star">*</span>
                 </label>
-                {grades.length > 0 ? (
-                  <select 
-                    value={selectedGrade} 
-                    onChange={handleGradeChange}
-                    className="config-option-select"
-                  >
-                    {grades.map((grade, index) => (
-                      <option key={index} value={grade.value}>
-                        {grade.label || grade.value}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="config-no-options">No grades available</div>
-                )}
-                {selectedGradePrice && (
-                  <div className="config-grade-price">
-                    Price: ₹{selectedGradePrice}/kg
-                  </div>
+                <select value={selectedGrade} onChange={handleGradeChange} className="config-option-select">
+                  {grades.map((grade, idx) => (
+                    <option key={idx} value={grade.value}>{grade.label || grade.value}</option>
+                  ))}
+                </select>
+                {selectedGradePrice > 0 && (
+                  <div className="config-grade-price">Grade Price: ₹{selectedGradePrice}/kg</div>
                 )}
               </div>
             )}
             
             <div className="config-option-group">
-              <label className="config-option-label">
-                Select Packing <span className="required-star">*</span>
-              </label>
+              <label className="config-option-label">Select Packing <span className="required-star">*</span></label>
               {packingOptions.length > 0 ? (
-                <select 
-                  value={selectedPacking} 
-                  onChange={handlePackingChange}
-                  className="config-option-select"
-                >
-                  {packingOptions.map((option, index) => (
-                    <option key={index} value={option.value}>
-                      {option.label || option.value}
-                    </option>
+                <select value={selectedPacking} onChange={handlePackingChange} className="config-option-select">
+                  {packingOptions.map((opt, idx) => (
+                    <option key={idx} value={opt.value}>{opt.label || opt.value}</option>
                   ))}
                 </select>
               ) : (
@@ -261,417 +377,74 @@ const AddToCartConfigModal = ({
             </div>
             
             <div className="config-option-group">
-              <label className="config-option-label">
-                Select Quantity <span className="required-star">*</span>
-              </label>
+              <label className="config-option-label">Select Quantity <span className="required-star">*</span></label>
               {quantityOptions.length > 0 ? (
-                <select 
-                  value={selectedQuantity} 
-                  onChange={handleQuantityChange}
-                  className="config-option-select"
-                >
-                  {quantityOptions.map((option, index) => (
-                    <option key={index} value={option.value}>
-                      {option.label}
-                    </option>
+                <select value={selectedQuantity} onChange={handleQuantityChange} className="config-option-select">
+                  {quantityOptions.map((opt, idx) => (
+                    <option key={idx} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               ) : (
                 <div className="config-no-options">No quantity options available</div>
               )}
-              {selectedQuantity && quantityUnit && (
-                <div className="config-quantity-unit">
-                  Unit: {quantityUnit}
-                </div>
-              )}
             </div>
             
-            {validationError && (
-              <div className="config-validation-error">
-                ⚠️ {validationError}
+            {isRice && selectedQuantityLabel && (
+              <div className="config-pricing-breakdown">
+                <div className="breakdown-row">
+                  <span>Product Price ({selectedQuantityLabel}):</span>
+                  <span>₹{basePackPrice.toFixed(2)}</span>
+                </div>
+                <div className="breakdown-row">
+                  <span>Packing Cost:</span>
+                  <span>₹{packingCostPerKg.toFixed(2)}/kg × {selectedQuantityLabel} = ₹{totalPackingCost.toFixed(2)}</span>
+                </div>
+                <div className="breakdown-row total">
+                  <span>Total:</span>
+                  <span>₹{grandTotal.toFixed(2)}</span>
+                </div>
               </div>
+            )}
+            
+            {!isRice && selectedQuantityLabel && (
+              <div className="config-pricing-breakdown">
+                <div className="breakdown-row total">
+                  <span>Total:</span>
+                  <span>{getSimpleProductPrice(product).display}</span>
+                </div>
+              </div>
+            )}
+            
+            {validationError && (
+              <div className="config-validation-error">⚠️ {validationError}</div>
             )}
           </div>
           
           <div className="config-summary">
             <h5 className="config-summary-title">Selected Options:</h5>
             <ul className="config-summary-list">
-              <li>
-                <span className="summary-label">Brand:</span>
-                <span className="summary-value" style={{ color: '#10b981' }}>
-                  {product.brandName || product.companyName || 'General'}
-                </span>
-              </li>
-              {isRice && (
-                <li>
-                  <span className="summary-label">Grade:</span>
-                  <span className="summary-value">
-                    {selectedGradeDisplay || selectedGrade || 'Not selected'}
-                    {selectedGradePrice && ` (₹${selectedGradePrice}/kg)`}
-                  </span>
-                </li>
+              <li><span className="summary-label">Brand:</span><span className="summary-value summary-brand-value">{product.brandName || product.companyName || 'General'}</span></li>
+              {isRice && grades.length > 0 && (
+                <li><span className="summary-label">Grade:</span><span className="summary-value">{selectedGradeDisplay || selectedGrade || 'Not selected'}{selectedGradePrice > 0 && ` (₹${selectedGradePrice.toFixed(2)}/kg)`}</span></li>
               )}
-              <li>
-                <span className="summary-label">Packing:</span>
-                <span className="summary-value">{selectedPacking || 'Not selected'}</span>
-              </li>
-              <li>
-                <span className="summary-label">Quantity:</span>
-                <span className="summary-value">
-                  {selectedQuantity ? (
-                    <>
-                      {quantityOptions.find(q => q.value === selectedQuantity)?.label || selectedQuantity}
-                    </>
-                  ) : 'Not selected'}
-                </span>
-              </li>
+              <li><span className="summary-label">Packing:</span><span className="summary-value">{selectedPacking || 'Not selected'}</span></li>
+              <li><span className="summary-label">Quantity:</span><span className="summary-value">{selectedQuantityLabel || 'Not selected'}</span></li>
+              {isRice ? (
+                <li className="summary-total"><span className="summary-label">Total Price:</span><span className="summary-value summary-total-price">₹{grandTotal.toFixed(2)}</span></li>
+              ) : (
+                <li className="summary-total"><span className="summary-label">Total Price:</span><span className="summary-value summary-total-price">{getSimpleProductPrice(product).display}</span></li>
+              )}
             </ul>
           </div>
         </div>
         
         <div className="add-to-cart-config-modal-footer">
-          <button className="config-cancel-btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button 
-            className="config-add-to-cart-btn" 
-            onClick={handleAddToCart}
-          >
-            <ShoppingCart size={18} style={{ marginRight: '8px' }} />
-            Add to Cart
+          <button className="config-cancel-btn" onClick={onClose}>Cancel</button>
+          <button className="config-add-to-cart-btn" onClick={handleAddToCart}>
+            <ShoppingCart size={18} className="config-add-to-cart-icon" /> Add to Cart
           </button>
         </div>
       </div>
-      
-      <style>{`
-        .add-to-cart-config-modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1100;
-          padding: 20px;
-          animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        .add-to-cart-config-modal {
-          background: linear-gradient(135deg, #1e293b 0%, #1a202c 100%);
-          border-radius: 16px;
-          max-width: 500px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7);
-          border: 2px solid rgba(64, 150, 226, 0.4);
-          color: #f8fafc;
-          animation: slideUp 0.3s ease-out;
-        }
-        
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        .add-to-cart-config-modal-header {
-          padding: 1.5rem 2rem;
-          border-bottom: 2px solid rgba(64, 150, 226, 0.3);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          background: rgba(30, 41, 59, 0.95);
-          border-radius: 16px 16px 0 0;
-          position: sticky;
-          top: 0;
-          z-index: 10;
-        }
-        
-        .add-to-cart-config-modal-title {
-          margin: 0;
-          font-weight: 700;
-          font-size: 1.3rem;
-          color: #f1f5f9;
-          letter-spacing: 0.5px;
-        }
-        
-        .add-to-cart-config-close-btn {
-          background: rgba(64, 150, 226, 0.2);
-          border: 2px solid rgba(64, 150, 226, 0.4);
-          cursor: pointer;
-          color: #e6e6e6;
-          padding: 8px;
-          width: 40px;
-          height: 40px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          transition: all 0.3s ease;
-        }
-        
-        .add-to-cart-config-close-btn:hover {
-          background: rgba(64, 150, 226, 0.4);
-          color: #ffffff;
-          transform: rotate(90deg);
-          border-color: #4096e2ff;
-        }
-        
-        .add-to-cart-config-modal-body {
-          padding: 2rem;
-        }
-        
-        .config-product-info {
-          display: flex;
-          gap: 1.5rem;
-          margin-bottom: 2rem;
-          padding-bottom: 1.5rem;
-          border-bottom: 2px solid rgba(64, 150, 226, 0.2);
-        }
-        
-        .config-product-image {
-          width: 100px;
-          height: 100px;
-          object-fit: cover;
-          border-radius: 10px;
-          border: 2px solid rgba(64, 150, 226, 0.4);
-        }
-        
-        .config-product-details {
-          flex: 1;
-        }
-        
-        .config-product-name {
-          margin: 0 0 0.5rem;
-          font-size: 1.2rem;
-          font-weight: 600;
-          color: #f1f5f9;
-        }
-        
-        .config-product-company {
-          margin: 0 0 0.25rem;
-          font-size: 0.95rem;
-          color: #94a3b8;
-        }
-        
-        .config-product-brand {
-          margin: 0.25rem 0;
-          font-size: 1rem;
-          color: #10b981;
-          font-weight: 600;
-        }
-        
-        .config-product-origin {
-          margin: 0.25rem 0 0;
-          font-size: 0.9rem;
-          color: #60a5fa;
-        }
-        
-        .config-options {
-          margin-bottom: 2rem;
-        }
-        
-        .config-option-group {
-          margin-bottom: 1.5rem;
-        }
-        
-        .config-option-label {
-          display: block;
-          margin-bottom: 0.75rem;
-          font-weight: 600;
-          color: #d1d5db;
-          font-size: 1rem;
-        }
-        
-        .required-star {
-          color: #ef4444;
-          margin-left: 4px;
-        }
-        
-        .config-option-select {
-          width: 100%;
-          padding: 12px 16px;
-          background: rgba(31, 41, 55, 0.8);
-          border: 2px solid rgba(64, 150, 226, 0.3);
-          border-radius: 10px;
-          color: #f1f5f9;
-          font-size: 1rem;
-          transition: all 0.3s ease;
-          cursor: pointer;
-        }
-        
-        .config-option-select:hover {
-          border-color: #4096e2ff;
-        }
-        
-        .config-option-select:focus {
-          outline: none;
-          border-color: #4096e2ff;
-          box-shadow: 0 0 0 3px rgba(64, 150, 226, 0.2);
-        }
-        
-        .config-option-select option {
-          background: #1f2937;
-          color: #f1f5f9;
-          padding: 10px;
-        }
-        
-        .config-no-options {
-          padding: 12px 16px;
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          border-radius: 8px;
-          color: #fecaca;
-          font-size: 0.95rem;
-          text-align: center;
-        }
-        
-        .config-grade-price,
-        .config-quantity-unit {
-          margin-top: 0.5rem;
-          font-size: 0.95rem;
-          color: #10b981;
-          padding: 8px 12px;
-          background: rgba(16, 185, 129, 0.1);
-          border-radius: 6px;
-          border-left: 3px solid #10b981;
-        }
-        
-        .config-validation-error {
-          margin-top: 1rem;
-          padding: 12px 16px;
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.5);
-          border-radius: 8px;
-          color: #fecaca;
-          font-size: 0.95rem;
-        }
-        
-        .config-summary {
-          background: rgba(30, 41, 59, 0.6);
-          border-radius: 12px;
-          padding: 1.5rem;
-          border: 1px solid rgba(64, 150, 226, 0.3);
-        }
-        
-        .config-summary-title {
-          margin: 0 0 1rem;
-          font-size: 1.1rem;
-          font-weight: 600;
-          color: #d1d5db;
-        }
-        
-        .config-summary-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-        
-        .config-summary-list li {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.75rem 0;
-          border-bottom: 1px solid rgba(64, 150, 226, 0.2);
-        }
-        
-        .config-summary-list li:last-child {
-          border-bottom: none;
-        }
-        
-        .summary-label {
-          color: #94a3b8;
-        }
-        
-        .summary-value {
-          color: #60a5fa;
-          font-weight: 500;
-        }
-        
-        .add-to-cart-config-modal-footer {
-          padding: 1.5rem 2rem;
-          border-top: 2px solid rgba(64, 150, 226, 0.3);
-          display: flex;
-          justify-content: flex-end;
-          gap: 1rem;
-          background: rgba(30, 41, 59, 0.95);
-          border-radius: 0 0 16px 16px;
-          position: sticky;
-          bottom: 0;
-        }
-        
-        .config-cancel-btn {
-          padding: 12px 24px;
-          background: rgba(107, 114, 128, 0.3);
-          border: 1px solid rgba(107, 114, 128, 0.5);
-          color: #e6e6e6;
-          border-radius: 10px;
-          font-size: 1rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-        
-        .config-cancel-btn:hover {
-          background: rgba(107, 114, 128, 0.5);
-          transform: translateY(-2px);
-        }
-        
-        .config-add-to-cart-btn {
-          padding: 12px 32px;
-          background: linear-gradient(135deg, #0dcaf0 0%, #0d6efd 100%);
-          border: none;
-          color: white;
-          border-radius: 10px;
-          font-size: 1rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .config-add-to-cart-btn:hover {
-          background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(13, 110, 253, 0.4);
-        }
-        
-        @media (max-width: 768px) {
-          .add-to-cart-config-modal {
-            max-width: 100%;
-          }
-          
-          .config-product-info {
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-          }
-          
-          .add-to-cart-config-modal-footer {
-            flex-direction: column;
-          }
-          
-          .config-cancel-btn,
-          .config-add-to-cart-btn {
-            width: 100%;
-          }
-        }
-      `}</style>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, Target, Heart, Award, Mail, Phone, MapPin } from 'lucide-react';
+import '../styles/home.css'; // Import external CSS
 
 const JoinUs = () => {
   const navigate = useNavigate();
@@ -59,7 +60,6 @@ const JoinUs = () => {
   ];
 
   const handleApplyClick = (positionTitle) => {
-    
     const currentDate = new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -71,25 +71,18 @@ const JoinUs = () => {
     
     const message = `*Job Application Inquiry* 📝%0A%0A*Date:* ${currentDate}%0A*Position Interested In:* ${positionTitle}%0A%0AHello Atirath Traders Team,%0A%0AI am interested in applying for the ${positionTitle} position.%0A%0APlease provide me with the application process details.%0A%0A_Contact me for further discussion._`;
     
-    // ✅ Using environment variable for WhatsApp number
     const whatsappURL = `https://wa.me/${whatsappNumber}?text=${message}`;
-    
     window.open(whatsappURL, '_blank');
   };
 
   return (
-    <section className="py-5" style={{ marginTop: '100px', minHeight: '100vh' }}>
+    <section className="join-us-section py-5">
       <div className="container">
         {/* Back Button */}
         <div className="mb-4">
           <button 
             onClick={() => navigate(-1)}
-            className="btn btn-outline-primary d-flex align-items-center gap-2"
-            style={{
-              background: 'rgba(143, 179, 226, 0.1)',
-              borderColor: '#8FB3E2',
-              color: '#8FB3E2'
-            }}
+            className="btn btn-outline-primary join-us-back-btn d-flex align-items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -120,7 +113,7 @@ const JoinUs = () => {
             <div className="row g-4">
               {benefits.map((benefit, index) => (
                 <div key={index} className="col-lg-3 col-md-6">
-                  <div className="card h-100 blog-card text-center p-4">
+                  <div className="card blog-card h-100 text-center p-4">
                     <div className="text-primary mb-3" style={{ color: '#8FB3E2' }}>
                       {benefit.icon}
                     </div>
@@ -151,9 +144,8 @@ const JoinUs = () => {
                     <div className="text-light opacity-80 mb-3">
                       <strong>Location:</strong> {position.location}
                     </div>
-                    {/* Apply Now Button - Direct WhatsApp Link */}
                     <button 
-                      className="apply-now-button-fixed"
+                      className="apply-now-button"
                       onClick={() => handleApplyClick(position.title)}
                     >
                       <i className="fab fa-whatsapp me-2"></i>
@@ -183,15 +175,14 @@ const JoinUs = () => {
                   </p>
                 </div>
                 
-                {/* ✅ Phone - Using environment variable */}
+                {/* Phone */}
                 <div className="col-md-4">
                   <div className="text-primary mb-2">
                     <Phone className="w-6 h-6 mx-auto" />
                   </div>
                   <h6 className="text-white">Call Us</h6>
                   <p className="text-light opacity-80 small">
-                    <a href={`tel:${whatsappNumber}`} 
-                       style={{ color: 'inherit', textDecoration: 'none' }}>
+                    <a href={`tel:${whatsappNumber}`} className="contact-link">
                       {whatsappNumber}
                     </a>
                     <br />
@@ -199,17 +190,14 @@ const JoinUs = () => {
                   </p>
                 </div>
                 
-                {/* ✅ WhatsApp - Using environment variable */}
+                {/* WhatsApp */}
                 <div className="col-md-4">
                   <div className="text-primary mb-2">
                     <i className="fab fa-whatsapp" style={{ fontSize: '24px', color: '#25D366' }}></i>
                   </div>
                   <h6 className="text-white">WhatsApp</h6>
                   <p className="text-light opacity-80 small">
-                    <a href={`https://wa.me/${whatsappNumber}`} 
-                       style={{ color: 'inherit', textDecoration: 'none' }}
-                       target="_blank" 
-                       rel="noopener noreferrer">
+                    <a href={`https://wa.me/${whatsappNumber}`} className="contact-link" target="_blank" rel="noopener noreferrer">
                       {whatsappNumber}
                     </a>
                     <br />
@@ -218,7 +206,7 @@ const JoinUs = () => {
                 </div>
               </div>
               
-              <div className="mt-4 p-4 rounded" style={{ background: 'rgba(143, 179, 226, 0.1)' }}>
+              <div className="mt-4 p-4 join-us-highlight">
                 <h5 className="text-white mb-3">What We Look For</h5>
                 <p className="text-light opacity-80 mb-0">
                   We value passion for agriculture, innovative thinking, teamwork, and commitment to making a difference 
@@ -230,71 +218,7 @@ const JoinUs = () => {
         </div>
       </div>
 
-      {/* Inline Styles */}
-      <style jsx>{`
-        /* Apply Now Button */
-        .apply-now-button-fixed {
-          background: linear-gradient(135deg, #25D366, #128C7E) !important;
-          border: none !important;
-          color: white !important;
-          font-weight: 600 !important;
-          padding: 0.75rem 1.5rem !important;
-          border-radius: 0.75rem !important;
-          cursor: pointer !important;
-          width: 100% !important;
-          transition: all 0.3s ease !important;
-          display: block !important;
-          margin-top: 1rem !important;
-          position: relative !important;
-          z-index: 10 !important;
-          text-decoration: none !important;
-          text-align: center !important;
-          box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3) !important;
-          min-height: auto !important;
-          min-width: auto !important;
-        }
-        
-        .apply-now-button-fixed:hover {
-          background: linear-gradient(135deg, #20bd5a, #0e7a5f) !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4) !important;
-        }
-        
-        .apply-now-button-fixed:active {
-          transform: translateY(0) !important;
-        }
-        
-        /* Blog Card Styles */
-        .blog-card {
-          background: rgba(25, 35, 56, 0.8);
-          border: 1px solid rgba(143, 179, 226, 0.2);
-          border-radius: 1rem;
-          backdrop-filter: blur(10px);
-          transition: all 0.3s ease;
-        }
-        
-        .blog-card:hover {
-          border-color: rgba(143, 179, 226, 0.4);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-        }
-        
-        /* Responsive styles */
-        @media (max-width: 768px) {
-          .apply-now-button-fixed {
-            padding: 0.65rem 1.25rem !important;
-            font-size: 0.95rem !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .apply-now-button-fixed {
-            padding: 0.6rem 1rem !important;
-            font-size: 0.9rem !important;
-          }
-        }
-      `}</style>
-      
-      {/* Add Font Awesome for icons */}
+      {/* Font Awesome Icons (still needed) */}
       <link 
         rel="stylesheet" 
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 

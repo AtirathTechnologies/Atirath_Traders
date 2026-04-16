@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import '../styles/blog.css';
 
 const BlogPost = () => {
   const { id } = useParams();
@@ -168,7 +169,7 @@ const BlogPost = () => {
 
   if (!post) {
     return (
-      <div className="container text-center py-5" style={{ marginTop: '100px', minHeight: '100vh' }}>
+      <div className="container text-center py-5 blog-post-section">
         <h1 className="text-white">Blog Post Not Found</h1>
         <p className="text-light">The blog post you're looking for doesn't exist.</p>
         <button 
@@ -181,11 +182,7 @@ const BlogPost = () => {
     );
   }
 
-  // Function to handle social media sharing
   const handleSocialShare = (platform) => {
-    const url = window.location.href;
-    const title = post.title;
-    
     const shareUrls = {
       twitter: `https://x.com/atirathtraders`,
       linkedin: `https://www.linkedin.com/company/atirath-traders-india-private-ltd/posts/?feedView=all`,
@@ -198,9 +195,8 @@ const BlogPost = () => {
   };
 
   return (
-    <section className="py-5" style={{ marginTop: '100px', minHeight: '100vh' }}>
+    <section className="blog-post-section py-5">
       <div className="container">
-        {/* Back Button */}
         <div className="mb-4">
           <button 
             onClick={() => navigate('/blog')}
@@ -210,9 +206,7 @@ const BlogPost = () => {
           </button>
         </div>
 
-        {/* Blog Post Content */}
         <article className="blog-post-content">
-          {/* Header */}
           <header className="text-center mb-5">
             <div className="mb-3">
               <span className="badge bg-primary fs-6">{post.category}</span>
@@ -220,57 +214,35 @@ const BlogPost = () => {
             <h1 className="display-4 fw-bold text-white mb-3">{post.title}</h1>
           </header>
 
-          {/* Featured Image */}
           <div className="row justify-content-center mb-5">
             <div className="col-lg-10">
               <div className="featured-image-container rounded-3 overflow-hidden">
                 <img 
                   src={post.image} 
                   alt={post.title}
-                  className="w-100 h-auto"
-                  style={{ maxHeight: '500px', objectFit: 'cover' }}
+                  className="featured-image"
                 />
               </div>
             </div>
           </div>
 
-          {/* Content */}
           <div className="row justify-content-center">
             <div className="col-lg-8">
               <div 
-                className="blog-content text-light"
-                style={{ 
-                  fontSize: '1.1rem',
-                  lineHeight: '1.8'
-                }}
+                className="blog-content-text text-light"
                 dangerouslySetInnerHTML={{ __html: post.fullContent }}
               />
             </div>
           </div>
 
-          {/* Share Section */}
           <div className="row justify-content-center mt-5">
             <div className="col-lg-8">
               <div className="share-section text-center py-4 border-top border-light">
                 <h5 className="text-white mb-4">Share this article</h5>
                 <div className="d-flex justify-content-center gap-4">
-                  {/* Twitter Button */}
                   <button 
-                    className="btn btn-outline-primary d-flex align-items-center gap-2 px-4 py-2"
+                    className="btn btn-outline-primary d-flex align-items-center gap-2 px-4 py-2 btn-twitter"
                     onClick={() => handleSocialShare('twitter')}
-                    style={{ 
-                      borderColor: '#1DA1F2',
-                      color: '#1DA1F2',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = '#1DA1F2';
-                      e.target.style.color = 'white';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = 'transparent';
-                      e.target.style.color = '#1DA1F2';
-                    }}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
@@ -278,23 +250,9 @@ const BlogPost = () => {
                     <span>Twitter</span>
                   </button>
 
-                  {/* LinkedIn Button */}
                   <button 
-                    className="btn btn-outline-primary d-flex align-items-center gap-2 px-4 py-2"
+                    className="btn btn-outline-primary d-flex align-items-center gap-2 px-4 py-2 btn-linkedin"
                     onClick={() => handleSocialShare('linkedin')}
-                    style={{ 
-                      borderColor: '#0077B5',
-                      color: '#0077B5',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = '#0077B5';
-                      e.target.style.color = 'white';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = 'transparent';
-                      e.target.style.color = '#0077B5';
-                    }}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
@@ -302,23 +260,9 @@ const BlogPost = () => {
                     <span>LinkedIn</span>
                   </button>
 
-                  {/* Facebook Button */}
                   <button 
-                    className="btn btn-outline-primary d-flex align-items-center gap-2 px-4 py-2"
+                    className="btn btn-outline-primary d-flex align-items-center gap-2 px-4 py-2 btn-facebook"
                     onClick={() => handleSocialShare('facebook')}
-                    style={{ 
-                      borderColor: '#4267B2',
-                      color: '#4267B2',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = '#4267B2';
-                      e.target.style.color = 'white';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = 'transparent';
-                      e.target.style.color = '#4267B2';
-                    }}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>

@@ -1,10 +1,10 @@
 import React from 'react';
+import '../styles/home.css';
 
 const About = () => {
   return (
     <section id="about" className="py-5 px-3">
       <div className="container">
-        {/* HERO-LEVEL HEADING – now has extra top margin to clear the navbar */}
         <h2
           className="display-4 fw-bold accent text-center mb-5"
           data-aos="zoom-in"
@@ -13,14 +13,9 @@ const About = () => {
           About Us
         </h2>
 
-        {/* First row */}
         <div className="row align-items-center mb-5">
           <div className="col-md-6 mb-4 mb-md-0" data-aos="fade-right">
-            <img
-              src="/img/About/found.webp"
-              alt="ATIRATH GROUP Overview"
-              className="img-fluid rounded-3 shadow"
-            />
+            <img src="/img/About/found.webp" alt="ATIRATH GROUP Overview" className="img-fluid rounded-3 shadow" />
           </div>
           <div className="col-md-6" data-aos="fade-up">
             <h3 className="h1 fw-bold accent mb-3">Foundation</h3>
@@ -33,7 +28,6 @@ const About = () => {
           </div>
         </div>
 
-        {/* Second row */}
         <div className="row align-items-center mb-5">
           <div className="col-md-6 order-2 order-md-1" data-aos="fade-up">
             <h3 className="h1 fw-bold accent mb-3">Diversified Portfolio</h3>
@@ -45,22 +39,13 @@ const About = () => {
             </p>
           </div>
           <div className="col-md-6 mb-4 mb-md-0 order-1 order-md-2" data-aos="fade-left">
-            <img
-              src="/img/About/Diverse.webp"
-              alt="Diversified Portfolio"
-              className="img-fluid rounded-3 shadow"
-            />
+            <img src="/img/About/Diverse.webp" alt="Diversified Portfolio" className="img-fluid rounded-3 shadow" />
           </div>
         </div>
 
-        {/* Third row */}
         <div className="row align-items-center mb-5">
           <div className="col-md-6 mb-4 mb-md-0" data-aos="fade-right">
-            <img
-              src="/img/About/vision.webp"
-              alt="Our Vision"
-              className="img-fluid rounded-3 shadow"
-            />
+            <img src="/img/About/vision.webp" alt="Our Vision" className="img-fluid rounded-3 shadow" />
           </div>
           <div className="col-md-6" data-aos="fade-up">
             <h3 className="h1 fw-bold accent mb-3">Our Vision</h3>

@@ -1,4 +1,3 @@
-// components/CartContext.jsx
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { database, ref, get, set, onValue, remove } from '../firebase';
 import { onAuthStateChanged, getAuth } from 'firebase/auth';
@@ -9,6 +8,7 @@ const cartReducer = (state, action) => {
   switch (action.type) {
     case 'ADD_TO_CART':
       console.log("🛒 REDUCER: Adding to cart", action.payload);
+      console.log("💰 REDUCER: Packing cost received:", action.payload.totalPackingCost);
       
       const existingItemIndex = state.items.findIndex(item => 
         item.id === action.payload.id && 
@@ -20,7 +20,12 @@ const cartReducer = (state, action) => {
       if (existingItemIndex !== -1) {
         const updatedItems = state.items.map((item, index) =>
           index === existingItemIndex
-            ? { ...item, quantity: item.quantity + (action.payload.quantity || 1) }
+            ? { 
+                ...item, 
+                quantity: item.quantity + (action.payload.quantity || 1),
+                // 🔥 FIXED: Update packing cost when quantity changes
+                totalPackingCost: (parseFloat(item.totalPackingCost) || 0) + (parseFloat(action.payload.totalPackingCost) || 0)
+              }
             : item
         );
         return {
@@ -29,18 +34,28 @@ const cartReducer = (state, action) => {
         };
       }
       
+      // 🔥 CRITICAL: Force packing cost values
       const newItem = { 
         ...action.payload, 
         quantity: action.payload.quantity || 1,
         addedAt: new Date().toISOString(),
         cartItemId: `${action.payload.id}_${action.payload.brandId || 'nobrand'}_${action.payload.selectedGrade || 'nograde'}_${Date.now()}`,
-        cartCurrency: action.payload.cartCurrency || 'USD',
-        cartCurrencySymbol: action.payload.cartCurrencySymbol || '$',
+        cartCurrency: action.payload.cartCurrency || 'INR',
+        cartCurrencySymbol: action.payload.cartCurrencySymbol || '₹',
         cartBaseCurrency: action.payload.cartBaseCurrency,
-        cartBaseValue: action.payload.cartBaseValue
+        cartBaseValue: action.payload.cartBaseValue,
+        // 🔥 CRITICAL: Force store packing cost at TOP level
+        packingPricePerKg: parseFloat(action.payload.packingPricePerKg) || 0,
+        totalPackingCost: parseFloat(action.payload.totalPackingCost) || 0
       };
       
       const newItems = [...state.items, newItem];
+      console.log("✅ Item added to cart with packing cost:", newItem.totalPackingCost);
+      console.log("✅ Item details:", { 
+        name: newItem.name, 
+        packingCost: newItem.totalPackingCost,
+        packingPricePerKg: newItem.packingPricePerKg 
+      });
       
       return {
         ...state,
@@ -52,7 +67,14 @@ const cartReducer = (state, action) => {
         ...state,
         items: state.items.map(item =>
           item.cartItemId === action.payload.cartItemId
-            ? { ...item, quantity: action.payload.quantity }
+            ? { 
+                ...item, 
+                quantity: action.payload.quantity,
+                // 🔥 FIXED: Update packing cost proportionally
+                totalPackingCost: item.packingPricePerKg && item.selectedQuantity
+                  ? item.packingPricePerKg * parseInt(item.selectedQuantity) * action.payload.quantity
+                  : item.totalPackingCost
+              }
             : item
         ).filter(item => item.quantity > 0),
       };
@@ -68,7 +90,14 @@ const cartReducer = (state, action) => {
       return { ...state, items: [] };
       
     case 'LOAD_CART':
-      return { ...state, items: action.payload || [] };
+      console.log("📦 Loading cart items:", action.payload);
+      // 🔥 FIXED: Ensure packing cost is preserved when loading
+      const processedItems = (action.payload || []).map(item => ({
+        ...item,
+        totalPackingCost: parseFloat(item.totalPackingCost) || 0,
+        packingPricePerKg: parseFloat(item.packingPricePerKg) || 0
+      }));
+      return { ...state, items: processedItems };
       
     case 'SET_USER':
       return { ...state, user: action.payload };
@@ -81,13 +110,15 @@ const cartReducer = (state, action) => {
   }
 };
 
-// Helper function to clean cart items
+// 🔥 FIXED: Clean cart item function - FORCE PRESERVE ALL FIELDS
 const cleanCartItem = (item) => {
   if (!item) return null;
   
+  console.log("🧹 Cleaning cart item:", item.name, "Packing cost:", item.totalPackingCost);
+  
   return {
     id: item.id || '',
-    productId: item.productId || '',
+    productId: item.productId || item.id || '',
     cartItemId: item.cartItemId || '',
     name: item.name || '',
     quantity: item.quantity || 1,
@@ -102,7 +133,7 @@ const cleanCartItem = (item) => {
     category: item.category || '',
     categoryId: item.categoryId || '',
     
-    // 🔥 Store both converted and base price
+    // Store price info
     price: item.price || null,
     price_usd_per_carton: item.price_usd_per_carton || null,
     fob_price_usd: item.fob_price_usd || null,
@@ -121,10 +152,17 @@ const cleanCartItem = (item) => {
     pack_type: item.pack_type || null,
     shelf_life: item.shelf_life || null,
     
-    cartCurrency: item.cartCurrency || 'USD',
-    cartCurrencySymbol: item.cartCurrencySymbol || '$',
+    cartCurrency: item.cartCurrency || 'INR',
+    cartCurrencySymbol: item.cartCurrencySymbol || '₹',
     cartBaseCurrency: item.cartBaseCurrency,
-    cartBaseValue: item.cartBaseValue
+    cartBaseValue: item.cartBaseValue,
+    
+    // 🔥 CRITICAL: Force preserve packing cost at TOP level
+    packingPricePerKg: parseFloat(item.packingPricePerKg) || 0,
+    totalPackingCost: parseFloat(item.totalPackingCost) || 0,
+    
+    // Also preserve selectedConfig for backup
+    selectedConfig: item.selectedConfig || null
   };
 };
 
@@ -155,7 +193,7 @@ export const CartProvider = ({ children }) => {
     return getGuestCartId();
   };
 
-  // Save cart to Firebase
+  // 🔥 FIXED: Save cart to Firebase with ALL fields
   const saveCartToFirebase = async () => {
     if (isSaving) {
       console.log("⏳ Already saving, skipping...");
@@ -170,6 +208,11 @@ export const CartProvider = ({ children }) => {
       const cleanedItems = state.items.map(item => cleanCartItem(item)).filter(item => item !== null);
       
       console.log(`💾 Saving cart to Firebase: ${cartId} with ${cleanedItems.length} items`);
+      console.log("📦 Items with packing cost:", cleanedItems.map(i => ({ 
+        name: i.name, 
+        packingCost: i.totalPackingCost,
+        packingPricePerKg: i.packingPricePerKg
+      })));
       
       const cartData = {
         cartId: cartId,
@@ -182,8 +225,10 @@ export const CartProvider = ({ children }) => {
         cartData.userId = state.user.uid;
       }
       
+      // 🔥 IMPORTANT: Use set() to completely replace the cart data
       await set(cartRef, cartData);
       
+      // Also save to localStorage as backup
       localStorage.setItem('cart_backup', JSON.stringify(cleanedItems));
       localStorage.setItem('lastCartSync', new Date().toISOString());
       
@@ -258,7 +303,7 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  // Load cart from Firebase
+  // 🔥 FIXED: Load cart from Firebase with proper parsing
   const loadCartFromFirebase = async () => {
     try {
       const cartId = getCartId();
@@ -271,10 +316,24 @@ export const CartProvider = ({ children }) => {
         const cartData = snapshot.val();
         const cartItems = cartData.items || [];
         console.log(`✅ Loaded ${cartItems.length} items from Firebase`);
+        console.log("📦 Loaded items with packing cost:", cartItems.map(i => ({ 
+          name: i.name, 
+          packingCost: i.totalPackingCost,
+          hasPackingCost: i.totalPackingCost ? true : false
+        })));
         
-        dispatch({ type: 'LOAD_CART', payload: cartItems });
-        localStorage.setItem('cart_backup', JSON.stringify(cartItems));
-        return cartItems;
+        // Ensure all items have proper fields
+        const processedItems = cartItems.map(item => ({
+          ...item,
+          totalPackingCost: parseFloat(item.totalPackingCost) || 0,
+          packingPricePerKg: parseFloat(item.packingPricePerKg) || 0,
+          cartCurrency: item.cartCurrency || 'INR',
+          cartCurrencySymbol: item.cartCurrencySymbol || '₹'
+        }));
+        
+        dispatch({ type: 'LOAD_CART', payload: processedItems });
+        localStorage.setItem('cart_backup', JSON.stringify(processedItems));
+        return processedItems;
       } else {
         console.log('⚠️ No cart found in Firebase');
         
@@ -283,13 +342,27 @@ export const CartProvider = ({ children }) => {
           try {
             const parsedCart = JSON.parse(localCart);
             console.log(`📦 Loaded ${parsedCart.length} items from localStorage`);
-            dispatch({ type: 'LOAD_CART', payload: parsedCart });
+            console.log("📦 Local items with packing cost:", parsedCart.map(i => ({ 
+              name: i.name, 
+              packingCost: i.totalPackingCost 
+            })));
+            
+            // Ensure local items have proper fields
+            const processedItems = parsedCart.map(item => ({
+              ...item,
+              totalPackingCost: parseFloat(item.totalPackingCost) || 0,
+              packingPricePerKg: parseFloat(item.packingPricePerKg) || 0,
+              cartCurrency: item.cartCurrency || 'INR',
+              cartCurrencySymbol: item.cartCurrencySymbol || '₹'
+            }));
+            
+            dispatch({ type: 'LOAD_CART', payload: processedItems });
             
             setTimeout(() => {
               saveCartToFirebase();
             }, 100);
             
-            return parsedCart;
+            return processedItems;
           } catch (e) {
             console.error('Error parsing localStorage cart:', e);
           }
@@ -306,8 +379,18 @@ export const CartProvider = ({ children }) => {
         try {
           const parsedCart = JSON.parse(savedCart);
           console.log(`📦 Fallback: Loaded ${parsedCart.length} items from localStorage`);
-          dispatch({ type: 'LOAD_CART', payload: parsedCart });
-          return parsedCart;
+          
+          // Ensure fallback items have proper fields
+          const processedItems = parsedCart.map(item => ({
+            ...item,
+            totalPackingCost: parseFloat(item.totalPackingCost) || 0,
+            packingPricePerKg: parseFloat(item.packingPricePerKg) || 0,
+            cartCurrency: item.cartCurrency || 'INR',
+            cartCurrencySymbol: item.cartCurrencySymbol || '₹'
+          }));
+          
+          dispatch({ type: 'LOAD_CART', payload: processedItems });
+          return processedItems;
         } catch (e) {
           console.error('Error parsing localStorage cart:', e);
         }
@@ -332,7 +415,17 @@ export const CartProvider = ({ children }) => {
           
           if (JSON.stringify(currentItems) !== JSON.stringify(cartItems)) {
             console.log('🔄 Real-time cart update from Firebase');
-            dispatch({ type: 'LOAD_CART', payload: cartItems });
+            
+            // Ensure items have proper fields
+            const processedItems = cartItems.map(item => ({
+              ...item,
+              totalPackingCost: parseFloat(item.totalPackingCost) || 0,
+              packingPricePerKg: parseFloat(item.packingPricePerKg) || 0,
+              cartCurrency: item.cartCurrency || 'INR',
+              cartCurrencySymbol: item.cartCurrencySymbol || '₹'
+            }));
+            
+            dispatch({ type: 'LOAD_CART', payload: processedItems });
           }
         }
       });
@@ -365,7 +458,7 @@ export const CartProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Migrate guest cart to user cart
+  // 🔥 FIXED: Migrate guest cart to user cart with packing cost preserved
   const migrateGuestCartToUser = async (userId, guestCartId) => {
     try {
       const guestCartRef = ref(database, `carts/${guestCartId}`);
@@ -396,12 +489,17 @@ export const CartProvider = ({ children }) => {
           
           if (existingIndex !== -1) {
             mergedItems[existingIndex].quantity += userItem.quantity;
+            // 🔥 FIXED: Merge packing costs
+            mergedItems[existingIndex].totalPackingCost = 
+              (parseFloat(mergedItems[existingIndex].totalPackingCost) || 0) + 
+              (parseFloat(userItem.totalPackingCost) || 0);
           } else {
             mergedItems.push(userItem);
           }
         });
       }
       
+      // Ensure all items have proper fields
       const cleanedItems = mergedItems.map(item => cleanCartItem(item)).filter(item => item !== null);
       
       if (cleanedItems.length > 0) {
@@ -455,10 +553,11 @@ export const CartProvider = ({ children }) => {
   }, [state.items, isInitialized]);
 
   // ============================================
-  // ADD TO CART FUNCTION - Stores base price
+  // ADD TO CART FUNCTION - Stores packing cost
   // ============================================
   const addToCart = (product) => {
     console.log("📦 Adding to cart with selected configuration:", product);
+    console.log("💰 Packing cost in addToCart:", product.totalPackingCost);
     
     const cartItemId = `${product.id}_${product.brandId || 'nobrand'}_${product.selectedGrade || 'nograde'}_${Date.now()}`;
     
@@ -475,9 +574,8 @@ export const CartProvider = ({ children }) => {
       companyId: product.companyId || null,
       companyName: product.companyName || '',
       
-      // 🔥 Store the complete price object with both converted and base
+      // Store price info
       price: product.price || null,
-      
       price_usd_per_carton: product.price_usd_per_carton,
       fob_price_usd: product.fob_price_usd,
       "Ex-Mill_usd": product["Ex-Mill_usd"],
@@ -499,13 +597,20 @@ export const CartProvider = ({ children }) => {
       pack_type: product.pack_type || null,
       shelf_life: product.shelf_life || null,
       
-      cartCurrency: product.cartCurrency || 'USD',
-      cartCurrencySymbol: product.cartCurrencySymbol || '$',
+      cartCurrency: product.cartCurrency || 'INR',
+      cartCurrencySymbol: product.cartCurrencySymbol || '₹',
       cartBaseCurrency: product.cartBaseCurrency,
-      cartBaseValue: product.cartBaseValue
+      cartBaseValue: product.cartBaseValue,
+      
+      // 🔥 CRITICAL: Store packing cost at TOP level
+      packingPricePerKg: parseFloat(product.packingPricePerKg) || 0,
+      totalPackingCost: parseFloat(product.totalPackingCost) || 0,
+      
+      // Also store selectedConfig for backup
+      selectedConfig: product.selectedConfig || null
     };
     
-    console.log("✅ Added to cart with price:", itemToAdd.price);
+    console.log("✅ Added to cart with price:", itemToAdd.price, "Packing cost:", itemToAdd.totalPackingCost);
     
     dispatch({ type: 'ADD_TO_CART', payload: itemToAdd });
   };
@@ -523,20 +628,16 @@ export const CartProvider = ({ children }) => {
   const getTotalPrice = () => {
     let total = 0;
     state.items.forEach(item => {
-      if (item.price?.converted?.value) {
-        total += parseFloat(item.price.converted.value) * (item.quantity || 1);
-      } else if (item.price?.value) {
+      if (item.price?.value) {
         total += parseFloat(item.price.value) * (item.quantity || 1);
       } else if (item.selectedGradePrice) {
-        total += parseFloat(item.selectedGradePrice) * (item.quantity || 1);
-      } else if (item.price_usd_per_carton) {
-        total += parseFloat(item.price_usd_per_carton) * (item.quantity || 1);
-      } else if (item.fob_price_usd) {
-        total += parseFloat(item.fob_price_usd) * (item.quantity || 1);
-      } else if (item["Ex-Mill_usd"]) {
-        total += parseFloat(item["Ex-Mill_usd"]) * (item.quantity || 1);
-      } else if (typeof item.price === 'number') {
-        total += item.price * (item.quantity || 1);
+        const pricePerKg = parseFloat(item.selectedGradePrice);
+        const packageSize = parseFloat(item.selectedQuantity) || 1;
+        total += pricePerKg * packageSize * (item.quantity || 1);
+      }
+      // Add packing cost to total
+      if (item.totalPackingCost) {
+        total += parseFloat(item.totalPackingCost);
       }
     });
     return total.toFixed(2);

@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../styles/blog.css';
 
 const Blog = ({ id }) => {
   const navigate = useNavigate();
-  
+
   const blogPosts = [
     {
       id: 1,
@@ -168,33 +169,23 @@ const Blog = ({ id }) => {
   };
 
   return (
-    <section id={id} className="py-5" style={{ marginTop: '100px', minHeight: '100vh' }}>
+    <section id={id} className="blog-section py-5">
       <div className="container">
-        {/* Header Section */}
         <div className="text-center mb-5">
           <h1 className="display-4 fw-bold text-white mb-3">Our Blog</h1>
-          <div className="row justify-content-center">
-            <div className="col-lg-8">
-              {/* Optional description can go here */}
-            </div>
-          </div>
         </div>
 
-        {/* Blog Posts Grid */}
         <div className="row g-4">
           {blogPosts.map((post) => (
             <div key={post.id} className="col-lg-4 col-md-6">
               <div className="card h-100 blog-card">
-                <div className="card-img-top position-relative overflow-hidden" style={{ height: '200px' }}>
+                <div className="position-relative blog-card-img-wrapper">
                   <img 
                     src={post.image} 
                     alt={post.title}
-                    className="w-100 h-100 object-fit-cover"
-                    style={{ transition: 'transform 0.3s ease' }}
-                    onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
-                    onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                    className="blog-card-img"
                   />
-                  <div className="position-absolute top-0 start-0 m-3">
+                  <div className="blog-card-badge">
                     <span className="badge bg-primary">{post.category}</span>
                   </div>
                 </div>

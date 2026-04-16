@@ -1,35 +1,102 @@
-// ProductData.js - Centralized data for transport and rice packing only
-// All other data comes from Firebase
+// data/ProductData.js
+// ============================================
+// RICE PACKING OPTIONS WITH QUANTITY-BASED PRICING
+// ============================================
+
+export const ricePackingOptions = [
+  { 
+    value: "Non-woven Bags", 
+    basePrice: "4",
+    quantityPricing: {
+      "5": 4,    // 5kg - ₹4 per kg
+      "10": 3,   // 10kg - ₹3 per kg
+      "25": 2,   // 25kg - ₹2 per kg
+      "40": 2,   // 40kg - ₹2 per kg
+      "50": 2,   // 50kg - ₹2 per kg
+      "100": 2,  // 100kg - ₹2 per kg
+      "1000": 2  // 1 Ton (1000kg) - ₹2 per kg
+    }
+  },
+  { 
+    value: "PP (Polypropylene woven Bags)", 
+    basePrice: "2",
+    quantityPricing: {
+      "25": 2,   // 25kg - ₹2 per kg
+      "40": 2,   // 40kg - ₹2 per kg
+      "50": 1,   // 50kg - ₹1 per kg
+      "100": 1,  // 100kg - ₹1 per kg
+      "1000": 1  // 1 Ton (1000kg) - ₹1 per kg
+    }
+  },
+  { 
+    value: "Jute bags", 
+    basePrice: "4",
+    quantityPricing: {
+      "5": 4,    // 5kg - ₹4 per kg
+      "10": 3,   // 10kg - ₹3 per kg
+      "25": 2,   // 25kg - ₹2 per kg
+      "40": 2,   // 40kg - ₹2 per kg
+      "50": 2,   // 50kg - ₹2 per kg
+      "100": 2,  // 100kg - ₹2 per kg
+      "1000": 2  // 1 Ton (1000kg) - ₹2 per kg
+    }
+  },
+  { 
+    value: "BOPP (Biaxially Oriented Polypropylene Laminated Bags)", 
+    basePrice: "4",
+    quantityPricing: {
+      "5": 4,    // 5kg - ₹4 per kg
+      "10": 3,   // 10kg - ₹3 per kg
+      "25": 2,   // 25kg - ₹2 per kg
+      "40": 2,   // 40kg - ₹2 per kg
+      "50": 2,   // 50kg - ₹2 per kg
+      "100": 2,  // 100kg - ₹2 per kg
+      "1000": 2  // 1 Ton (1000kg) - ₹2 per kg
+    }
+  }
+];
 
 // ============================================
-// RICE PACKING OPTIONS ONLY - KEEP THIS
+// HELPER FUNCTION TO GET PACKING PRICE
 // ============================================
-export const ricePackingOptions = [
-  { value: "PP Bags", price: "10" },
-  { value: "Non-Woven Bags", price: "15" },
-  { value: "Jute Bags", price: "20" },
-  { value: "BOPP Bags", price: "16" },
-  { value: "LDPE Bags", price: "12" },
-  { value: "HDPE Bags", price: "11" },
-  { value: "Vacuum Packed", price: "24" },
-  { value: "Paper Bags", price: "9" },
-  { value: "Bulk Packaging", price: "6" },
-  { value: "Custom Packaging", price: "30" }
-];
+export const getPackingPrice = (packingValue, quantityValue) => {
+  if (!packingValue || !quantityValue) return 0;
+  
+  // Find the packing option
+  const packingOption = ricePackingOptions.find(opt => opt.value === packingValue);
+  if (!packingOption || !packingOption.quantityPricing) return 0;
+  
+  // Convert quantity to number
+  const qty = parseInt(quantityValue);
+  const pricing = packingOption.quantityPricing;
+  
+  // Find the applicable price based on quantity
+  const availableQuantities = Object.keys(pricing).map(Number).sort((a, b) => a - b);
+  let selectedQty = availableQuantities[0]; // Default to smallest
+  
+  // Find the largest quantity that is <= the selected quantity
+  for (let i = availableQuantities.length - 1; i >= 0; i--) {
+    if (qty >= availableQuantities[i]) {
+      selectedQty = availableQuantities[i];
+      break;
+    }
+  }
+  
+  return pricing[selectedQty] || parseFloat(packingOption.basePrice) || 0;
+};
 
 // ============================================
 // QUANTITY OPTIONS - CENTRALIZED
 // ============================================
 
-// Standard quantity options for products in kg
+// Standard quantity options for products in kg - UPDATED FOR RICE
 export const kgQuantityOptions = [
-  { value: "1", label: "1 kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
   { value: "5", label: "5 kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
   { value: "10", label: "10 kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
   { value: "25", label: "25 kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
+  { value: "40", label: "40 kg", multiplier: 40, unit: "kg", actualQuantity: 40, actualUnit: "kg" },
   { value: "50", label: "50 kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
   { value: "100", label: "100 kg (1 Quintal)", multiplier: 100, unit: "kg", actualQuantity: 100, actualUnit: "kg" },
-  { value: "500", label: "500 kg (5 Quintals)", multiplier: 500, unit: "kg", actualQuantity: 500, actualUnit: "kg" },
   { value: "1000", label: "1000 kg (1 Ton)", multiplier: 1000, unit: "kg", actualQuantity: 1000, actualUnit: "kg" },
   { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
 ];
